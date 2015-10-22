@@ -17,6 +17,13 @@
 
 package org.apache.ignite.configuration;
 
+import java.io.Serializable;
+import java.util.Collection;
+import javax.cache.Cache;
+import javax.cache.configuration.CompleteConfiguration;
+import javax.cache.configuration.Factory;
+import javax.cache.configuration.MutableConfiguration;
+import javax.cache.expiry.ExpiryPolicy;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
@@ -44,6 +51,7 @@ import javax.cache.configuration.MutableConfiguration;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.HashSet;
 
 /**
  * This class defines grid cache configuration. This configuration is passed to
@@ -439,7 +447,7 @@ public class CacheConfiguration<K, V> extends MutableConfiguration<K, V> {
      * @return {@code this} for chaining.
      */
     public CacheConfiguration<K, V> setName(String name) {
-        A.ensure(name == null || !name.isEmpty(), "Name cannot be null or empty.");
+        A.ensure(name == null || !name.isEmpty(), "Name cannot be empty.");
 
         this.name = name;
 
@@ -1833,6 +1841,20 @@ public class CacheConfiguration<K, V> extends MutableConfiguration<K, V> {
         this.storeSesLsnrs = storeSesLsnrs;
 
         return this;
+    }
+
+    /**
+     * Creates a copy of current configuration and removes all cache entry listeners.
+     * They are executed only locally and should never be sent to remote nodes.
+     *
+     * @return Configuration object that will be serialized.
+     */
+    protected Object writeReplace() {
+        CacheConfiguration<K, V> cfg = new CacheConfiguration<>(this);
+
+        cfg.listenerConfigurations = new HashSet<>();
+
+        return cfg;
     }
 
     /** {@inheritDoc} */

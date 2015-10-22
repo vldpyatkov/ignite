@@ -137,6 +137,8 @@ public class GridCacheTxNodeFailureSelfTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testPrimaryNodeFailureBackupRollbackOptimistic() throws Exception {
+        fail("https://issues.apache.org/jira/browse/IGNITE-1731");
+
         checkPrimaryNodeFailureBackupCommit(OPTIMISTIC, false, false);
     }
 
@@ -199,7 +201,7 @@ public class GridCacheTxNodeFailureSelfTest extends GridCommonAbstractTest {
         try {
             final Ignite ignite = ignite(0);
 
-            final IgniteCache<Object, Object> cache = ignite.cache(null);
+            final IgniteCache<Object, Object> cache = ignite.cache(null).withNoRetries();
 
             final int key = generateKey(ignite, backup);
 
