@@ -17,8 +17,9 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
-import java.io.Serializable;
-import org.apache.ignite.cache.store.jdbc.dialect.JdbcDialect;
+import org.apache.ignite.cache.store.jdbc.dialect.*;
+
+import java.io.*;
 
 /**
  * JDBC POJO store configuration.
@@ -36,8 +37,8 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     /** Default batch size for put and remove operations. */
     protected static final int DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD = 512;
 
-    /** Types that store could process. */
-    private CacheJdbcPojoStoreType[] types;
+    /** Maximum batch size for writeAll and deleteAll operations. */
+    private int batchSz = DFLT_BATCH_SIZE;
 
     /** Name of data source bean. */
     private String dataSrcBean;
@@ -48,12 +49,171 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     /** Max workers thread count. These threads are responsible for load cache. */
     private int maxPoolSz = Runtime.getRuntime().availableProcessors();
 
-    /** Maximum batch size for writeAll and deleteAll operations. */
+    /** Maximum write attempts in case of database error. */
     private int maxWrtAttempts = DFLT_WRITE_ATTEMPTS;
-
-    /** Maximum batch size for writeAll and deleteAll operations. */
-    private int batchSz = DFLT_BATCH_SIZE;
 
     /** Parallel load cache minimum threshold. If {@code 0} then load sequentially. */
     private int parallelLoadCacheMinThreshold = DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD;
+
+    /** Types that store could process. */
+    private CacheJdbcPojoStoreType[] types;
+
+    /** Empty constructor (all values are initialized to their defaults). */
+    public CacheJdbcPojoStoreConfiguration() {
+        /* No-op. */
+    }
+
+    /**
+     * Copy constructor.
+     *
+     * @param cfg Configuration to copy.
+     */
+    public CacheJdbcPojoStoreConfiguration(CacheJdbcPojoStoreConfiguration cfg) {
+
+    }
+
+    /**
+     * Get maximum batch size for delete and delete operations.
+     *
+     * @return Maximum batch size.
+     */
+    public int getBatchSize() {
+        return batchSz;
+    }
+
+    /**
+     * Set maximum batch size for write and delete operations.
+     *
+     * @param batchSz Maximum batch size.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setBatchSize(int batchSz) {
+        this.batchSz = batchSz;
+
+        return this;
+    }
+
+    /**
+     * Gets name of the data source bean.
+     *
+     * @return Data source bean name.
+     */
+    public String getDataSrcBean() {
+        return dataSrcBean;
+    }
+
+    /**
+     * Sets name of the data source bean.
+     *
+     * @param dataSrcBean Data source bean name.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setDataSourceBean(String dataSrcBean) {
+        this.dataSrcBean = dataSrcBean;
+
+        return this;
+    }
+
+    /**
+     * Get database dialect.
+     *
+     * @return Database dialect.
+     */
+    public JdbcDialect getDialect() {
+        return dialect;
+    }
+
+    /**
+     * Set database dialect.
+     *
+     * @param dialect Database dialect.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setDialect(JdbcDialect dialect) {
+        this.dialect = dialect;
+
+        return this;
+    }
+
+    /**
+     * Get maximum workers thread count. These threads are responsible for queries execution.
+     *
+     * @return Maximum workers thread count.
+     */
+    public int getMaximumPoolSize() {
+        return maxPoolSz;
+    }
+
+    /**
+     * Set Maximum workers thread count. These threads are responsible for queries execution.
+     *
+     * @param maxPoolSz Max workers thread count.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setMaximumPoolSize(int maxPoolSz) {
+        this.maxPoolSz = maxPoolSz;
+
+        return this;
+    }
+
+    /**
+     * Gets maximum number of write attempts in case of database error
+     *
+     * @return Maximum number of write attempts.
+     */
+    public int getMaxWriteAttempts() {
+        return maxWrtAttempts;
+    }
+
+    /**
+     * Sets maximum number of write attempts in case of database error
+     *
+     * @param
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setMaxWriteAttempts(int maxWrtAttempts) {
+        this.maxWrtAttempts = maxWrtAttempts;
+
+        return this;
+    }
+
+    /**
+     * Parallel load cache minimum row count threshold.
+     *
+     * @return If {@code 0} then load sequentially.
+     */
+    public int getParallelLoadCacheMinimumThreshold() {
+        return parallelLoadCacheMinThreshold;
+    }
+
+    /**
+     * Parallel load cache minimum row count threshold.
+     *
+     * @param parallelLoadCacheMinThreshold Minimum row count threshold. If {@code 0} then load sequentially.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setParallelLoadCacheMinimumThreshold(int parallelLoadCacheMinThreshold) {
+        this.parallelLoadCacheMinThreshold = parallelLoadCacheMinThreshold;
+
+        return this;
+    }
+
+    /**
+     *
+     * @return Types known by store.
+     */
+    public CacheJdbcPojoStoreType[] getTypes() {
+        return types;
+    }
+
+    /**
+     *
+     * @param types Store should process.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setTypes(CacheJdbcPojoStoreType[] types) {
+        this.types = types;
+
+        return this;
+    }
 }
