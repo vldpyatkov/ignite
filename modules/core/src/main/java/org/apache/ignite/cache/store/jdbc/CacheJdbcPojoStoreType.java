@@ -27,6 +27,9 @@ public class CacheJdbcPojoStoreType implements Serializable {
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** Cache name. */
+    private String cacheName;
+
     /** Schema name in database. */
     private String dbSchema;
 
@@ -63,6 +66,8 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param type Type to copy.
      */
     public CacheJdbcPojoStoreType(CacheJdbcPojoStoreType type) {
+        cacheName = type.getCacheName();
+
         dbSchema = type.getDatabaseSchema();
         dbTbl = type.getDatabaseTable();
 
@@ -73,6 +78,26 @@ public class CacheJdbcPojoStoreType implements Serializable {
         valFields = type.getValueFields();
 
         keepSerialized = type.isKeepSerialized();
+    }
+
+    /**
+     * Gets database schema name.
+     *
+     * @return Schema name.
+     */
+    public String getCacheName() {
+        return dbSchema;
+    }
+
+    /**
+     * Sets database schema name.
+     *
+     * @param dbSchema Schema name.
+     */
+    public CacheJdbcPojoStoreType setCacheName(String dbSchema) {
+        this.dbSchema = dbSchema;
+
+        return this;
     }
 
     /**

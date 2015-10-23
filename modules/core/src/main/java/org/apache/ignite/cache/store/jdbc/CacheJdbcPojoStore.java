@@ -49,6 +49,8 @@ import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.cache.CacheTypeFieldMetadata;
+import org.apache.ignite.cache.CacheTypeMetadata;
 import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.cache.store.CacheStoreSession;
 import org.apache.ignite.cache.store.jdbc.dialect.BasicJdbcDialect;
@@ -98,23 +100,23 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
 
     /** Auto-injected logger instance. */
     @LoggerResource
-    protected IgniteLogger log;
+    private IgniteLogger log;
 
     /** Lock for metadata cache. */
     @GridToStringExclude
     private final Lock cacheMappingsLock = new ReentrantLock();
 
     /** Data source. */
-    protected DataSource dataSrc;
+    private DataSource dataSrc;
 
     /** Cache with entry mapping description. (cache name, (key id, mapping description)). */
-    protected volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
+    private volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
 
     /** Maximum batch size for writeAll and deleteAll operations. */
     private int batchSz = DFLT_BATCH_SIZE;
 
     /** Database dialect. */
-    protected JdbcDialect dialect;
+    private JdbcDialect dialect;
 
     /** Max workers thread count. These threads are responsible for load cache. */
     private int maxPoolSz = Runtime.getRuntime().availableProcessors();
@@ -127,6 +129,9 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
 
     /** Types that store could process. */
     private CacheJdbcPojoStoreType[] types;
+
+    /** Methods cache. */
+    private volatile Map<String, Map<String, PojoMethodsCache>> mtdsCache = Collections.emptyMap();
 
     /**
      * Get field value from object for use as query parameter.
@@ -257,7 +262,6 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @param types Collection of types.
      * @throws CacheException If failed to prepare internal builders for types.
      */
-    /** {@inheritDoc} */
     protected void prepareBuilders(@Nullable String cacheName, Collection<CacheJdbcPojoStoreType> types)
         throws CacheException {
         Map<String, PojoMethodsCache> typeMethods = U.newHashMap(types.size() * 2);
@@ -636,6 +640,28 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
     }
 
     /**
+     * For backward compatibility translate old field type descriptors to new format.
+     *
+     * @param oldFields Fields in old format.
+     * @return Fields in new format.
+     */
+    @Deprecated
+    private CacheJdbcPojoStoreTypeField[] translateFields(Collection<CacheTypeFieldMetadata> oldFields) {
+        CacheJdbcPojoStoreTypeField[] newFields = new CacheJdbcPojoStoreTypeField[oldFields.size()];
+
+        int idx = 0;
+
+        for (CacheTypeFieldMetadata oldField : oldFields) {
+            newFields[idx] = new CacheJdbcPojoStoreTypeField(oldField.getDatabaseType(), oldField.getDatabaseName(),
+                oldField.getJavaType(), oldField.getJavaName());
+
+            idx++;
+        }
+
+        return newFields;
+    }
+
+    /**
      * @param cacheName Cache name to check mappings for.
      * @return Type mappings for specified cache name.
      * @throws CacheException If failed to initialize cache mappings.
@@ -654,30 +680,59 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
             if (entryMappings != null)
                 return entryMappings;
 
-            CacheConfiguration ccfg = ignite().cache(cacheName).getConfiguration(CacheConfiguration.class);
+            // If no types configured, check CacheTypeMetadata for backward compatibility.
+            if (types == null) {
+                CacheConfiguration ccfg = ignite().cache(cacheName).getConfiguration(CacheConfiguration.class);
 
-            Collection<CacheJdbcPojoStoreType> types = ccfg.getTypeMetadata();
+                Collection<CacheTypeMetadata> oldTypes = ccfg.getTypeMetadata();
 
-            entryMappings = U.newHashMap(types.size());
+                types = new CacheJdbcPojoStoreType[oldTypes.size()];
+
+                int idx = 0;
+
+                for (CacheTypeMetadata oldType : oldTypes) {
+                    CacheJdbcPojoStoreType newType = new CacheJdbcPojoStoreType();
+
+                    newType.setCacheName(cacheName);
+
+                    newType.setDatabaseSchema(oldType.getDatabaseSchema());
+                    newType.setDatabaseTable(oldType.getDatabaseTable());
+
+                    newType.setKeyType(oldType.getKeyType());
+                    newType.setKeyFields(translateFields(oldType.getKeyFields()));
+
+                    newType.setValueType(oldType.getValueType());
+                    newType.setValueFields(translateFields(oldType.getKeyFields()));
+
+                    types[idx] = newType;
+
+                    idx++;
+                }
+            }
+
+            entryMappings = U.newHashMap(types.length);
 
             for (CacheJdbcPojoStoreType type : types) {
-                Object keyTypeId = keyTypeId(type.getKeyType());
+                if ((cacheName != null && cacheName.equals(type.getCacheName())) ||
+                    (cacheName == null && type.getCacheName() == null)) {
+                    Object keyTypeId = keyTypeId(type.getKeyType());
 
-                if (entryMappings.containsKey(keyTypeId))
-                    throw new CacheException("Key type must be unique in type metadata [cache name=" + cacheName +
-                        ", key type=" + type.getKeyType() + "]");
+                    if (entryMappings.containsKey(keyTypeId))
+                        throw new CacheException("Key type must be unique in type metadata [cache name=" + cacheName +
+                            ", key type=" + type.getKeyType() + "]");
 
-                checkMapping(cacheName, type.getKeyType(), type.getKeyFields());
-                checkMapping(cacheName, type.getValueType(), type.getValueFields());
+                    checkMapping(cacheName, type.getKeyType(), type.getKeyFields());
+                    checkMapping(cacheName, type.getValueType(), type.getValueFields());
 
-                entryMappings.put(keyTypeId(type.getKeyType()), new EntryMapping(cacheName, dialect, type));
+                    entryMappings.put(keyTypeId(type.getKeyType()), new EntryMapping(cacheName, dialect, type));
+                }
             }
 
             Map<String, Map<Object, EntryMapping>> mappings = new HashMap<>(cacheMappings);
 
             mappings.put(cacheName, entryMappings);
 
-            prepareBuilders(cacheName, types);
+            prepareBuilders(cacheName, F.asList(types));
 
             cacheMappings = mappings;
 
@@ -1547,21 +1602,21 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
     /**
      * @return Ignite instance.
      */
-    protected Ignite ignite() {
+    private Ignite ignite() {
         return ignite;
     }
 
     /**
      * @return Store session.
      */
-    protected CacheStoreSession session() {
+    private CacheStoreSession session() {
         return ses;
     }
 
     /**
      * POJO methods cache.
      */
-    protected static class PojoMethodsCache {
+    private static class PojoMethodsCache {
         /** POJO class. */
         protected final Class<?> cls;
 
@@ -1644,9 +1699,6 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
                 str.isEmpty() ? "" : Character.toUpperCase(str.charAt(0)) + str.substring(1);
         }
     }
-
-    /** Methods cache. */
-    protected volatile Map<String, Map<String, PojoMethodsCache>> mtdsCache = Collections.emptyMap();
 
     /**
      * Entry mapping description.

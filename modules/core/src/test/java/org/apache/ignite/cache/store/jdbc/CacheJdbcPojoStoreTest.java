@@ -40,6 +40,7 @@ import org.apache.ignite.cache.store.jdbc.model.PersonComplexKey;
 import org.apache.ignite.cache.store.jdbc.model.PersonKey;
 import org.apache.ignite.internal.processors.cache.CacheEntryImpl;
 import org.apache.ignite.internal.util.typedef.CI2;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiInClosure;
