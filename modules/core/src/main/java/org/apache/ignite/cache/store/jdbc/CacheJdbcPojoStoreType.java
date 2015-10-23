@@ -36,12 +36,12 @@ public class CacheJdbcPojoStoreType implements Serializable {
     /** Key class used to store key in cache. */
     private String keyType;
 
-    /** Value class used to store value in cache. */
-    private String valType;
-
     /** List of fields descriptors for key object. */
     @GridToStringInclude
     private CacheJdbcPojoStoreTypeField[] keyFields;
+
+    /** Value class used to store value in cache. */
+    private String valType;
 
     /** List of fields descriptors for value object. */
     @GridToStringInclude
@@ -49,6 +49,31 @@ public class CacheJdbcPojoStoreType implements Serializable {
 
     /** If {@code true} object is stored as IgniteObject. */
     private boolean keepSerialized;
+
+    /**
+     * Empty constructor (all values are initialized to their defaults).
+     */
+    public CacheJdbcPojoStoreType() {
+        /* No-op. */
+    }
+
+    /**
+     * Copy constructor.
+     *
+     * @param type Type to copy.
+     */
+    public CacheJdbcPojoStoreType(CacheJdbcPojoStoreType type) {
+        dbSchema = type.getDatabaseSchema();
+        dbTbl = type.getDatabaseTable();
+
+        keyType = type.getKeyType();
+        keyFields = type.getKeyFields();
+
+        valType = type.getValueType();
+        valFields = type.getValueFields();
+
+        keepSerialized = type.isKeepSerialized();
+    }
 
     /**
      * Gets database schema name.
@@ -195,6 +220,27 @@ public class CacheJdbcPojoStoreType implements Serializable {
      */
     public CacheJdbcPojoStoreType setValueFields(CacheJdbcPojoStoreTypeField... valFields) {
         this.valFields = valFields;
+
+        return this;
+    }
+
+    /**
+     * Gets how value stored in cache.
+     *
+     * @return {@code true} if object is stored as IgniteObject.
+     */
+    public boolean isKeepSerialized() {
+        return keepSerialized;
+    }
+
+    /**
+     * Sets how value stored in cache.
+     *
+     * @param keepSerialized {@code true} if object is stored as IgniteObject.
+     * @return {@code this} for chaining.
+     */
+    public CacheJdbcPojoStoreType setKeepSerialized(boolean keepSerialized) {
+        this.keepSerialized = keepSerialized;
 
         return this;
     }

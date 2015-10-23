@@ -17,29 +17,142 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
+import java.io.Serializable;
+import org.apache.ignite.internal.util.typedef.internal.S;
+
 /**
  * Description of how field declared in database and in cache.
  */
-public class CacheJdbcPojoStoreTypeField {
+public class CacheJdbcPojoStoreTypeField implements Serializable {
     /** */
     private static final long serialVersionUID = 0L;
-
-    /** Field name in database. */
-    private String dbFieldName;
 
     /** Field JDBC type in database. */
     private int dbFieldType;
 
-    /** Field name in java object. */
-    private String javaFieldName;
+    /** Field name in database. */
+    private String dbFieldName;
 
     /** Field java type. */
     private Class<?> javaFieldType;
+
+    /** Field name in java object. */
+    private String javaFieldName;
 
     /**
      * Default constructor.
      */
     public CacheJdbcPojoStoreTypeField() {
         // No-op.
+    }
+
+    /**
+     * Full constructor.
+     *
+     * @param dbFieldType Field JDBC type in database.
+     * @param dbFieldName Field name in database.
+     * @param javaFieldType Field java type.
+     * @param javaFieldName Field name in java object.
+     */
+    public CacheJdbcPojoStoreTypeField(int dbFieldType, String dbFieldName, Class<?> javaFieldType, String javaFieldName) {
+        this.dbFieldType = dbFieldType;
+        this.dbFieldName = dbFieldName;
+        this.javaFieldType = javaFieldType;
+        this.javaFieldName = javaFieldName;
+    }
+
+    /**
+     * Copy constructor.
+     *
+     * @param field Field to copy.
+     */
+    public CacheJdbcPojoStoreTypeField(CacheJdbcPojoStoreTypeField field) {
+        this(field.getDatabaseType(), field.getDatabaseName(), field.getJavaType(), field.getJavaName());
+    }
+
+    /**
+     * @return Column name in database.
+     */
+    public String getDatabaseName() {
+        return dbFieldName;
+    }
+
+    /**
+     * @param dbName Column name in database.
+     */
+    public void setDatabaseName(String dbName) {
+        this.dbFieldName = dbName;
+    }
+
+    /**
+     * @return Column JDBC type in database.
+     */
+    public int getDatabaseType() {
+        return dbFieldType;
+    }
+
+    /**
+     * @param dbType Column JDBC type in database.
+     */
+    public void setDatabaseType(int dbType) {
+        this.dbFieldType = dbType;
+    }
+
+    /**
+     * @return Field name in java object.
+     */
+    public String getJavaName() {
+        return javaFieldName;
+    }
+
+    /**
+     * @param javaName Field name in java object.
+     */
+    public void setJavaName(String javaName) {
+        this.javaFieldName = javaName;
+    }
+
+    /**
+     * @return Field java type.
+     */
+    public Class<?> getJavaType() {
+        return javaFieldType;
+    }
+
+    /**
+     * @param javaType Corresponding java type.
+     */
+    public void setJavaType(Class<?> javaType) {
+        this.javaFieldType = javaType;
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean equals(Object o) {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof CacheJdbcPojoStoreTypeField))
+            return false;
+
+        CacheJdbcPojoStoreTypeField that = (CacheJdbcPojoStoreTypeField)o;
+
+        return dbFieldType == that.dbFieldType && dbFieldName.equals(that.dbFieldName) &&
+            javaFieldType == that.javaFieldType && javaFieldName.equals(that.javaFieldName);
+    }
+
+    /** {@inheritDoc} */
+    @Override public int hashCode() {
+        int res = dbFieldType;
+        res = 31 * res + dbFieldName.hashCode();
+
+        res = 31 * res + javaFieldType.hashCode();
+        res = 31 * res + javaFieldName.hashCode();
+
+        return res;
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(CacheJdbcPojoStoreTypeField.class, this);
     }
 }

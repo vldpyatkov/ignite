@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import javax.cache.integration.CacheWriterException;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.cache.CacheTypeMetadata;
 import org.apache.ignite.cache.store.jdbc.dialect.BasicJdbcDialect;
 import org.apache.ignite.cache.store.jdbc.dialect.JdbcDialect;
 import org.apache.ignite.cache.store.jdbc.model.Organization;
@@ -112,7 +111,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
 
             springCtx.refresh();
 
-            Collection<CacheTypeMetadata> typeMeta = springCtx.getBeansOfType(CacheTypeMetadata.class).values();
+            Collection<CacheJdbcPojoStoreType> typeMeta = springCtx.getBeansOfType(CacheJdbcPojoStoreType.class).values();
 
             Map<Integer, Map<Object, CacheAbstractJdbcStore.EntryMapping>> cacheMappings = new HashMap<>();
 
@@ -122,7 +121,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
 
             Map<Object, CacheAbstractJdbcStore.EntryMapping> entryMappings = U.newHashMap(typeMeta.size());
 
-            for (CacheTypeMetadata type : typeMeta)
+            for (CacheJdbcPojoStoreType type : typeMeta)
                 entryMappings.put(store.keyTypeId(type.getKeyType()),
                     new CacheAbstractJdbcStore.EntryMapping(null, dialect, type));
 
@@ -366,7 +365,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
 
         CacheAbstractJdbcStore.EntryMapping em = cacheMappings.get(null).get(OrganizationKey.class);
 
-        CacheTypeMetadata typeMeta = GridTestUtils.getFieldValue(em, CacheAbstractJdbcStore.EntryMapping.class, "typeMeta");
+        CacheJdbcPojoStoreType typeMeta = GridTestUtils.getFieldValue(em, CacheAbstractJdbcStore.EntryMapping.class, "typeMeta");
 
         cacheMappings.get(null).put(OrganizationKey.class,
             new CacheAbstractJdbcStore.EntryMapping(null, dialect, typeMeta));

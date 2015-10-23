@@ -29,13 +29,13 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     private static final long serialVersionUID = 0L;
 
     /** Default value for write attempts. */
-    protected static final int DFLT_WRITE_ATTEMPTS = 2;
+    public static final int DFLT_WRITE_ATTEMPTS = 2;
 
     /** Default batch size for put and remove operations. */
-    protected static final int DFLT_BATCH_SIZE = 512;
+    public static final int DFLT_BATCH_SIZE = 512;
 
     /** Default batch size for put and remove operations. */
-    protected static final int DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD = 512;
+    public static final int DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD = 512;
 
     /** Maximum batch size for writeAll and deleteAll operations. */
     private int batchSz = DFLT_BATCH_SIZE;
@@ -58,7 +58,9 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     /** Types that store could process. */
     private CacheJdbcPojoStoreType[] types;
 
-    /** Empty constructor (all values are initialized to their defaults). */
+    /**
+     * Empty constructor (all values are initialized to their defaults).
+     */
     public CacheJdbcPojoStoreConfiguration() {
         /* No-op. */
     }
@@ -69,7 +71,14 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
      * @param cfg Configuration to copy.
      */
     public CacheJdbcPojoStoreConfiguration(CacheJdbcPojoStoreConfiguration cfg) {
-
+        // Order alphabetically for maintenance purposes.
+        batchSz = cfg.getBatchSize();
+        dataSrcBean = cfg.getDataSourceBean();
+        dialect = cfg.getDialect();
+        maxPoolSz = cfg.getMaximumPoolSize();
+        maxWrtAttempts = cfg.getMaximumWriteAttempts();
+        parallelLoadCacheMinThreshold = cfg.getParallelLoadCacheMinimumThreshold();
+        types = cfg.getTypes();
     }
 
     /**
@@ -98,7 +107,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
      *
      * @return Data source bean name.
      */
-    public String getDataSrcBean() {
+    public String getDataSourceBean() {
         return dataSrcBean;
     }
 
@@ -157,21 +166,21 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     }
 
     /**
-     * Gets maximum number of write attempts in case of database error
+     * Gets maximum number of write attempts in case of database error.
      *
      * @return Maximum number of write attempts.
      */
-    public int getMaxWriteAttempts() {
+    public int getMaximumWriteAttempts() {
         return maxWrtAttempts;
     }
 
     /**
-     * Sets maximum number of write attempts in case of database error
+     * Sets maximum number of write attempts in case of database error.
      *
-     * @param
+     * @param maxWrtAttempts Number of write attempts.
      * @return {@code This} for chaining.
      */
-    public CacheJdbcPojoStoreConfiguration setMaxWriteAttempts(int maxWrtAttempts) {
+    public CacheJdbcPojoStoreConfiguration setMaximumWriteAttempts(int maxWrtAttempts) {
         this.maxWrtAttempts = maxWrtAttempts;
 
         return this;
@@ -199,6 +208,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     }
 
     /**
+     * Gets types known by store.
      *
      * @return Types known by store.
      */
@@ -207,11 +217,12 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     }
 
     /**
+     * Sets store configurations.
      *
      * @param types Store should process.
      * @return {@code This} for chaining.
      */
-    public CacheJdbcPojoStoreConfiguration setTypes(CacheJdbcPojoStoreType[] types) {
+    public CacheJdbcPojoStoreConfiguration setTypes(CacheJdbcPojoStoreType... types) {
         this.types = types;
 
         return this;

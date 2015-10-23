@@ -27,19 +27,15 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.cache.CacheException;
 import javax.cache.integration.CacheLoaderException;
-import org.apache.ignite.cache.CacheTypeFieldMetadata;
-import org.apache.ignite.cache.CacheTypeMetadata;
 import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.configuration.CacheConfiguration;
-import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Implementation of {@link CacheStore} backed by JDBC and POJO via reflection.
  *
- * This implementation stores objects in underlying database using java beans mapping description via reflection.
- * <p>
+ * This implementation stores objects in underlying database using java beans mapping description via reflection. <p>
  * Use {@link CacheJdbcPojoStoreFactory} factory to pass {@link CacheJdbcPojoStore} to {@link CacheConfiguration}.
  */
 public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
@@ -67,10 +63,9 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
          *
          * @param clsName Class name.
          * @param fields Fields.
-         *
          * @throws CacheException If failed to construct type cache.
          */
-        public PojoMethodsCache(String clsName, Collection<CacheTypeFieldMetadata> fields) throws CacheException {
+        public PojoMethodsCache(String clsName, CacheJdbcPojoStoreTypeField[] fields) throws CacheException {
             try {
                 cls = Class.forName(clsName);
 
@@ -89,11 +84,11 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                 throw new CacheException("Failed to find default constructor for class: " + clsName, e);
             }
 
-            setters = U.newHashMap(fields.size());
+            setters = U.newHashMap(fields.length);
 
-            getters = U.newHashMap(fields.size());
+            getters = U.newHashMap(fields.length);
 
-            for (CacheTypeFieldMetadata field : fields) {
+            for (CacheJdbcPojoStoreTypeField field : fields) {
                 String prop = capitalFirst(field.getJavaName());
 
                 try {
@@ -135,11 +130,11 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     protected volatile Map<String, Map<String, PojoMethodsCache>> mtdsCache = Collections.emptyMap();
 
     /** {@inheritDoc} */
-    @Override protected void prepareBuilders(@Nullable String cacheName, Collection<CacheTypeMetadata> types)
+    @Override protected void prepareBuilders(@Nullable String cacheName, Collection<CacheJdbcPojoStoreType> types)
         throws CacheException {
         Map<String, PojoMethodsCache> typeMethods = U.newHashMap(types.size() * 2);
 
-        for (CacheTypeMetadata type : types) {
+        for (CacheJdbcPojoStoreType type : types) {
             String keyType = type.getKeyType();
             typeMethods.put(keyType, new PojoMethodsCache(keyType, type.getKeyFields()));
 
@@ -155,7 +150,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     }
 
     /** {@inheritDoc} */
-    @Override protected <R> R buildObject(String cacheName, String typeName, Collection<CacheTypeFieldMetadata> fields,
+    @Override protected <R> R buildObject(String cacheName, String typeName,
+        CacheJdbcPojoStoreTypeField[] fields,
         Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheLoaderException {
         PojoMethodsCache mc = mtdsCache.get(cacheName).get(typeName);
 
@@ -164,14 +160,14 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
         try {
             if (mc.simple) {
-                CacheTypeFieldMetadata field = F.first(fields);
+                CacheJdbcPojoStoreTypeField field = fields[0];
 
                 return (R)getColumnValue(rs, loadColIdxs.get(field.getDatabaseName()), mc.cls);
             }
 
             Object obj = mc.ctor.newInstance();
 
-            for (CacheTypeFieldMetadata field : fields) {
+            for (CacheJdbcPojoStoreTypeField field : fields) {
                 String fldJavaName = field.getJavaName();
 
                 Method setter = mc.setters.get(fldJavaName);
