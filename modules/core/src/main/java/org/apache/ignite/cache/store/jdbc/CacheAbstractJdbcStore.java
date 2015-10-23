@@ -47,6 +47,8 @@ import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.cache.CacheTypeFieldMetadata;
+import org.apache.ignite.cache.CacheTypeMetadata;
 import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.cache.store.CacheStoreSession;
 import org.apache.ignite.cache.store.jdbc.dialect.BasicJdbcDialect;
@@ -111,6 +113,7 @@ import static java.sql.Statement.SUCCESS_NO_INFO;
  *    ...
  * </pre>
  */
+@Deprecated
 public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, LifecycleAware {
     /** Max attempt write count. */
     protected static final int MAX_ATTEMPT_WRITE_COUNT = 2;
@@ -155,12 +158,6 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Max workers thread count. These threads are responsible for load cache. */
     private int maxPoolSz = Runtime.getRuntime().availableProcessors();
 
-    /** Maximum write attempts in case of database error. */
-    private int maxWrtAttempts = MAX_ATTEMPT_WRITE_COUNT;
-
-    /** Types that store could process. */
-    private CacheJdbcPojoStoreType[] types;
-
     /** Maximum batch size for writeAll and deleteAll operations. */
     private int batchSz = DFLT_BATCH_SIZE;
 
@@ -193,7 +190,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @throws CacheLoaderException If failed to construct cache object.
      */
     protected abstract <R> R buildObject(@Nullable String cacheName, String typeName,
-        CacheJdbcPojoStoreTypeField[] fields, Map<String, Integer> loadColIdxs, ResultSet rs)
+        Collection<CacheTypeFieldMetadata> fields, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException;
 
     /**
@@ -221,7 +218,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @param types Collection of types.
      * @throws CacheException If failed to prepare internal builders for types.
      */
-    protected abstract void prepareBuilders(@Nullable String cacheName, Collection<CacheJdbcPojoStoreType> types)
+    protected abstract void prepareBuilders(@Nullable String cacheName, Collection<CacheTypeMetadata> types)
         throws CacheException;
 
     /**
@@ -545,16 +542,16 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @throws CacheException If failed to check type metadata.
      */
     private static void checkMapping(@Nullable String cacheName, String clsName,
-        CacheJdbcPojoStoreTypeField[] fields) throws CacheException {
+        Collection<CacheTypeFieldMetadata> fields) throws CacheException {
         try {
             Class<?> cls = Class.forName(clsName);
 
             if (simpleType(cls)) {
-                if (fields.length != 1)
+                if (fields.size() != 1)
                     throw new CacheException("More than one field for simple type [cache name=" + cacheName
                         + ", type=" + clsName + " ]");
 
-                CacheJdbcPojoStoreTypeField field = fields[0];
+                CacheTypeFieldMetadata field = F.first(fields);
 
                 if (field.getDatabaseName() == null)
                     throw new CacheException("Missing database name in mapping description [cache name=" + cacheName
@@ -563,7 +560,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 field.setJavaType(cls);
             }
             else
-                for (CacheJdbcPojoStoreTypeField field : fields) {
+                for (CacheTypeFieldMetadata field : fields) {
                     if (field.getDatabaseName() == null)
                         throw new CacheException("Missing database name in mapping description [cache name=" + cacheName
                             + ", type=" + clsName + " ]");
@@ -603,11 +600,11 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             CacheConfiguration ccfg = ignite().cache(cacheName).getConfiguration(CacheConfiguration.class);
 
-            Collection<CacheJdbcPojoStoreType> types = ccfg.getTypeMetadata();
+            Collection<CacheTypeMetadata> types = ccfg.getTypeMetadata();
 
             entryMappings = U.newHashMap(types.size());
 
-            for (CacheJdbcPojoStoreType type : types) {
+            for (CacheTypeMetadata type : types) {
                 Object keyTypeId = keyTypeId(type.getKeyType());
 
                 if (entryMappings.containsKey(keyTypeId))
@@ -649,7 +646,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
             String maskedCacheName = U.maskName(cacheName);
 
             throw new CacheException("Failed to find mapping description [key=" + key +
-                ", cache=" + maskedCacheName + "]. Please configure CacheJdbcPojoStoreType to associate '" + maskedCacheName + "' with JdbcPojoStore.");
+                ", cache=" + maskedCacheName + "]. Please configure CacheTypeMetadata to associate '" + maskedCacheName + "' with JdbcPojoStore.");
         }
 
         return em;
@@ -1286,7 +1283,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @param fieldVal Field value.
      * @throws CacheException If failed to set statement parameter.
      */
-    protected void fillParameter(PreparedStatement stmt, int i, CacheJdbcPojoStoreTypeField field, @Nullable Object fieldVal)
+    protected void fillParameter(PreparedStatement stmt, int i, CacheTypeFieldMetadata field, @Nullable Object fieldVal)
         throws CacheException {
         try {
             if (fieldVal != null) {
@@ -1324,7 +1321,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      */
     protected int fillKeyParameters(PreparedStatement stmt, int idx, EntryMapping em,
         Object key) throws CacheException {
-        for (CacheJdbcPojoStoreTypeField field : em.keyColumns()) {
+        for (CacheTypeFieldMetadata field : em.keyColumns()) {
             Object fieldVal = extractParameter(em.cacheName, em.keyType(), field.getJavaName(), key);
 
             fillParameter(stmt, idx++, field, fieldVal);
@@ -1354,7 +1351,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      */
     protected int fillValueParameters(PreparedStatement stmt, int idx, EntryMapping em, Object val)
         throws CacheWriterException {
-        for (CacheJdbcPojoStoreTypeField field : em.uniqValFields) {
+        for (CacheTypeFieldMetadata field : em.uniqValFields) {
             Object fieldVal = extractParameter(em.cacheName, em.valueType(), field.getJavaName(), val);
 
             fillParameter(stmt, idx++, field, fieldVal);
@@ -1411,48 +1408,6 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      */
     public void setMaximumPoolSize(int maxPoolSz) {
         this.maxPoolSz = maxPoolSz;
-    }
-
-    /**
-     * Gets maximum number of write attempts in case of database error.
-     *
-     * @return Maximum number of write attempts.
-     */
-    public int getMaximumWriteAttempts() {
-        return maxWrtAttempts;
-    }
-
-    /**
-     * Sets maximum number of write attempts in case of database error.
-     *
-     * @param maxWrtAttempts Number of write attempts.
-     * @return {@code This} for chaining.
-     */
-    public CacheAbstractJdbcStore<K, V> setMaximumWriteAttempts(int maxWrtAttempts) {
-        this.maxWrtAttempts = maxWrtAttempts;
-
-        return this;
-    }
-
-    /**
-     * Gets types known by store.
-     *
-     * @return Types known by store.
-     */
-    public CacheJdbcPojoStoreType[] getTypes() {
-        return types;
-    }
-
-    /**
-     * Sets store configurations.
-     *
-     * @param types Store should process.
-     * @return {@code This} for chaining.
-     */
-    public CacheAbstractJdbcStore<K, V> setTypes(CacheJdbcPojoStoreType... types) {
-        this.types = types;
-
-        return this;
     }
 
     /**
@@ -1552,10 +1507,10 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
         private final Map<String, Integer> loadColIdxs;
 
         /** Unique value fields. */
-        private final Collection<CacheJdbcPojoStoreTypeField> uniqValFields;
+        private final Collection<CacheTypeFieldMetadata> uniqValFields;
 
         /** Type metadata. */
-        private final CacheJdbcPojoStoreType typeMeta;
+        private final CacheTypeMetadata typeMeta;
 
         /** Full table name. */
         private final String fullTblName;
@@ -1565,21 +1520,21 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
          * @param dialect JDBC dialect.
          * @param typeMeta Type metadata.
          */
-        public EntryMapping(@Nullable String cacheName, JdbcDialect dialect, CacheJdbcPojoStoreType typeMeta) {
+        public EntryMapping(@Nullable String cacheName, JdbcDialect dialect, CacheTypeMetadata typeMeta) {
             this.cacheName = cacheName;
 
             this.dialect = dialect;
 
             this.typeMeta = typeMeta;
 
-            CacheJdbcPojoStoreTypeField[] keyFields = typeMeta.getKeyFields();
+            Collection<CacheTypeFieldMetadata> keyFields = typeMeta.getKeyFields();
 
-            CacheJdbcPojoStoreTypeField[] valFields = typeMeta.getValueFields();
+            Collection<CacheTypeFieldMetadata> valFields = typeMeta.getValueFields();
 
-            keyCols = databaseColumns(F.asList(keyFields));
+            keyCols = databaseColumns(keyFields);
 
-            uniqValFields = F.view(F.asList(valFields), new IgnitePredicate<CacheJdbcPojoStoreTypeField>() {
-                @Override public boolean apply(CacheJdbcPojoStoreTypeField col) {
+            uniqValFields = F.view(valFields, new IgnitePredicate<CacheTypeFieldMetadata>() {
+                @Override public boolean apply(CacheTypeFieldMetadata col) {
                     return !keyCols.contains(col.getDatabaseName());
                 }
             });
@@ -1621,15 +1576,15 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
         }
 
         /**
-         * Extract database column names from {@link CacheJdbcPojoStoreTypeField}.
+         * Extract database column names from {@link CacheTypeFieldMetadata}.
          *
-         * @param dsc Fields descriptors.
+         * @param dsc collection of {@link CacheTypeFieldMetadata}.
          * @return Collection with database column names.
          */
-        private static Collection<String> databaseColumns(Collection<CacheJdbcPojoStoreTypeField> dsc) {
-            return F.transform(dsc, new C1<CacheJdbcPojoStoreTypeField, String>() {
+        private static Collection<String> databaseColumns(Collection<CacheTypeFieldMetadata> dsc) {
+            return F.transform(dsc, new C1<CacheTypeFieldMetadata, String>() {
                 /** {@inheritDoc} */
-                @Override public String apply(CacheJdbcPojoStoreTypeField col) {
+                @Override public String apply(CacheTypeFieldMetadata col) {
                     return col.getDatabaseName();
                 }
             });
@@ -1683,7 +1638,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
          *
          * @return Key columns.
          */
-        protected CacheJdbcPojoStoreTypeField[] keyColumns() {
+        protected Collection<CacheTypeFieldMetadata> keyColumns() {
             return typeMeta.getKeyFields();
         }
 
@@ -1692,7 +1647,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
          *
          * @return Value columns.
          */
-        protected CacheJdbcPojoStoreTypeField[] valueColumns() {
+        protected Collection<CacheTypeFieldMetadata> valueColumns() {
             return typeMeta.getValueFields();
         }
 
@@ -1843,7 +1798,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 int idx = 1;
 
                 for (Object key : keys)
-                    for (CacheJdbcPojoStoreTypeField field : em.keyColumns()) {
+                    for (CacheTypeFieldMetadata field : em.keyColumns()) {
                         Object fieldVal = extractParameter(em.cacheName, em.keyType(), field.getJavaName(), key);
 
                         fillParameter(stmt, idx++, field, fieldVal);

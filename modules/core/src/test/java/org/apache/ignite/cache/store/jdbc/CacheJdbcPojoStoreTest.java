@@ -113,23 +113,23 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
 
             Collection<CacheJdbcPojoStoreType> typeMeta = springCtx.getBeansOfType(CacheJdbcPojoStoreType.class).values();
 
-            Map<Integer, Map<Object, CacheAbstractJdbcStore.EntryMapping>> cacheMappings = new HashMap<>();
+            Map<Integer, Map<Object, CacheJdbcPojoStore.EntryMapping>> cacheMappings = new HashMap<>();
 
             JdbcDialect dialect = store.resolveDialect();
 
-            GridTestUtils.setFieldValue(store, CacheAbstractJdbcStore.class, "dialect", dialect);
+            GridTestUtils.setFieldValue(store, CacheJdbcPojoStore.class, "dialect", dialect);
 
-            Map<Object, CacheAbstractJdbcStore.EntryMapping> entryMappings = U.newHashMap(typeMeta.size());
+            Map<Object, CacheJdbcPojoStore.EntryMapping> entryMappings = U.newHashMap(typeMeta.size());
 
             for (CacheJdbcPojoStoreType type : typeMeta)
                 entryMappings.put(store.keyTypeId(type.getKeyType()),
-                    new CacheAbstractJdbcStore.EntryMapping(null, dialect, type));
+                    new CacheJdbcPojoStore.EntryMapping(null, dialect, type));
 
             store.prepareBuilders(null, typeMeta);
 
             cacheMappings.put(null, entryMappings);
 
-            GridTestUtils.setFieldValue(store, CacheAbstractJdbcStore.class, "cacheMappings", cacheMappings);
+            GridTestUtils.setFieldValue(store, CacheJdbcPojoStore.class, "cacheMappings", cacheMappings);
         }
         catch (BeansException e) {
             if (X.hasCause(e, ClassNotFoundException.class))
@@ -151,7 +151,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
     @Override protected void inject(CacheJdbcPojoStore<Object, Object> store) throws Exception {
         getTestResources().inject(store);
 
-        GridTestUtils.setFieldValue(store, CacheAbstractJdbcStore.class, "ses", ses);
+        GridTestUtils.setFieldValue(store, CacheJdbcPojoStore.class, "ses", ses);
     }
 
     /** {@inheritDoc} */
@@ -360,15 +360,15 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
 
         store.setDialect(dialect);
 
-        Map<String, Map<Object, CacheAbstractJdbcStore.EntryMapping>> cacheMappings =
-            GridTestUtils.getFieldValue(store, CacheAbstractJdbcStore.class, "cacheMappings");
+        Map<String, Map<Object, CacheJdbcPojoStore.EntryMapping>> cacheMappings =
+            GridTestUtils.getFieldValue(store, CacheJdbcPojoStore.class, "cacheMappings");
 
-        CacheAbstractJdbcStore.EntryMapping em = cacheMappings.get(null).get(OrganizationKey.class);
+        CacheJdbcPojoStore.EntryMapping em = cacheMappings.get(null).get(OrganizationKey.class);
 
-        CacheJdbcPojoStoreType typeMeta = GridTestUtils.getFieldValue(em, CacheAbstractJdbcStore.EntryMapping.class, "typeMeta");
+        CacheJdbcPojoStoreType typeMeta = GridTestUtils.getFieldValue(em, CacheJdbcPojoStore.EntryMapping.class, "typeMeta");
 
         cacheMappings.get(null).put(OrganizationKey.class,
-            new CacheAbstractJdbcStore.EntryMapping(null, dialect, typeMeta));
+            new CacheJdbcPojoStore.EntryMapping(null, dialect, typeMeta));
 
         Connection conn = store.openConnection(false);
 
