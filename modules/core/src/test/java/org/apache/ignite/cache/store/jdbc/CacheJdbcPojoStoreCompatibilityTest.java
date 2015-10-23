@@ -17,38 +17,31 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.Timestamp;
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import javax.cache.integration.CacheWriterException;
+import org.apache.ignite.*;
+import org.apache.ignite.cache.store.jdbc.dialect.*;
+import org.apache.ignite.cache.store.jdbc.model.*;
+import org.apache.ignite.internal.processors.cache.*;
+import org.apache.ignite.internal.util.typedef.*;
+import org.apache.ignite.internal.util.typedef.internal.*;
+import org.apache.ignite.lang.*;
+import org.apache.ignite.testframework.*;
+import org.apache.ignite.testframework.junits.cache.*;
+import org.h2.jdbcx.*;
+import org.springframework.beans.*;
+import org.springframework.beans.factory.xml.*;
+import org.springframework.context.support.*;
+import org.springframework.core.io.*;
 
-import org.apache.ignite.cache.store.jdbc.dialect.BasicJdbcDialect;
-import org.apache.ignite.cache.store.jdbc.dialect.H2Dialect;
-import org.apache.ignite.cache.store.jdbc.model.Organization;
-import org.apache.ignite.cache.store.jdbc.model.OrganizationKey;
-import org.apache.ignite.cache.store.jdbc.model.Person;
-import org.apache.ignite.cache.store.jdbc.model.PersonComplexKey;
-import org.apache.ignite.cache.store.jdbc.model.PersonKey;
-import org.apache.ignite.internal.processors.cache.CacheEntryImpl;
-import org.apache.ignite.internal.util.typedef.CI2;
-import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.lang.IgniteBiInClosure;
-import org.apache.ignite.testframework.GridTestUtils;
-import org.apache.ignite.testframework.junits.cache.GridAbstractCacheStoreSelfTest;
-import org.h2.jdbcx.JdbcConnectionPool;
+import javax.cache.integration.*;
+import java.net.*;
+import java.sql.*;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Class for {@code PojoCacheStore} tests.
  */
-public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<CacheJdbcPojoStore<Object, Object>> {
+public class CacheJdbcPojoStoreCompatibilityTest extends GridAbstractCacheStoreSelfTest<CacheJdbcPojoStore<Object, Object>> {
     /** DB connection URL. */
     private static final String DFLT_CONN_URL = "jdbc:h2:mem:autoCacheStore;DB_CLOSE_DELAY=-1";
 
@@ -64,99 +57,13 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
     /**
      * @throws Exception If failed.
      */
-    public CacheJdbcPojoStoreTest() throws Exception {
+    public CacheJdbcPojoStoreCompatibilityTest() throws Exception {
         // No-op.
     }
 
     /** {@inheritDoc} */
     @Override protected CacheJdbcPojoStore<Object, Object> store() {
-        CacheJdbcPojoStoreFactory<Object, Object> storeFactory = new CacheJdbcPojoStoreFactory<>();
-
-        CacheJdbcPojoStoreConfiguration storeCfg = new CacheJdbcPojoStoreConfiguration();
-        storeCfg.setDialect(new H2Dialect());
-
-        CacheJdbcPojoStoreType[] storeTypes = new CacheJdbcPojoStoreType[6];
-
-        storeTypes[0] = new CacheJdbcPojoStoreType();
-        storeTypes[0].setDatabaseSchema("PUBLIC");
-        storeTypes[0].setDatabaseTable("ORGANIZATION");
-        storeTypes[0].setKeyType("org.apache.ignite.cache.store.jdbc.model.OrganizationKey");
-        storeTypes[0].setKeyFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[0].getKeyFields()[0] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id");
-
-        storeTypes[0].setValueType("org.apache.ignite.cache.store.jdbc.model.Organization");
-        storeTypes[0].setValueFields(new CacheJdbcPojoStoreTypeField[3]);
-        storeTypes[0].getValueFields()[0] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id");
-        storeTypes[0].getValueFields()[1] = new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "NAME", String.class, "name");
-        storeTypes[0].getValueFields()[2] = new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "CITY", String.class, "city");
-
-        storeTypes[1] = new CacheJdbcPojoStoreType();
-        storeTypes[1].setDatabaseSchema("PUBLIC");
-        storeTypes[1].setDatabaseTable("PERSON");
-        storeTypes[1].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonKey");
-        storeTypes[1].setKeyFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[1].getKeyFields()[0] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id");
-
-        storeTypes[1].setValueType("org.apache.ignite.cache.store.jdbc.model.Person");
-        storeTypes[1].setValueFields(new CacheJdbcPojoStoreTypeField[3]);
-        storeTypes[1].getValueFields()[0] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id");
-        storeTypes[1].getValueFields()[1] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId");
-        storeTypes[1].getValueFields()[2] = new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "NAME", String.class, "name");
-
-        storeTypes[2] = new CacheJdbcPojoStoreType();
-        storeTypes[2].setDatabaseSchema("PUBLIC");
-        storeTypes[2].setDatabaseTable("PERSON_COMPLEX");
-        storeTypes[2].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonComplexKey");
-        storeTypes[2].setKeyFields(new CacheJdbcPojoStoreTypeField[3]);
-        storeTypes[2].getKeyFields()[0] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", int.class, "id");
-        storeTypes[2].getKeyFields()[1] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ORG_ID", int.class, "orgId");
-        storeTypes[2].getKeyFields()[2] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "CITY_ID", int.class, "cityId");
-
-        storeTypes[2].setValueType("org.apache.ignite.cache.store.jdbc.model.Person");
-        storeTypes[2].setValueFields(new CacheJdbcPojoStoreTypeField[4]);
-        storeTypes[2].getValueFields()[0] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id");
-        storeTypes[2].getValueFields()[1] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId");
-        storeTypes[2].getValueFields()[2] = new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "NAME", String.class, "name");
-        storeTypes[2].getValueFields()[3] = new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "SALARY", Integer.class, "salary");
-
-        storeTypes[3] = new CacheJdbcPojoStoreType();
-        storeTypes[3].setDatabaseSchema("PUBLIC");
-        storeTypes[3].setDatabaseTable("TIMESTAMP_ENTRIES");
-        storeTypes[3].setKeyType("java.sql.Timestamp");
-        storeTypes[3].setKeyFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[3].getKeyFields()[0] = new CacheJdbcPojoStoreTypeField(Types.TIMESTAMP, "KEY", Timestamp.class, null);
-
-        storeTypes[3].setValueType("java.lang.Integer");
-        storeTypes[3].setValueFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[3].getValueFields()[0] = new CacheJdbcPojoStoreTypeField(Types.INTEGER, "VAL", Integer.class, null);
-
-        storeTypes[4] = new CacheJdbcPojoStoreType();
-        storeTypes[4].setDatabaseSchema("PUBLIC");
-        storeTypes[4].setDatabaseTable("STRING_ENTRIES");
-        storeTypes[4].setKeyType("java.lang.String");
-        storeTypes[4].setKeyFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[4].getKeyFields()[0] = new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "KEY", String.class, null);
-
-        storeTypes[4].setValueType("java.lang.String");
-        storeTypes[4].setValueFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[4].getValueFields()[0] = new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "VAL", Integer.class, null);
-
-        storeTypes[5] = new CacheJdbcPojoStoreType();
-        storeTypes[5].setDatabaseSchema("PUBLIC");
-        storeTypes[5].setDatabaseTable("UUID_ENTRIES");
-        storeTypes[5].setKeyType("java.util.UUID");
-        storeTypes[5].setKeyFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[5].getKeyFields()[0] = new CacheJdbcPojoStoreTypeField(Types.BINARY, "KEY", UUID.class, null);
-
-        storeTypes[5].setValueType("java.util.UUID");
-        storeTypes[5].setValueFields(new CacheJdbcPojoStoreTypeField[1]);
-        storeTypes[5].getValueFields()[0] = new CacheJdbcPojoStoreTypeField(Types.BINARY, "VAL", UUID.class, null);
-
-        storeCfg.setTypes(storeTypes);
-
-        storeFactory.setConfiguration(storeCfg);
-
-        CacheJdbcPojoStore<Object, Object> store = storeFactory.create();
+        CacheJdbcPojoStore<Object, Object> store = new CacheJdbcPojoStore<>();
 
 //        PGPoolingDataSource ds = new PGPoolingDataSource();
 //        ds.setUser("postgres");
@@ -170,8 +77,56 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
 //        ds.setUser("mysql");
 //        ds.setPassword("mysql");
 
-        // H2 DataSource
         store.setDataSource(JdbcConnectionPool.create(DFLT_CONN_URL, "sa", ""));
+
+        URL cfgUrl;
+
+        try {
+            cfgUrl = new URL(DFLT_MAPPING_CONFIG);
+        }
+        catch (MalformedURLException ignore) {
+            cfgUrl = U.resolveIgniteUrl(DFLT_MAPPING_CONFIG);
+        }
+
+        if (cfgUrl == null)
+            throw new IgniteException("Failed to resolve metadata path: " + DFLT_MAPPING_CONFIG);
+
+        try {
+            GenericApplicationContext springCtx = new GenericApplicationContext();
+
+            new XmlBeanDefinitionReader(springCtx).loadBeanDefinitions(new UrlResource(cfgUrl));
+
+            springCtx.refresh();
+
+            Collection<CacheJdbcPojoStoreType> typeMeta = springCtx.getBeansOfType(CacheJdbcPojoStoreType.class).values();
+
+            Map<Integer, Map<Object, CacheJdbcPojoStore.EntryMapping>> cacheMappings = new HashMap<>();
+// TODO-1753 fix tests
+//            JdbcDialect dialect = store.resolveDialect();
+//
+//            GridTestUtils.setFieldValue(store, CacheJdbcPojoStore.class, "dialect", dialect);
+//
+//            Map<Object, CacheJdbcPojoStore.EntryMapping> entryMappings = U.newHashMap(typeMeta.size());
+//
+//            for (CacheJdbcPojoStoreType type : typeMeta)
+//                entryMappings.put(store.keyTypeId(type.getKeyType()),
+//                    new CacheJdbcPojoStore.EntryMapping(null, dialect, type));
+//
+//            store.prepareBuilders(null, typeMeta);
+//
+//            cacheMappings.put(null, entryMappings);
+//
+//            GridTestUtils.setFieldValue(store, CacheJdbcPojoStore.class, "cacheMappings", cacheMappings);
+        }
+        catch (BeansException e) {
+            if (X.hasCause(e, ClassNotFoundException.class))
+                throw new IgniteException("Failed to instantiate Spring XML application context " +
+                    "(make sure all classes used in Spring configuration are present at CLASSPATH) " +
+                    "[springUrl=" + cfgUrl + ']', e);
+            else
+                throw new IgniteException("Failed to instantiate Spring XML application context [springUrl=" +
+                    cfgUrl + ", err=" + e.getMessage() + ']', e);
+        }
 
         return store;
     }
@@ -255,6 +210,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
         super.beforeTest();
     }
 
+
     /**
      * @throws Exception If failed.
      */
@@ -304,7 +260,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
             if (i > 0)
                 prnComplexStmt.setInt(5, 1000 + i * 500);
             else // Add person with null salary
-                prnComplexStmt.setNull(5, Types.INTEGER);
+                prnComplexStmt.setNull(5, java.sql.Types.INTEGER);
 
             prnComplexStmt.addBatch();
         }
@@ -332,9 +288,9 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
 
                     Person val = (Person)v;
 
-                    assertTrue("Key ID should be the same as value ID", key.getId() == val.getId());
-                    assertTrue("Key orgID should be the same as value orgID", key.getOrgId() == val.getOrgId());
-                    assertEquals("name" + key.getId(), val.getName());
+                    assert key.getId() == val.getId();
+                    assert key.getOrgId() == val.getOrgId();
+                    assertEquals("name"  + key.getId(), val.getName());
 
                     prnComplexKeys.add((PersonComplexKey)k);
                 }

@@ -81,21 +81,21 @@ public class CacheJdbcPojoStoreType implements Serializable {
     }
 
     /**
-     * Gets database schema name.
+     * Gets associated cache name.
      *
-     * @return Schema name.
+     * @return Сache name.
      */
     public String getCacheName() {
-        return dbSchema;
+        return cacheName;
     }
 
     /**
-     * Sets database schema name.
+     * Sets associated cache name.
      *
-     * @param dbSchema Schema name.
+     * @param cacheName Cache name.
      */
-    public CacheJdbcPojoStoreType setCacheName(String dbSchema) {
-        this.dbSchema = dbSchema;
+    public CacheJdbcPojoStoreType setCacheName(String cacheName) {
+        this.cacheName = cacheName;
 
         return this;
     }

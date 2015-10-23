@@ -246,7 +246,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @return Key type id.
      * @throws CacheException If failed to get type key id from object.
      */
-    protected Object keyTypeId(String type) throws CacheException {
+    private Object keyTypeId(String type) throws CacheException {
         try {
             return Class.forName(type);
         }
@@ -262,7 +262,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @param types Collection of types.
      * @throws CacheException If failed to prepare internal builders for types.
      */
-    protected void prepareBuilders(@Nullable String cacheName, Collection<CacheJdbcPojoStoreType> types)
+    private void prepareBuilders(@Nullable String cacheName, Collection<CacheJdbcPojoStoreType> types)
         throws CacheException {
         Map<String, PojoMethodsCache> typeMethods = U.newHashMap(types.size() * 2);
 
@@ -287,7 +287,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @return The resolved dialect.
      * @throws CacheException Indicates problems accessing the metadata.
      */
-    protected JdbcDialect resolveDialect() throws CacheException {
+    private JdbcDialect resolveDialect() throws CacheException {
         Connection conn = null;
 
         String dbProductName = null;
@@ -361,7 +361,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @return Connection.
      * @throws SQLException In case of error.
      */
-    protected Connection connection() throws SQLException {
+    private Connection connection() throws SQLException {
         CacheStoreSession ses = session();
 
         if (ses.transaction() != null) {
@@ -388,7 +388,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      *
      * @param conn Connection to close.
      */
-    protected void closeConnection(@Nullable Connection conn) {
+    private void closeConnection(@Nullable Connection conn) {
         CacheStoreSession ses = session();
 
         // Close connection right away if there is no transaction.
@@ -402,7 +402,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @param conn Allocated connection.
      * @param st Created statement,
      */
-    protected void end(@Nullable Connection conn, @Nullable Statement st) {
+    private void end(@Nullable Connection conn, @Nullable Statement st) {
         U.closeQuiet(st);
 
         closeConnection(conn);
@@ -448,7 +448,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @return Value in column.
      * @throws SQLException If a database access error occurs or this method is called.
      */
-    protected Object getColumnValue(ResultSet rs, int colIdx, Class<?> type) throws SQLException {
+    private Object getColumnValue(ResultSet rs, int colIdx, Class<?> type) throws SQLException {
         Object val = rs.getObject(colIdx);
 
         if (val == null)
@@ -589,7 +589,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @param cls Class.
      * @return {@code True} if object is a simple type.
      */
-    protected static boolean simpleType(Class<?> cls) {
+    private static boolean simpleType(Class<?> cls) {
         return (Number.class.isAssignableFrom(cls) || String.class.isAssignableFrom(cls) ||
             java.util.Date.class.isAssignableFrom(cls) || Boolean.class.isAssignableFrom(cls) ||
             UUID.class.isAssignableFrom(cls));
@@ -1394,7 +1394,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @param fieldVal Field value.
      * @throws CacheException If failed to set statement parameter.
      */
-    protected void fillParameter(PreparedStatement stmt, int i, CacheJdbcPojoStoreTypeField field, @Nullable Object fieldVal)
+    private void fillParameter(PreparedStatement stmt, int i, CacheJdbcPojoStoreTypeField field, @Nullable Object fieldVal)
         throws CacheException {
         try {
             if (fieldVal != null) {
@@ -1430,7 +1430,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @return Next index for parameters.
      * @throws CacheException If failed to set statement parameters.
      */
-    protected int fillKeyParameters(PreparedStatement stmt, int idx, EntryMapping em,
+    private int fillKeyParameters(PreparedStatement stmt, int idx, EntryMapping em,
         Object key) throws CacheException {
         for (CacheJdbcPojoStoreTypeField field : em.keyColumns()) {
             Object fieldVal = extractParameter(em.cacheName, em.keyType(), field.getJavaName(), key);
@@ -1448,7 +1448,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @return Next index for parameters.
      * @throws CacheException If failed to set statement parameters.
      */
-    protected int fillKeyParameters(PreparedStatement stmt, EntryMapping m, Object key) throws CacheException {
+    private int fillKeyParameters(PreparedStatement stmt, EntryMapping m, Object key) throws CacheException {
         return fillKeyParameters(stmt, 1, m, key);
     }
 
@@ -1460,7 +1460,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      * @return Next index for parameters.
      * @throws CacheException If failed to set statement parameters.
      */
-    protected int fillValueParameters(PreparedStatement stmt, int idx, EntryMapping em, Object val)
+    private int fillValueParameters(PreparedStatement stmt, int idx, EntryMapping em, Object val)
         throws CacheWriterException {
         for (CacheJdbcPojoStoreTypeField field : em.uniqValFields) {
             Object fieldVal = extractParameter(em.cacheName, em.valueType(), field.getJavaName(), val);
@@ -1618,7 +1618,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      */
     private static class PojoMethodsCache {
         /** POJO class. */
-        protected final Class<?> cls;
+        private final Class<?> cls;
 
         /** Constructor for POJO object. */
         private Constructor ctor;
@@ -1836,7 +1836,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
          * @param keyCnt Key count.
          * @return Load query statement text.
          */
-        protected String loadQuery(int keyCnt) {
+        private String loadQuery(int keyCnt) {
             assert keyCnt <= maxKeysPerStmt;
 
             if (keyCnt == maxKeysPerStmt)
@@ -1855,7 +1855,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
          * @param appendUpperBound Need add upper bound for range.
          * @return Query with range.
          */
-        protected String loadCacheRangeQuery(boolean appendLowerBound, boolean appendUpperBound) {
+        private String loadCacheRangeQuery(boolean appendLowerBound, boolean appendUpperBound) {
             return dialect.loadCacheRangeQuery(fullTblName, keyCols, cols, appendLowerBound, appendUpperBound);
         }
 

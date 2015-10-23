@@ -145,6 +145,7 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheJdbcPojoSto
      * @return {@code This} for chaining.
      * @see CacheJdbcPojoStore#setDataSource(DataSource)
      */
+    @Deprecated
     public CacheJdbcPojoStoreFactory<K, V> setDataSourceBean(String dataSrcBean) {
         this.dataSrcBean = dataSrcBean;
 

@@ -44,7 +44,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     private String dataSrcBean;
 
     /** Database dialect. */
-    protected JdbcDialect dialect;
+    private JdbcDialect dialect;
 
     /** Max workers thread count. These threads are responsible for load cache. */
     private int maxPoolSz = Runtime.getRuntime().availableProcessors();
