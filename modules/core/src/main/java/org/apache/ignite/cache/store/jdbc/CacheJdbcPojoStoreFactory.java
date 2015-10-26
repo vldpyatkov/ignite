@@ -61,47 +61,81 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheJdbcPojoSto
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** POJO store configuration. */
+    private CacheJdbcPojoStoreConfiguration cfg;
+
     /** Name of data source bean. */
+    @Deprecated
     private String dataSrcBean;
+
+    /** Database dialect. */
+    @Deprecated
+    private JdbcDialect dialect;
 
     /** Data source. */
     private transient DataSource dataSrc;
 
-    /** Database dialect. */
-    private JdbcDialect dialect;
-
     /** Application context. */
     @SpringApplicationContextResource
-    private transient Object appContext;
+    private transient Object appCtx;
 
     /** {@inheritDoc} */
     @Override public CacheJdbcPojoStore<K, V> create() {
         CacheJdbcPojoStore<K, V> store = new CacheJdbcPojoStore<>();
 
-        store.setDialect(dialect);
+        // For backward compatibility create store configuration.
+        if (cfg == null) {
+            cfg = new CacheJdbcPojoStoreConfiguration();
+
+            cfg.setDataSourceBean(dataSrcBean);
+            cfg.setDialect(dialect);
+        }
+
+        store.setBatchSize(cfg.getBatchSize());
+        store.setDialect(cfg.getDialect());
+        store.setMaximumPoolSize(cfg.getMaximumPoolSize());
+        store.setMaximumWriteAttempts(cfg.getMaximumWriteAttempts());
+        store.setParallelLoadCacheMinimumThreshold(cfg.getParallelLoadCacheMinimumThreshold());
+        store.setTypes(cfg.getTypes());
 
         if (dataSrc != null)
             store.setDataSource(dataSrc);
-        else if (dataSrcBean != null) {
-            if (appContext == null)
-                throw new IgniteException("Spring application context resource is not injected.");
+        else {
+            String dtSrcBean = cfg.getDataSourceBean();
 
-            IgniteSpringHelper spring;
+            if (dtSrcBean != null) {
+                if (appCtx == null)
+                    throw new IgniteException("Spring application context resource is not injected.");
 
-            try {
-                spring = IgniteComponentType.SPRING.create(false);
+                IgniteSpringHelper spring;
 
-                DataSource data = spring.loadBeanFromAppContext(appContext, dataSrcBean);
+                try {
+                    spring = IgniteComponentType.SPRING.create(false);
 
-                store.setDataSource(data);
-            }
-            catch (Exception e) {
-                throw new IgniteException("Failed to load bean in application context [beanName=" + dataSrcBean +
-                    ", igniteConfig=" + appContext + ']', e);
+                    DataSource data = spring.loadBeanFromAppContext(appCtx, dtSrcBean);
+
+                    store.setDataSource(data);
+                }
+                catch (Exception e) {
+                    throw new IgniteException("Failed to load bean in application context [beanName=" + dtSrcBean +
+                        ", igniteConfig=" + appCtx + ']', e);
+                }
             }
         }
 
         return store;
+    }
+
+    /**
+     * Sets store configuration.
+     *
+     * @param cfg Configuration to use.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreFactory<K, V> setConfiguration(CacheJdbcPojoStoreConfiguration cfg) {
+        this.cfg = cfg;
+
+        return this;
     }
 
     /**
@@ -111,10 +145,22 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheJdbcPojoSto
      * @return {@code This} for chaining.
      * @see CacheJdbcPojoStore#setDataSource(DataSource)
      */
+    @Deprecated
     public CacheJdbcPojoStoreFactory<K, V> setDataSourceBean(String dataSrcBean) {
         this.dataSrcBean = dataSrcBean;
 
         return this;
+    }
+
+    /**
+     * Set database dialect.
+     *
+     * @param dialect Database dialect.
+     * @see CacheJdbcPojoStore#setDialect(JdbcDialect)
+     */
+    @Deprecated
+    public void setDialect(JdbcDialect dialect) {
+        this.dialect = dialect;
     }
 
     /**
@@ -128,16 +174,6 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheJdbcPojoSto
         this.dataSrc = dataSrc;
 
         return this;
-    }
-
-    /**
-     * Set database dialect.
-     *
-     * @param dialect Database dialect.
-     * @see CacheJdbcPojoStore#setDialect(JdbcDialect)
-     */
-    public void setDialect(JdbcDialect dialect) {
-        this.dialect = dialect;
     }
 
     /** {@inheritDoc} */

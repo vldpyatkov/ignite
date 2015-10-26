@@ -113,6 +113,7 @@ import static java.sql.Statement.SUCCESS_NO_INFO;
  *    ...
  * </pre>
  */
+@Deprecated
 public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, LifecycleAware {
     /** Max attempt write count. */
     protected static final int MAX_ATTEMPT_WRITE_COUNT = 2;
