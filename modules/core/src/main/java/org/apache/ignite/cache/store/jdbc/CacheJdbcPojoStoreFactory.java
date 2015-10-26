@@ -83,7 +83,7 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheJdbcPojoSto
     @Override public CacheJdbcPojoStore<K, V> create() {
         CacheJdbcPojoStore<K, V> store = new CacheJdbcPojoStore<>();
 
-        // For backward compatibility create store configuration.
+        // For backward compatibility create and initialize store configuration.
         if (cfg == null) {
             cfg = new CacheJdbcPojoStoreConfiguration();
 
@@ -156,11 +156,14 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheJdbcPojoSto
      * Set database dialect.
      *
      * @param dialect Database dialect.
+     * @return {@code This} for chaining.
      * @see CacheJdbcPojoStore#setDialect(JdbcDialect)
      */
     @Deprecated
-    public void setDialect(JdbcDialect dialect) {
+    public CacheJdbcPojoStoreFactory<K, V> setDialect(JdbcDialect dialect) {
         this.dialect = dialect;
+
+        return this;
     }
 
     /**

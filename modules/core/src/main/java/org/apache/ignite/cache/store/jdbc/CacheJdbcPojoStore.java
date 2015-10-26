@@ -412,11 +412,15 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
 
         for (CacheJdbcPojoStoreType type : types) {
             if (!type.isKeepSerialized()) {
-                // TODO check for duplicates
-
                 String keyType = type.getKeyType();
+
+                if (typeMethods.containsKey(keyType))
+                    throw new CacheException("Found duplicate key type [cache=" + cacheName +
+                        ", keyType=" + keyType + "]");
+
                 typeMethods.put(keyType, new PojoMethodsCache(keyType, type.getKeyFields()));
 
+                // TODO fix if exists and merge getters if needed.
                 String valType = type.getValueType();
                 typeMethods.put(valType, new PojoMethodsCache(valType, type.getValueFields()));
             }

@@ -80,9 +80,12 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
 
     /**
      * @param dbType Column JDBC type in database.
+     * @return {@code this} for chaining.
      */
-    public void setDatabaseFieldType(int dbType) {
+    public CacheJdbcPojoStoreTypeField setDatabaseFieldType(int dbType) {
         this.dbFieldType = dbType;
+
+        return this;
     }
 
 
@@ -95,9 +98,12 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
 
     /**
      * @param dbName Column name in database.
+     * @return {@code this} for chaining.
      */
-    public void setDatabaseFieldName(String dbName) {
+    public CacheJdbcPojoStoreTypeField  setDatabaseFieldName(String dbName) {
         this.dbFieldName = dbName;
+
+        return this;
     }
 
     /**
@@ -109,9 +115,12 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
 
     /**
      * @param javaType Corresponding java type.
+     * @return {@code this} for chaining.
      */
-    public void setJavaFieldType(Class<?> javaType) {
+    public CacheJdbcPojoStoreTypeField setJavaFieldType(Class<?> javaType) {
         this.javaFieldType = javaType;
+
+        return this;
     }
 
     /**
@@ -123,9 +132,12 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
 
     /**
      * @param javaName Field name in java object.
+     * @return {@code this} for chaining.
      */
-    public void setJavaFieldName(String javaName) {
+    public CacheJdbcPojoStoreTypeField setJavaFieldName(String javaName) {
         this.javaFieldName = javaName;
+
+        return this;
     }
 
     /** {@inheritDoc} */

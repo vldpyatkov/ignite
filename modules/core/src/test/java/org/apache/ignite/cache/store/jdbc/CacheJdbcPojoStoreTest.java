@@ -110,7 +110,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
             new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id"),
             new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId"),
             new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "NAME", String.class, "name"),
-            new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "SALARY", Integer.class, "salary"));
+            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "SALARY", Integer.class, "salary"));
 
         storeTypes[3] = new CacheJdbcPojoStoreType();
         storeTypes[3].setDatabaseSchema("PUBLIC");
