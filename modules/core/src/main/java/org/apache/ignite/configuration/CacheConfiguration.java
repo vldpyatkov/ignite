@@ -1559,6 +1559,7 @@ public class CacheConfiguration<K, V> extends MutableConfiguration<K, V> {
      *
      * @return Collection of type metadata.
      */
+    @Deprecated
     public Collection<CacheTypeMetadata> getTypeMetadata() {
         return typeMeta;
     }
@@ -1569,6 +1570,7 @@ public class CacheConfiguration<K, V> extends MutableConfiguration<K, V> {
      * @param typeMeta Collection of type metadata.
      * @return {@code this} for chaining.
      */
+    @Deprecated
     public CacheConfiguration<K, V> setTypeMetadata(Collection<CacheTypeMetadata> typeMeta) {
         this.typeMeta = typeMeta;
 

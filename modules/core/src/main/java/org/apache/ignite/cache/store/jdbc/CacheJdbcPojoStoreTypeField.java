@@ -67,63 +67,65 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
      * @param field Field to copy.
      */
     public CacheJdbcPojoStoreTypeField(CacheJdbcPojoStoreTypeField field) {
-        this(field.getDatabaseType(), field.getDatabaseName(), field.getJavaType(), field.getJavaName());
-    }
-
-    /**
-     * @return Column name in database.
-     */
-    public String getDatabaseName() {
-        return dbFieldName;
-    }
-
-    /**
-     * @param dbName Column name in database.
-     */
-    public void setDatabaseName(String dbName) {
-        this.dbFieldName = dbName;
+        this(field.getDatabaseFieldType(), field.getDatabaseFieldName(),
+            field.getJavaFieldType(), field.getJavaFieldName());
     }
 
     /**
      * @return Column JDBC type in database.
      */
-    public int getDatabaseType() {
+    public int getDatabaseFieldType() {
         return dbFieldType;
     }
 
     /**
      * @param dbType Column JDBC type in database.
      */
-    public void setDatabaseType(int dbType) {
+    public void setDatabaseFieldType(int dbType) {
         this.dbFieldType = dbType;
     }
 
+
     /**
-     * @return Field name in java object.
+     * @return Column name in database.
      */
-    public String getJavaName() {
-        return javaFieldName;
+    public String getDatabaseFieldName() {
+        return dbFieldName;
     }
 
     /**
-     * @param javaName Field name in java object.
+     * @param dbName Column name in database.
      */
-    public void setJavaName(String javaName) {
-        this.javaFieldName = javaName;
+    public void setDatabaseFieldName(String dbName) {
+        this.dbFieldName = dbName;
     }
 
     /**
      * @return Field java type.
      */
-    public Class<?> getJavaType() {
+    public Class<?> getJavaFieldType() {
         return javaFieldType;
     }
 
     /**
      * @param javaType Corresponding java type.
      */
-    public void setJavaType(Class<?> javaType) {
+    public void setJavaFieldType(Class<?> javaType) {
         this.javaFieldType = javaType;
+    }
+
+    /**
+     * @return Field name in java object.
+     */
+    public String getJavaFieldName() {
+        return javaFieldName;
+    }
+
+    /**
+     * @param javaName Field name in java object.
+     */
+    public void setJavaFieldName(String javaName) {
+        this.javaFieldName = javaName;
     }
 
     /** {@inheritDoc} */
