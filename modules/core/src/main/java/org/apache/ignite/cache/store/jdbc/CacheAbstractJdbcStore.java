@@ -669,7 +669,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                     throw new CacheLoaderException("Expected even number of arguments, but found: " + args.length);
 
                 if (log.isDebugEnabled())
-                    log.debug("Start loading entries from db using user queries from arguments");
+                    log.debug("Start loading entries from db using user queries from arguments...");
 
                 for (int i = 0; i < args.length; i += 2) {
                     String keyType = args[i].toString();
@@ -686,8 +686,9 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                 for (EntryMapping em : entryMappings) {
                     if (parallelLoadCacheMinThreshold > 0) {
-                        log.debug("Multithread loading entries from db [cache name=" + cacheName +
-                            ", key type=" + em.keyType() + " ]");
+                        if (log.isDebugEnabled())
+                            log.debug("Multithread loading entries from db [cache=" + cacheName +
+                                ", keyType=" + em.keyType() + " ]");
 
                         Connection conn = null;
 
@@ -735,8 +736,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                     }
                     else {
                         if (log.isDebugEnabled())
-                            log.debug("Single thread loading entries from db [cache name=" + cacheName +
-                                ", key type=" + em.keyType() + " ]");
+                            log.debug("Single thread loading entries from db [cache=" + cacheName +
+                                ", keyType=" + em.keyType() + " ]");
 
                         futs.add(pool.submit(loadCacheFull(em, clo)));
                     }
@@ -1014,8 +1015,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                         if (currKeyTypeId == null || !currKeyTypeId.equals(keyTypeId)) {
                             if (mergeStmt != null) {
                                 if (log.isDebugEnabled())
-                                    log.debug("Write entries to db [cache name=" + cacheName +
-                                        ", key type=" + em.keyType() + ", count=" + prepared + "]");
+                                    log.debug("Write entries to db [cache=" + cacheName +
+                                        ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                                 executeBatch(em, mergeStmt, "writeAll", fromIdx, prepared, lazyEntries);
 
@@ -1039,8 +1040,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                         if (++prepared % batchSz == 0) {
                             if (log.isDebugEnabled())
-                                log.debug("Write entries to db [cache name=" + cacheName +
-                                    ", key type=" + em.keyType() + ", count=" + prepared + "]");
+                                log.debug("Write entries to db [cache=" + cacheName +
+                                    ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                             executeBatch(em, mergeStmt, "writeAll", fromIdx, prepared, lazyEntries);
 
@@ -1052,8 +1053,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                     if (mergeStmt != null && prepared % batchSz != 0) {
                         if (log.isDebugEnabled())
-                            log.debug("Write entries to db [cache name=" + cacheName +
-                                ", key type=" + em.keyType() + ", count=" + prepared + "]");
+                            log.debug("Write entries to db [cache=" + cacheName +
+                                ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                         executeBatch(em, mergeStmt, "writeAll", fromIdx, prepared, lazyEntries);
 
@@ -1064,8 +1065,9 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 }
             }
             else {
-                log.debug("Write entries to db one by one using update and insert statements [cache name=" +
-                    cacheName + ", count=" + entries.size() + "]");
+                if (log.isDebugEnabled())
+                    log.debug("Write entries to db one by one using update and insert statements [cache=" + cacheName +
+                        ", cnt=" + entries.size() + "]");
 
                 PreparedStatement insStmt = null;
 
@@ -1229,8 +1231,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                 if (!currKeyTypeId.equals(keyTypeId)) {
                     if (log.isDebugEnabled())
-                        log.debug("Delete entries from db [cache name=" + cacheName +
-                            ", key type=" + em.keyType() + ", count=" + prepared + "]");
+                        log.debug("Delete entries from db [cache=" + cacheName + ", keyType=" + em.keyType() +
+                            ", cnt=" + prepared + "]");
 
                     executeBatch(em, delStmt, "deleteAll", fromIdx, prepared, lazyKeys);
 
@@ -1247,8 +1249,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                 if (++prepared % batchSz == 0) {
                     if (log.isDebugEnabled())
-                        log.debug("Delete entries from db [cache name=" + cacheName +
-                            ", key type=" + em.keyType() + ", count=" + prepared + "]");
+                        log.debug("Delete entries from db [cache=" + cacheName + ", keyType=" + em.keyType() +
+                            ", cnt=" + prepared + "]");
 
                     executeBatch(em, delStmt, "deleteAll", fromIdx, prepared, lazyKeys);
 
@@ -1260,8 +1262,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             if (delStmt != null && prepared % batchSz != 0) {
                 if (log.isDebugEnabled())
-                    log.debug("Delete entries from db [cache name=" + cacheName +
-                        ", key type=" + em.keyType() + ", count=" + prepared + "]");
+                    log.debug("Delete entries from db [cache=" + cacheName + ", keyType=" + em.keyType() +
+                        ", cnt=" + prepared + "]");
 
                 executeBatch(em, delStmt, "deleteAll", fromIdx, prepared, lazyKeys);
             }
@@ -1691,8 +1693,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
         /** {@inheritDoc} */
         @Override public Void call() throws Exception {
             if (log.isDebugEnabled())
-                log.debug("Load cache using custom query [cache name= " + em.cacheName +
-                    ", key type=" + em.keyType() + ", query=" + qry + "]");
+                log.debug("Load cache using custom query [cache= " + em.cacheName + ", keyType=" + em.keyType() +
+                    ", query=" + qry + "]");
 
             Connection conn = null;
 
@@ -1787,8 +1789,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
         /** {@inheritDoc} */
         @Override public Map<K1, V1> call() throws Exception {
             if (log.isDebugEnabled())
-                log.debug("Load values from db [table= " + em.fullTableName() +
-                    ", key count=" + keys.size() + "]");
+                log.debug("Load values from db [table= " + em.fullTableName() + ", keysCnt=" + keys.size() + "]");
 
             PreparedStatement stmt = null;
 

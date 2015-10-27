@@ -113,6 +113,9 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
     /** Data source. */
     private DataSource dataSrc;
 
+    /** Portables. */
+    private IgnitePortables portables;
+
     /** Cache with entry mapping description. (cache name, (key id, mapping description)). */
     private volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
 
@@ -141,7 +144,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
     private volatile Map<String, Map<String, PojoMethodsCache>> pojoMethods = Collections.emptyMap();
 
     /** Portables builders cache. */
-    private volatile Map<String, Map<String, PortableBuilder>> portableBuilders = Collections.emptyMap();
+    private volatile Map<String, Map<String, Integer>> portableTypeIds = Collections.emptyMap();
 
     /**
      * Checks for POJO/portable format.
@@ -275,12 +278,12 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
         CacheJdbcPojoStoreTypeField[] fields, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException {
 
-        Map<String, PojoMethodsCache> z = pojoMethods.get(cacheName);
+        Map<String, PojoMethodsCache> cacheMethods = pojoMethods.get(cacheName);
 
-        if (z == null)
+        if (cacheMethods == null)
             throw new CacheLoaderException("Failed to find POJO types metadata for cache: " + cacheName);
 
-        PojoMethodsCache mc = z.get(typeName);
+        PojoMethodsCache mc = cacheMethods.get(typeName);
 
         if (mc == null)
             throw new CacheLoaderException("Failed to find POJO type metadata for type: " + typeName);
@@ -339,12 +342,17 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      */
     protected PortableObject buildPortableObject(String cacheName, String typeName, CacheJdbcPojoStoreTypeField[] fields,
         Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheException {
-        Map<String, PortableBuilder> cachePortables = portableBuilders.get(cacheName);
+        Map<String, Integer> cacheTypeIds = portableTypeIds.get(cacheName);
 
-        if (cachePortables == null)
-            throw new CacheException("Failed to find portable builders for cache: " + cacheName);
+        if (cacheTypeIds == null)
+            throw new CacheLoaderException("Failed to find portable types IDs for cache: " + cacheName);
 
-        PortableBuilder builder = cachePortables.get(typeName);
+        Integer typeId = cacheTypeIds.get(typeName);
+
+        if (typeId == null)
+            throw new CacheLoaderException("Failed to find portable type ID for type: " + typeName);
+
+        PortableBuilder builder = portables.builder(typeId);
 
         if (builder == null)
             throw new CacheException("Failed to find portable builder for type: " + typeName);
@@ -389,7 +397,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      */
     private Object typeIdForTypeName(boolean keepSerialized, String typeName) throws CacheException {
         if (keepSerialized)
-            return ignite().portables().typeId(typeName);
+            return portables.typeId(typeName);
 
         try {
             return Class.forName(typeName);
@@ -444,7 +452,7 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
      */
     private void preparePortableBuilders(@Nullable String cacheName, Collection<CacheJdbcPojoStoreType> types)
         throws CacheException {
-        Map<String, PortableBuilder> typeBuilders = U.newHashMap(types.size() * 2);
+        Map<String, Integer> typeIds = U.newHashMap(types.size() * 2);
 
         for (CacheJdbcPojoStoreType type : types) {
             if (type.isKeepSerialized()) {
@@ -453,21 +461,19 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
                 IgnitePortables portables = ignite.portables();
 
                 String keyType = type.getKeyType();
-                int keyTypeId = portables.typeId(keyType);
-                typeBuilders.put(keyType, portables.builder(keyTypeId));
+                typeIds.put(keyType, portables.typeId(keyType));
 
                 String valType = type.getValueType();
-                int valTypeId = portables.typeId(valType);
-                typeBuilders.put(valType, portables.builder(valTypeId));
+                typeIds.put(valType, portables.typeId(valType));
             }
         }
 
-        if (!typeBuilders.isEmpty()) {
-            Map<String, Map<String, PortableBuilder>> newBuilders = new HashMap<>(portableBuilders);
+        if (!typeIds.isEmpty()) {
+            Map<String, Map<String, Integer>> newBuilders = new HashMap<>(portableTypeIds);
 
-            newBuilders.put(cacheName, typeBuilders);
+            newBuilders.put(cacheName, typeIds);
 
-            portableBuilders = newBuilders;
+            portableTypeIds = newBuilders;
         }
     }
 
@@ -525,6 +531,8 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
             if (log.isDebugEnabled() && dialect.getClass() != BasicJdbcDialect.class)
                 log.debug("Resolved database dialect: " + U.getSimpleName(dialect.getClass()));
         }
+
+        portables = ignite.portables();
     }
 
     /** {@inheritDoc} */
@@ -741,6 +749,8 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
 
                     ResultSet rs = stmt.executeQuery();
 
+                    long t = System.currentTimeMillis();
+
                     while (rs.next()) {
                         K key = buildObject(em.cacheName, em.keyType(), em.keyColumns(), em.loadColIdxs, rs);
                         V val = buildObject(em.cacheName, em.valueType(), em.valueColumns(), em.loadColIdxs, rs);
@@ -927,8 +937,10 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
                         throw new CacheException("Key type must be unique in type metadata [cache name=" + cacheName +
                             ", key type=" + keyType + "]");
 
-                    checkMapping(cacheName, keyType, type.getKeyFields());
-                    checkMapping(cacheName, valType, type.getValueFields());
+                    if (!keepSerialized) {
+                        checkMapping(cacheName, keyType, type.getKeyFields());
+                        checkMapping(cacheName, valType, type.getValueFields());
+                    }
 
                     entryMappings.put(keyTypeId, new EntryMapping(cacheName, dialect, type));
                 }
@@ -1009,8 +1021,9 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
 
                 for (EntryMapping em : entryMappings) {
                     if (parallelLoadCacheMinThreshold > 0) {
-                        log.debug("Multithread loading entries from db [cache name=" + cacheName +
-                            ", key type=" + em.keyType() + " ]");
+                        if (log.isDebugEnabled())
+                            log.debug("Multithread loading entries from db [cache name=" + cacheName +
+                                ", key type=" + em.keyType() + " ]");
 
                         Connection conn = null;
 
@@ -1387,8 +1400,9 @@ public class CacheJdbcPojoStore<K, V> implements CacheStore<K, V>, LifecycleAwar
                 }
             }
             else {
-                log.debug("Write entries to db one by one using update and insert statements [cache name=" +
-                    cacheName + ", count=" + entries.size() + "]");
+                if (log.isDebugEnabled())
+                    log.debug("Write entries to db one by one using update and insert statements [cache name=" +
+                        cacheName + ", count=" + entries.size() + "]");
 
                 PreparedStatement insStmt = null;
 
