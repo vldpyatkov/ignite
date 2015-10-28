@@ -334,7 +334,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
                 typeMethods.put(keyType, new PojoMethodsCache(keyType, type.getKeyFields()));
 
-                // TODO fix if exists and merge getters if needed.
+                // TODO: IGNITE-1753 fix if exists and merge getters if needed?
                 String valType = type.getValueType();
                 typeMethods.put(valType, new PojoMethodsCache(valType, type.getValueFields()));
             }
