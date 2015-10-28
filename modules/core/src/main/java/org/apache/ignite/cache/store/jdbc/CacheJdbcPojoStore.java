@@ -32,6 +32,7 @@ import org.apache.ignite.IgnitePortables;
 import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.portable.PortableBuilder;
 import org.apache.ignite.portable.PortableObject;
 import org.jetbrains.annotations.Nullable;
@@ -47,7 +48,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     private volatile Map<String, Map<String, PojoMethodsCache>> pojoMethods = Collections.emptyMap();
 
     /** Portables builders cache. */
-    private volatile Map<String, Map<String, Integer>> portableTypeIds = Collections.emptyMap();
+    private volatile Map<String, Map<String, IgniteBiTuple<Boolean, Integer>>> portableTypeIds = Collections.emptyMap();
 
     /**
      * Get field value from object for use as query parameter.
@@ -221,40 +222,50 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @return Constructed portable object.
      * @throws CacheLoaderException If failed to construct portable object.
      */
-    protected PortableObject buildPortableObject(String cacheName, String typeName, JdbcTypeField[] fields,
+    protected Object buildPortableObject(String cacheName, String typeName, JdbcTypeField[] fields,
         Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheException {
-        Map<String, Integer> cacheTypeIds = portableTypeIds.get(cacheName);
+        Map<String, IgniteBiTuple<Boolean, Integer>> cacheTypeIds = portableTypeIds.get(cacheName);
 
         if (cacheTypeIds == null)
             throw new CacheLoaderException("Failed to find portable types IDs for cache: " + cacheName);
 
-        Integer typeId = cacheTypeIds.get(typeName);
+        IgniteBiTuple<Boolean, Integer> tuple = cacheTypeIds.get(typeName);
 
-        if (typeId == null)
+        if (tuple == null)
             throw new CacheLoaderException("Failed to find portable type ID for type: " + typeName);
 
-        PortableBuilder builder = ignite.portables().builder(typeId);
-
-        if (builder == null)
-            throw new CacheException("Failed to find portable builder for type: " + typeName);
-
         try {
-            int hashCode = 1;
+            if (tuple.get1()) {
+                Object simple = null;
 
-            for (JdbcTypeField field : fields) {
-                Class<?> type = field.getJavaFieldType();
+                if (fields.length > 0) {
+                    JdbcTypeField field = fields[0];
 
-                Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
+                    Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
 
-                Object colVal = getColumnValue(rs, colIdx, type);
+                    simple = getColumnValue(rs, colIdx, field.getJavaFieldType());
+                }
 
-                if (colVal != null)
-                    hashCode = 31 * hashCode + colVal.hashCode();
-
-                builder.setField(field.getJavaFieldName(), colVal);
+                return simple;
             }
+            else {
+                PortableBuilder builder = ignite.portables().builder(tuple.get2());
 
-            return builder.hashCode(hashCode).build();
+                int hashCode = 1;
+
+                for (JdbcTypeField field : fields) {
+                    Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
+
+                    Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
+
+                    if (colVal != null)
+                        hashCode = 31 * hashCode + colVal.hashCode();
+
+                    builder.setField(field.getJavaFieldName(), colVal);
+                }
+
+                return builder.hashCode(hashCode).build();
+            }
         }
         catch (SQLException e) {
             throw new CacheException("Failed to read portable object", e);
@@ -354,7 +365,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      */
     private void preparePortableBuilders(@Nullable String cacheName, Collection<JdbcType> types)
         throws CacheException {
-        Map<String, Integer> typeIds = U.newHashMap(types.size() * 2);
+        Map<String, IgniteBiTuple<Boolean, Integer>> typeIds = U.newHashMap(types.size() * 2);
 
         for (JdbcType type : types) {
             if (type.isKeepSerialized()) {
@@ -363,15 +374,15 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                 IgnitePortables portables = ignite.portables();
 
                 String keyType = type.getKeyType();
-                typeIds.put(keyType, portables.typeId(keyType));
+                typeIds.put(keyType, new IgniteBiTuple<>(SIMPLE_TYPES.contains(keyType), portables.typeId(keyType)));
 
                 String valType = type.getValueType();
-                typeIds.put(valType, portables.typeId(valType));
+                typeIds.put(valType, new IgniteBiTuple<>(SIMPLE_TYPES.contains(valType), portables.typeId(valType)));
             }
         }
 
         if (!typeIds.isEmpty()) {
-            Map<String, Map<String, Integer>> newBuilders = new HashMap<>(portableTypeIds);
+            Map<String, Map<String, IgniteBiTuple<Boolean, Integer>>> newBuilders = new HashMap<>(portableTypeIds);
 
             newBuilders.put(cacheName, typeIds);
 

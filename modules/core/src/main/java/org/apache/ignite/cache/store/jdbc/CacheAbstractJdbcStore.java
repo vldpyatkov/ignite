@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -122,6 +123,26 @@ import static org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStoreConfiguration
 public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, LifecycleAware {
     /** Connection attribute property name. */
     protected static final String ATTR_CONN_PROP = "JDBC_STORE_CONNECTION";
+
+    /** Simple types names. */
+    protected static Collection<String> SIMPLE_TYPES = new HashSet<>();
+
+    static {
+        SIMPLE_TYPES.add("java.math.BigDecimal");
+        SIMPLE_TYPES.add("java.lang.Boolean");
+        SIMPLE_TYPES.add("java.lang.Byte");
+        SIMPLE_TYPES.add("java.lang.Character");
+        SIMPLE_TYPES.add("java.lang.Double");
+        SIMPLE_TYPES.add("java.util.Date");
+        SIMPLE_TYPES.add("java.sql.Date");
+        SIMPLE_TYPES.add("java.lang.Float");
+        SIMPLE_TYPES.add("java.lang.Integer");
+        SIMPLE_TYPES.add("java.lang.Long");
+        SIMPLE_TYPES.add("java.lang.Short");
+        SIMPLE_TYPES.add("java.lang.String");
+        SIMPLE_TYPES.add("java.sql.Timestamp");
+        SIMPLE_TYPES.add("java.util.UUID");
+    }
 
     /** Auto-injected store session. */
     @CacheStoreSessionResource
