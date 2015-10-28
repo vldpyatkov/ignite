@@ -206,7 +206,5 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         c1.loadCache(null);
 
         info("Cache load finished!");
-
-        Thread.sleep(1000000000);
     }
 }

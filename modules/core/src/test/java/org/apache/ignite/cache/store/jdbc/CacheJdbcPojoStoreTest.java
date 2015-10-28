@@ -158,7 +158,7 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
     @Override protected void inject(CacheJdbcPojoStore<Object, Object> store) throws Exception {
         getTestResources().inject(store);
 
-        GridTestUtils.setFieldValue(store, CacheJdbcPojoStore.class, "ses", ses);
+        GridTestUtils.setFieldValue(store, CacheAbstractJdbcStore.class, "ses", ses);
     }
 
     /** {@inheritDoc} */

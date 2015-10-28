@@ -17,25 +17,19 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import javax.cache.CacheException;
-import javax.cache.integration.CacheLoaderException;
-import org.apache.ignite.Ignite;
-import org.apache.ignite.IgnitePortables;
-import org.apache.ignite.cache.store.CacheStore;
-import org.apache.ignite.configuration.CacheConfiguration;
-import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.lang.IgniteBiTuple;
-import org.apache.ignite.portable.PortableBuilder;
-import org.apache.ignite.portable.PortableObject;
-import org.jetbrains.annotations.Nullable;
+import org.apache.ignite.*;
+import org.apache.ignite.cache.store.*;
+import org.apache.ignite.configuration.*;
+import org.apache.ignite.internal.util.typedef.internal.*;
+import org.apache.ignite.lang.*;
+import org.apache.ignite.portable.*;
+import org.jetbrains.annotations.*;
+
+import javax.cache.*;
+import javax.cache.integration.*;
+import java.lang.reflect.*;
+import java.sql.*;
+import java.util.*;
 
 /**
  * Implementation of {@link CacheStore} backed by JDBC and POJO via reflection.
@@ -60,7 +54,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @return Field value from object.
      * @throws CacheException in case of error.
      */
-    @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, String fieldName,
+    @Override @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, String fieldName,
         Object obj) throws CacheException {
         return isKeepSerialized(cacheName, typeName)
             ? extractPortableParameter(fieldName, obj)
@@ -83,7 +77,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             Map<String, PojoMethodsCache> cacheMethods = pojoMethods.get(cacheName);
 
             if (cacheMethods == null)
-                throw new CacheException("Failed to find POJO type metadata for cache: " + cacheName);
+                throw new CacheException("Failed to find POJO type metadata for cache: " +  U.maskName(cacheName));
 
             PojoMethodsCache mc = cacheMethods.get(typeName);
 
@@ -163,7 +157,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         Map<String, PojoMethodsCache> cacheMethods = pojoMethods.get(cacheName);
 
         if (cacheMethods == null)
-            throw new CacheLoaderException("Failed to find POJO types metadata for cache: " + cacheName);
+            throw new CacheLoaderException("Failed to find POJO types metadata for cache: " +  U.maskName(cacheName));
 
         PojoMethodsCache mc = cacheMethods.get(typeName);
 
@@ -223,11 +217,11 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @throws CacheLoaderException If failed to construct portable object.
      */
     protected Object buildPortableObject(String cacheName, String typeName, JdbcTypeField[] fields,
-        Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheException {
+        Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheLoaderException {
         Map<String, IgniteBiTuple<Boolean, Integer>> cacheTypeIds = portableTypeIds.get(cacheName);
 
         if (cacheTypeIds == null)
-            throw new CacheLoaderException("Failed to find portable types IDs for cache: " + cacheName);
+            throw new CacheLoaderException("Failed to find portable types IDs for cache: " +  U.maskName(cacheName));
 
         IgniteBiTuple<Boolean, Integer> tuple = cacheTypeIds.get(typeName);
 
@@ -251,15 +245,14 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             else {
                 PortableBuilder builder = ignite.portables().builder(tuple.get2());
 
-                int hashCode = 1;
+                int hashCode = 0; // TODO: IGNITE-1753 hash code calculation could change !!!
 
                 for (JdbcTypeField field : fields) {
                     Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
 
                     Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
 
-                    if (colVal != null)
-                        hashCode = 31 * hashCode + colVal.hashCode();
+                    hashCode = 31 * hashCode + (colVal != null ? colVal.hashCode() : 0);
 
                     builder.setField(field.getJavaFieldName(), colVal);
                 }
@@ -336,7 +329,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                 String keyType = type.getKeyType();
 
                 if (typeMethods.containsKey(keyType))
-                    throw new CacheException("Found duplicate key type [cache=" + cacheName +
+                    throw new CacheException("Found duplicate key type [cache=" +  U.maskName(cacheName) +
                         ", keyType=" + keyType + "]");
 
                 typeMethods.put(keyType, new PojoMethodsCache(keyType, type.getKeyFields()));
@@ -416,7 +409,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
          * @param fields Fields.
          * @throws CacheException If failed to construct type cache.
          */
-        public PojoMethodsCache(String clsName, JdbcTypeField[] fields) throws CacheException {
+        private PojoMethodsCache(String clsName, JdbcTypeField[] fields) throws CacheException {
             try {
                 cls = Class.forName(clsName);
 

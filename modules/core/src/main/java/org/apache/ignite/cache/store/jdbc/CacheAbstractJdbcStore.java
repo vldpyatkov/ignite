@@ -105,15 +105,19 @@ import static org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStoreConfiguration
  * <h2 class="header">Java Example</h2>
  * <pre name="code" class="java">
  *    ...
- *    CacheConfiguration ccfg = new CacheConfiguration&lt;&gt;();
+ *    // Create store configuration:
+ *    CacheJdbcPojoStoreConfiguration storeCfg = new CacheJdbcPojoStoreConfiguration();
+ *    storeCfg.setDataSourceBean("your_data_source_name");
+ *    storeCfg.setDialect(new H2Dialect());
+ *    storeCfg.setTypes(array_with_your_types);
+ *    ...
+ *    // Create store factory.
+ *    CacheJdbcPojoStoreFactory storeFactory = new CacheJdbcPojoStoreFactory();
+ *    storeFactory.setConfiguration(storeCfg);
  *
- *    // Configure cache store.
- *    ccfg.setCacheStoreFactory(new FactoryBuilder.SingletonFactory(ConfigurationSnippet.store()));
+ *    ccfg.setCacheStoreFactory(storeFactory);
  *    ccfg.setReadThrough(true);
  *    ccfg.setWriteThrough(true);
- *
- *    // Configure cache types metadata.
- *    ccfg.setTypeMetadata(ConfigurationSnippet.typeMetadata());
  *
  *    cfg.setCacheConfiguration(ccfg);
  *    ...
@@ -125,7 +129,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     protected static final String ATTR_CONN_PROP = "JDBC_STORE_CONNECTION";
 
     /** Simple types names. */
-    protected static Collection<String> SIMPLE_TYPES = new HashSet<>();
+    protected static final Collection<String> SIMPLE_TYPES = new HashSet<>();
 
     static {
         SIMPLE_TYPES.add("java.math.BigDecimal");
@@ -163,7 +167,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Data source. */
     protected DataSource dataSrc;
 
-    /** Cache with entry mapping description. (cache name, (key id, mapping description)). */
+    /** Cache with entry mapping description. (cache name, (keyID, mapping description)). */
     protected volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
 
     /** Map for quick check whether type is POJO or Portable. */
@@ -572,30 +576,30 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             if (simpleType(cls)) {
                 if (fields.length != 1)
-                    throw new CacheException("More than one field for simple type [cache name=" + cacheName
-                        + ", type=" + clsName + " ]");
+                    throw new CacheException("More than one field for simple type [cache=" +  U.maskName(cacheName) +
+                        ", type=" + clsName + " ]");
 
                 JdbcTypeField field = fields[0];
 
                 if (field.getDatabaseFieldName() == null)
-                    throw new CacheException("Missing database name in mapping description [cache name=" + cacheName
-                        + ", type=" + clsName + " ]");
+                    throw new CacheException("Missing database name in mapping description [cache=" +
+                        U.maskName(cacheName) + ", type=" + clsName + " ]");
 
                 field.setJavaFieldType(cls);
             }
             else
                 for (JdbcTypeField field : fields) {
                     if (field.getDatabaseFieldName() == null)
-                        throw new CacheException("Missing database name in mapping description [cache name=" + cacheName
-                            + ", type=" + clsName + " ]");
+                        throw new CacheException("Missing database name in mapping description [cache=" +
+                            U.maskName(cacheName) + ", type=" + clsName + " ]");
 
                     if (field.getJavaFieldName() == null)
-                        throw new CacheException("Missing field name in mapping description [cache name=" + cacheName
-                            + ", type=" + clsName + " ]");
+                        throw new CacheException("Missing field name in mapping description [cache=" +
+                            U.maskName(cacheName) + ", type=" + clsName + " ]");
 
                     if (field.getJavaFieldType() == null)
-                        throw new CacheException("Missing field type in mapping description [cache name=" + cacheName
-                            + ", type=" + clsName + " ]");
+                        throw new CacheException("Missing field type in mapping description [cache=" +
+                            U.maskName(cacheName) + ", type=" + clsName + " ]");
                 }
         }
         catch (ClassNotFoundException e) {
@@ -637,7 +641,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
         Map<String, Boolean> cacheTypes = keepSerializedTypes.get(cacheName);
 
         if (cacheTypes == null)
-            throw new CacheException("Failed to find types metadata for cache: " + cacheName);
+            throw new CacheException("Failed to find types metadata for cache: " +  U.maskName(cacheName));
 
         Boolean keepSerialized = cacheTypes.get(typeName);
 
@@ -720,8 +724,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                     Object keyTypeId = typeIdForTypeName(keepSerialized, keyType);
 
                     if (entryMappings.containsKey(keyTypeId))
-                        throw new CacheException("Key type must be unique in type metadata [cache name=" + cacheName +
-                            ", key type=" + keyType + "]");
+                        throw new CacheException("Key type must be unique in type metadata [cache=" +
+                            U.maskName(cacheName) + ", key type=" + keyType + "]");
 
                     if (!keepSerialized) {
                         checkMapping(cacheName, keyType, type.getKeyFields());
@@ -762,7 +766,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
             String maskedCacheName = U.maskName(cacheName);
 
             throw new CacheException("Failed to find mapping description [key=" + key +
-                ", cache=" + maskedCacheName + "]. Please configure JdbcType to associate '" + maskedCacheName + "' with JdbcPojoStore.");
+                ", cache=" + maskedCacheName + "]. Please configure JdbcType to associate '" + maskedCacheName +
+                "' with JdbcPojoStore.");
         }
 
         return em;
@@ -807,7 +812,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 for (EntryMapping em : entryMappings) {
                     if (parallelLoadCacheMinThreshold > 0) {
                         if (log.isDebugEnabled())
-                            log.debug("Multithread loading entries from db [cache=" + cacheName +
+                            log.debug("Multithread loading entries from db [cache=" +  U.maskName(cacheName) +
                                 ", keyType=" + em.keyType() + " ]");
 
                         Connection conn = null;
@@ -856,7 +861,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                     }
                     else {
                         if (log.isDebugEnabled())
-                            log.debug("Single thread loading entries from db [cache=" + cacheName +
+                            log.debug("Single thread loading entries from db [cache=" +  U.maskName(cacheName) +
                                 ", keyType=" + em.keyType() + " ]");
 
                         futs.add(pool.submit(loadCacheFull(em, clo)));
@@ -868,10 +873,10 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 U.get(fut);
 
             if (log.isDebugEnabled())
-                log.debug("Cache loaded from db: " + cacheName);
+                log.debug("Cache loaded from db: " +  U.maskName(cacheName));
         }
         catch (IgniteCheckedException e) {
-            throw new CacheLoaderException("Failed to load cache: " + cacheName, e.getCause());
+            throw new CacheLoaderException("Failed to load cache: " +  U.maskName(cacheName), e.getCause());
         }
         finally {
             U.shutdownNow(getClass(), pool, log);
@@ -1135,7 +1140,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                         if (currKeyTypeId == null || !currKeyTypeId.equals(keyTypeId)) {
                             if (mergeStmt != null) {
                                 if (log.isDebugEnabled())
-                                    log.debug("Write entries to db [cache=" + cacheName +
+                                    log.debug("Write entries to db [cache=" +  U.maskName(cacheName) +
                                         ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                                 executeBatch(em, mergeStmt, "writeAll", fromIdx, prepared, lazyEntries);
@@ -1160,7 +1165,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                         if (++prepared % batchSz == 0) {
                             if (log.isDebugEnabled())
-                                log.debug("Write entries to db [cache=" + cacheName +
+                                log.debug("Write entries to db [cache=" +  U.maskName(cacheName) +
                                     ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                             executeBatch(em, mergeStmt, "writeAll", fromIdx, prepared, lazyEntries);
@@ -1173,7 +1178,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                     if (mergeStmt != null && prepared % batchSz != 0) {
                         if (log.isDebugEnabled())
-                            log.debug("Write entries to db [cache=" + cacheName +
+                            log.debug("Write entries to db [cache=" +  U.maskName(cacheName) +
                                 ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                         executeBatch(em, mergeStmt, "writeAll", fromIdx, prepared, lazyEntries);
@@ -1186,8 +1191,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
             }
             else {
                 if (log.isDebugEnabled())
-                    log.debug("Write entries to db one by one using update and insert statements [cache=" + cacheName +
-                        ", cnt=" + entries.size() + "]");
+                    log.debug("Write entries to db one by one using update and insert statements [cache=" +
+                        U.maskName(cacheName) + ", cnt=" + entries.size() + "]");
 
                 PreparedStatement insStmt = null;
 
@@ -1351,8 +1356,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                 if (!currKeyTypeId.equals(keyTypeId)) {
                     if (log.isDebugEnabled())
-                        log.debug("Delete entries from db [cache=" + cacheName + ", keyType=" + em.keyType() +
-                            ", cnt=" + prepared + "]");
+                        log.debug("Delete entries from db [cache=" +  U.maskName(cacheName) +
+                            ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                     executeBatch(em, delStmt, "deleteAll", fromIdx, prepared, lazyKeys);
 
@@ -1369,8 +1374,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                 if (++prepared % batchSz == 0) {
                     if (log.isDebugEnabled())
-                        log.debug("Delete entries from db [cache=" + cacheName + ", keyType=" + em.keyType() +
-                            ", cnt=" + prepared + "]");
+                        log.debug("Delete entries from db [cache=" +  U.maskName(cacheName) +
+                            ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                     executeBatch(em, delStmt, "deleteAll", fromIdx, prepared, lazyKeys);
 
@@ -1382,8 +1387,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             if (delStmt != null && prepared % batchSz != 0) {
                 if (log.isDebugEnabled())
-                    log.debug("Delete entries from db [cache=" + cacheName + ", keyType=" + em.keyType() +
-                        ", cnt=" + prepared + "]");
+                    log.debug("Delete entries from db [cache=" +  U.maskName(cacheName) +
+                        ", keyType=" + em.keyType() + ", cnt=" + prepared + "]");
 
                 executeBatch(em, delStmt, "deleteAll", fromIdx, prepared, lazyKeys);
             }
@@ -1849,8 +1854,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
         /** {@inheritDoc} */
         @Override public Void call() throws Exception {
             if (log.isDebugEnabled())
-                log.debug("Load cache using custom query [cache= " + em.cacheName + ", keyType=" + em.keyType() +
-                    ", query=" + qry + "]");
+                log.debug("Load cache using custom query [cache= " + U.maskName(em.cacheName) +
+                    ", keyType=" + em.keyType() + ", query=" + qry + "]");
 
             Connection conn = null;
 
