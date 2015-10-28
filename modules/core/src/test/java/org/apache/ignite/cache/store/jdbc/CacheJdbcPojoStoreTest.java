@@ -70,74 +70,74 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
         CacheJdbcPojoStoreConfiguration storeCfg = new CacheJdbcPojoStoreConfiguration();
         storeCfg.setDialect(new H2Dialect());
 
-        CacheJdbcPojoStoreType[] storeTypes = new CacheJdbcPojoStoreType[6];
+        JdbcType[] storeTypes = new JdbcType[6];
 
-        storeTypes[0] = new CacheJdbcPojoStoreType();
+        storeTypes[0] = new JdbcType();
         storeTypes[0].setDatabaseSchema("PUBLIC");
         storeTypes[0].setDatabaseTable("ORGANIZATION");
         storeTypes[0].setKeyType("org.apache.ignite.cache.store.jdbc.model.OrganizationKey");
-        storeTypes[0].setKeyFields(new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        storeTypes[0].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
 
         storeTypes[0].setValueType("org.apache.ignite.cache.store.jdbc.model.Organization");
         storeTypes[0].setValueFields(
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id"),
-            new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "NAME", String.class, "name"),
-            new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "CITY", String.class, "city"));
+            new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"),
+            new JdbcTypeField(Types.VARCHAR, "NAME", String.class, "name"),
+            new JdbcTypeField(Types.VARCHAR, "CITY", String.class, "city"));
 
-        storeTypes[1] = new CacheJdbcPojoStoreType();
+        storeTypes[1] = new JdbcType();
         storeTypes[1].setDatabaseSchema("PUBLIC");
         storeTypes[1].setDatabaseTable("PERSON");
         storeTypes[1].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonKey");
-        storeTypes[1].setKeyFields(new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        storeTypes[1].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
 
         storeTypes[1].setValueType("org.apache.ignite.cache.store.jdbc.model.Person");
         storeTypes[1].setValueFields(
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id"),
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId"),
-            new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "NAME", String.class, "name"));
+            new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"),
+            new JdbcTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId"),
+            new JdbcTypeField(Types.VARCHAR, "NAME", String.class, "name"));
 
-        storeTypes[2] = new CacheJdbcPojoStoreType();
+        storeTypes[2] = new JdbcType();
         storeTypes[2].setDatabaseSchema("PUBLIC");
         storeTypes[2].setDatabaseTable("PERSON_COMPLEX");
         storeTypes[2].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonComplexKey");
         storeTypes[2].setKeyFields(
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", int.class, "id"),
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ORG_ID", int.class, "orgId"),
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "CITY_ID", int.class, "cityId"));
+            new JdbcTypeField(Types.INTEGER, "ID", int.class, "id"),
+            new JdbcTypeField(Types.INTEGER, "ORG_ID", int.class, "orgId"),
+            new JdbcTypeField(Types.INTEGER, "CITY_ID", int.class, "cityId"));
 
         storeTypes[2].setValueType("org.apache.ignite.cache.store.jdbc.model.Person");
         storeTypes[2].setValueFields(
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ID", Integer.class, "id"),
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId"),
-            new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "NAME", String.class, "name"),
-            new CacheJdbcPojoStoreTypeField(Types.INTEGER, "SALARY", Integer.class, "salary"));
+            new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"),
+            new JdbcTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId"),
+            new JdbcTypeField(Types.VARCHAR, "NAME", String.class, "name"),
+            new JdbcTypeField(Types.INTEGER, "SALARY", Integer.class, "salary"));
 
-        storeTypes[3] = new CacheJdbcPojoStoreType();
+        storeTypes[3] = new JdbcType();
         storeTypes[3].setDatabaseSchema("PUBLIC");
         storeTypes[3].setDatabaseTable("TIMESTAMP_ENTRIES");
         storeTypes[3].setKeyType("java.sql.Timestamp");
-        storeTypes[3].setKeyFields(new CacheJdbcPojoStoreTypeField(Types.TIMESTAMP, "KEY", Timestamp.class, null));
+        storeTypes[3].setKeyFields(new JdbcTypeField(Types.TIMESTAMP, "KEY", Timestamp.class, null));
 
         storeTypes[3].setValueType("java.lang.Integer");
-        storeTypes[3].setValueFields(new CacheJdbcPojoStoreTypeField(Types.INTEGER, "VAL", Integer.class, null));
+        storeTypes[3].setValueFields(new JdbcTypeField(Types.INTEGER, "VAL", Integer.class, null));
 
-        storeTypes[4] = new CacheJdbcPojoStoreType();
+        storeTypes[4] = new JdbcType();
         storeTypes[4].setDatabaseSchema("PUBLIC");
         storeTypes[4].setDatabaseTable("STRING_ENTRIES");
         storeTypes[4].setKeyType("java.lang.String");
-        storeTypes[4].setKeyFields(new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "KEY", String.class, null));
+        storeTypes[4].setKeyFields(new JdbcTypeField(Types.VARCHAR, "KEY", String.class, null));
 
         storeTypes[4].setValueType("java.lang.String");
-        storeTypes[4].setValueFields(new CacheJdbcPojoStoreTypeField(Types.VARCHAR, "VAL", Integer.class, null));
+        storeTypes[4].setValueFields(new JdbcTypeField(Types.VARCHAR, "VAL", Integer.class, null));
 
-        storeTypes[5] = new CacheJdbcPojoStoreType();
+        storeTypes[5] = new JdbcType();
         storeTypes[5].setDatabaseSchema("PUBLIC");
         storeTypes[5].setDatabaseTable("UUID_ENTRIES");
         storeTypes[5].setKeyType("java.util.UUID");
-        storeTypes[5].setKeyFields(new CacheJdbcPojoStoreTypeField(Types.BINARY, "KEY", UUID.class, null));
+        storeTypes[5].setKeyFields(new JdbcTypeField(Types.BINARY, "KEY", UUID.class, null));
 
         storeTypes[5].setValueType("java.util.UUID");
-        storeTypes[5].setValueFields(new CacheJdbcPojoStoreTypeField(Types.BINARY, "VAL", UUID.class, null));
+        storeTypes[5].setValueFields(new JdbcTypeField(Types.BINARY, "VAL", UUID.class, null));
 
         storeCfg.setTypes(storeTypes);
 

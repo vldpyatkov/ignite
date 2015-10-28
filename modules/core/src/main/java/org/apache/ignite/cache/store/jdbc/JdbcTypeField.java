@@ -23,7 +23,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  * Description of how field declared in database and in cache.
  */
-public class CacheJdbcPojoStoreTypeField implements Serializable {
+public class JdbcTypeField implements Serializable {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -42,7 +42,7 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
     /**
      * Default constructor.
      */
-    public CacheJdbcPojoStoreTypeField() {
+    public JdbcTypeField() {
         // No-op.
     }
 
@@ -54,7 +54,7 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
      * @param javaFieldType Field java type.
      * @param javaFieldName Field name in java object.
      */
-    public CacheJdbcPojoStoreTypeField(int dbFieldType, String dbFieldName, Class<?> javaFieldType, String javaFieldName) {
+    public JdbcTypeField(int dbFieldType, String dbFieldName, Class<?> javaFieldType, String javaFieldName) {
         this.dbFieldType = dbFieldType;
         this.dbFieldName = dbFieldName;
         this.javaFieldType = javaFieldType;
@@ -66,7 +66,7 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
      *
      * @param field Field to copy.
      */
-    public CacheJdbcPojoStoreTypeField(CacheJdbcPojoStoreTypeField field) {
+    public JdbcTypeField(JdbcTypeField field) {
         this(field.getDatabaseFieldType(), field.getDatabaseFieldName(),
             field.getJavaFieldType(), field.getJavaFieldName());
     }
@@ -82,7 +82,7 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
      * @param dbType Column JDBC type in database.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreTypeField setDatabaseFieldType(int dbType) {
+    public JdbcTypeField setDatabaseFieldType(int dbType) {
         this.dbFieldType = dbType;
 
         return this;
@@ -100,7 +100,7 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
      * @param dbName Column name in database.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreTypeField  setDatabaseFieldName(String dbName) {
+    public JdbcTypeField setDatabaseFieldName(String dbName) {
         this.dbFieldName = dbName;
 
         return this;
@@ -117,7 +117,7 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
      * @param javaType Corresponding java type.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreTypeField setJavaFieldType(Class<?> javaType) {
+    public JdbcTypeField setJavaFieldType(Class<?> javaType) {
         this.javaFieldType = javaType;
 
         return this;
@@ -134,7 +134,7 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
      * @param javaName Field name in java object.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreTypeField setJavaFieldName(String javaName) {
+    public JdbcTypeField setJavaFieldName(String javaName) {
         this.javaFieldName = javaName;
 
         return this;
@@ -145,10 +145,10 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
         if (this == o)
             return true;
 
-        if (!(o instanceof CacheJdbcPojoStoreTypeField))
+        if (!(o instanceof JdbcTypeField))
             return false;
 
-        CacheJdbcPojoStoreTypeField that = (CacheJdbcPojoStoreTypeField)o;
+        JdbcTypeField that = (JdbcTypeField)o;
 
         return dbFieldType == that.dbFieldType && dbFieldName.equals(that.dbFieldName) &&
             javaFieldType == that.javaFieldType && javaFieldName.equals(that.javaFieldName);
@@ -167,6 +167,6 @@ public class CacheJdbcPojoStoreTypeField implements Serializable {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return S.toString(CacheJdbcPojoStoreTypeField.class, this);
+        return S.toString(JdbcTypeField.class, this);
     }
 }

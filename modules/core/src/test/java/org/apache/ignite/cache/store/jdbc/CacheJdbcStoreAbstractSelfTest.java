@@ -22,7 +22,6 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Types;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.store.jdbc.dialect.H2Dialect;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -30,7 +29,6 @@ import org.apache.ignite.configuration.ConnectorConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.marshaller.Marshaller;
-import org.apache.ignite.marshaller.portable.PortableMarshaller;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
@@ -110,6 +108,9 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         return cfg;
     }
 
+    /**
+     * @return Marshaller to be used in test.
+     */
     protected abstract Marshaller marshaller();
 
     /** */
@@ -123,7 +124,10 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         return storeCfg;
     }
 
-    protected abstract CacheJdbcPojoStoreType[] storeTypes();
+    /**
+     * @return Types to be used in test.
+     */
+    protected abstract JdbcType[] storeTypes();
 
     /** */
     protected CacheConfiguration cacheConfiguration() throws Exception {
@@ -133,9 +137,8 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         cc.setAtomicityMode(ATOMIC);
         cc.setSwapEnabled(false);
         cc.setWriteBehindEnabled(false);
-        cc.setNearConfiguration(null);
 
-        CacheJdbcPojoStoreFactory<Object, Object> storeFactory = new CacheJdbcPojoStoreFactory<Object, Object>();
+        CacheJdbcPojoStoreFactory<Object, Object> storeFactory = new CacheJdbcPojoStoreFactory<>();
         storeFactory.setConfiguration(storeConfiguration());
         storeFactory.setDataSource(JdbcConnectionPool.create(DFLT_CONN_URL, "sa", "")); // H2 DataSource
 
@@ -147,6 +150,11 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         return cc;
     }
 
+    /**
+     * Fill in-memory database with sample data.
+     *
+     * @throws SQLException In case of filling database with sample data failed.
+     */
     protected void fillSampleDatabase() throws SQLException {
         Connection conn = getConnection();
 

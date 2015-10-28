@@ -60,7 +60,7 @@ import static org.apache.ignite.testframework.GridTestUtils.runMultiThreadedAsyn
 /**
  *
  */
-public abstract class CacheJdbcStoreAbstractMultithreadedSelfTest<T extends CacheJdbcPojoStore>
+public abstract class CacheJdbcStoreAbstractMultithreadedSelfTest<T extends CacheAbstractJdbcStore>
     extends GridCommonAbstractTest {
     /** Default config with mapping. */
     private static final String DFLT_MAPPING_CONFIG = "modules/core/src/test/config/store/jdbc/ignite-type-metadata.xml";
@@ -78,7 +78,7 @@ public abstract class CacheJdbcStoreAbstractMultithreadedSelfTest<T extends Cach
     private static final int BATCH_CNT = 2000;
 
     /** Cache store. */
-    protected static CacheJdbcPojoStore store;
+    protected static CacheAbstractJdbcStore store;
 
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {

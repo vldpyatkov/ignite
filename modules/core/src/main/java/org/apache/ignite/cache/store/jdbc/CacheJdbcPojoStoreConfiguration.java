@@ -56,7 +56,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     private int parallelLoadCacheMinThreshold = DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD;
 
     /** Types that store could process. */
-    private CacheJdbcPojoStoreType[] types;
+    private JdbcType[] types;
 
     /**
      * Empty constructor (all values are initialized to their defaults).
@@ -212,7 +212,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
      *
      * @return Types known by store.
      */
-    public CacheJdbcPojoStoreType[] getTypes() {
+    public JdbcType[] getTypes() {
         return types;
     }
 
@@ -222,7 +222,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
      * @param types Store should process.
      * @return {@code This} for chaining.
      */
-    public CacheJdbcPojoStoreConfiguration setTypes(CacheJdbcPojoStoreType... types) {
+    public CacheJdbcPojoStoreConfiguration setTypes(JdbcType... types) {
         this.types = types;
 
         return this;

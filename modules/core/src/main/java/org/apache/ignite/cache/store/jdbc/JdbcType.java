@@ -23,7 +23,7 @@ import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 /**
  * Description for type that could be stored into database by store.
  */
-public class CacheJdbcPojoStoreType implements Serializable {
+public class JdbcType implements Serializable {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -41,14 +41,14 @@ public class CacheJdbcPojoStoreType implements Serializable {
 
     /** List of fields descriptors for key object. */
     @GridToStringInclude
-    private CacheJdbcPojoStoreTypeField[] keyFields;
+    private JdbcTypeField[] keyFields;
 
     /** Value class used to store value in cache. */
     private String valType;
 
     /** List of fields descriptors for value object. */
     @GridToStringInclude
-    private CacheJdbcPojoStoreTypeField[] valFields;
+    private JdbcTypeField[] valFields;
 
     /** If {@code true} object is stored as IgniteObject. */
     private boolean keepSerialized;
@@ -56,7 +56,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
     /**
      * Empty constructor (all values are initialized to their defaults).
      */
-    public CacheJdbcPojoStoreType() {
+    public JdbcType() {
         /* No-op. */
     }
 
@@ -65,7 +65,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      *
      * @param type Type to copy.
      */
-    public CacheJdbcPojoStoreType(CacheJdbcPojoStoreType type) {
+    public JdbcType(JdbcType type) {
         cacheName = type.getCacheName();
 
         dbSchema = type.getDatabaseSchema();
@@ -94,7 +94,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      *
      * @param cacheName Cache name.
      */
-    public CacheJdbcPojoStoreType setCacheName(String cacheName) {
+    public JdbcType setCacheName(String cacheName) {
         this.cacheName = cacheName;
 
         return this;
@@ -114,7 +114,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      *
      * @param dbSchema Schema name.
      */
-    public CacheJdbcPojoStoreType setDatabaseSchema(String dbSchema) {
+    public JdbcType setDatabaseSchema(String dbSchema) {
         this.dbSchema = dbSchema;
 
         return this;
@@ -135,7 +135,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param dbTbl Table name in database.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setDatabaseTable(String dbTbl) {
+    public JdbcType setDatabaseTable(String dbTbl) {
         this.dbTbl = dbTbl;
 
         return this;
@@ -156,7 +156,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param keyType Key type.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setKeyType(String keyType) {
+    public JdbcType setKeyType(String keyType) {
         this.keyType = keyType;
 
         return this;
@@ -168,7 +168,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param cls Key type class.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setKeyType(Class<?> cls) {
+    public JdbcType setKeyType(Class<?> cls) {
         setKeyType(cls.getName());
 
         return this;
@@ -189,7 +189,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param valType Value type.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setValueType(String valType) {
+    public JdbcType setValueType(String valType) {
         this.valType = valType;
 
         return this;
@@ -201,7 +201,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param cls Value type class.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setValueType(Class<?> cls) {
+    public JdbcType setValueType(Class<?> cls) {
         setValueType(cls.getName());
 
         return this;
@@ -212,7 +212,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      *
      * @return Persistent key fields.
      */
-    public CacheJdbcPojoStoreTypeField[] getKeyFields() {
+    public JdbcTypeField[] getKeyFields() {
         return keyFields;
     }
 
@@ -222,7 +222,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param keyFields Persistent key fields.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setKeyFields(CacheJdbcPojoStoreTypeField... keyFields) {
+    public JdbcType setKeyFields(JdbcTypeField... keyFields) {
         this.keyFields = keyFields;
 
         return this;
@@ -233,7 +233,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      *
      * @return Persistent value fields.
      */
-    public CacheJdbcPojoStoreTypeField[] getValueFields() {
+    public JdbcTypeField[] getValueFields() {
         return valFields;
     }
 
@@ -243,7 +243,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param valFields Persistent value fields.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setValueFields(CacheJdbcPojoStoreTypeField... valFields) {
+    public JdbcType setValueFields(JdbcTypeField... valFields) {
         this.valFields = valFields;
 
         return this;
@@ -264,7 +264,7 @@ public class CacheJdbcPojoStoreType implements Serializable {
      * @param keepSerialized {@code true} if object is stored as IgniteObject.
      * @return {@code this} for chaining.
      */
-    public CacheJdbcPojoStoreType setKeepSerialized(boolean keepSerialized) {
+    public JdbcType setKeepSerialized(boolean keepSerialized) {
         this.keepSerialized = keepSerialized;
 
         return this;
