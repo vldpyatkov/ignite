@@ -17,10 +17,9 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
-import javax.cache.configuration.Factory;
-import org.apache.ignite.cache.store.jdbc.dialect.*;
+import java.io.Serializable;
 
-import java.io.*;
+import org.apache.ignite.cache.store.jdbc.dialect.JdbcDialect;
 
 /**
  * JDBC POJO store configuration.
@@ -56,8 +55,8 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     /** Parallel load cache minimum threshold. If {@code 0} then load sequentially. */
     private int parallelLoadCacheMinThreshold = DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD;
 
-    /** Factory for.  */
-    private Factory<JdbcTypeHashBuilder> hashBuilderFactory = JdbcTypeDefaultHashBuilderFactory.INSTANCE;
+    /** Hash calculator.  */
+    private JdbcTypeHasher hasher = JdbcTypeDefaultHasher.INSTANCE;
 
     /** Types that store could process. */
     private JdbcType[] types;
@@ -83,7 +82,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
         maxWrtAttempts = cfg.getMaximumWriteAttempts();
         parallelLoadCacheMinThreshold = cfg.getParallelLoadCacheMinimumThreshold();
         types = cfg.getTypes();
-        hashBuilderFactory = cfg.getHashBuilderFactory();
+        hasher = cfg.getHasher();
     }
 
     /**
@@ -234,22 +233,22 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     }
 
     /**
-     * Gets hash builder factory.
+     * Gets hash code calculator.
      *
-     * @return Hash builder factory.
+     * @return Hash code calculator.
      */
-    public Factory<JdbcTypeHashBuilder> getHashBuilderFactory() {
-        return hashBuilderFactory;
+    public JdbcTypeHasher getHasher() {
+        return hasher;
     }
 
     /**
-     * Sets hash builder factory..
+     * Sets hash code calculator.
      *
-     * @param hashBuilderFactory Hash builder factory.
+     * @param hasher Hash code calculator.
      * @return {@code This} for chaining.
      */
-    public CacheJdbcPojoStoreConfiguration setHashBuilderFactory(Factory<JdbcTypeHashBuilder> hashBuilderFactory) {
-        this.hashBuilderFactory = hashBuilderFactory;
+    public CacheJdbcPojoStoreConfiguration setHasher(JdbcTypeHasher hasher) {
+        this.hasher = hasher;
 
         return this;
     }

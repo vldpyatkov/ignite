@@ -42,7 +42,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.cache.Cache;
 import javax.cache.CacheException;
-import javax.cache.configuration.Factory;
 import javax.cache.integration.CacheLoaderException;
 import javax.cache.integration.CacheWriterException;
 import javax.sql.DataSource;
@@ -192,8 +191,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Types that store could process. */
     private JdbcType[] types;
 
-    /** Factory for.  */
-    protected Factory<JdbcTypeHashBuilder> hashBuilderFactory = JdbcTypeDefaultHashBuilderFactory.INSTANCE;
+    /** Hash calculator.  */
+    protected JdbcTypeHasher hasher = JdbcTypeDefaultHasher.INSTANCE;
 
     /**
      * Get field value from object for use as query parameter.
@@ -215,14 +214,14 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @param cacheName Cache name.
      * @param typeName Type name.
      * @param fields Fields descriptors.
+     * @param hashField Field names for hash code calculation.
      * @param loadColIdxs Select query columns index.
-     * @param key {@code true}
      * @param rs ResultSet.
      * @return Constructed object.
      * @throws CacheLoaderException If failed to construct cache object.
      */
     protected abstract <R> R buildObject(@Nullable String cacheName, String typeName,
-        JdbcTypeField[] fields, Map<String, Integer> loadColIdxs, boolean key, ResultSet rs)
+        JdbcTypeField[] fields, Collection<String> hashField, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException;
 
     /**
@@ -525,8 +524,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                     ResultSet rs = stmt.executeQuery();
 
                     while (rs.next()) {
-                        K key = buildObject(em.cacheName, em.keyType(), em.keyColumns(), em.loadColIdxs, true, rs);
-                        V val = buildObject(em.cacheName, em.valueType(), em.valueColumns(), em.loadColIdxs, false, rs);
+                        K key = buildObject(em.cacheName, em.keyType(), em.keyColumns(), em.keyCols, em.loadColIdxs, rs);
+                        V val = buildObject(em.cacheName, em.valueType(), em.valueColumns(), null, em.loadColIdxs, rs);
 
                         clo.apply(key, val);
                     }
@@ -557,58 +556,43 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     }
 
     /**
-     * Object is a simple type.
-     *
-     * @param cls Class.
-     * @return {@code True} if object is a simple type.
-     */
-    protected static boolean simpleType(Class<?> cls) {
-        return (Number.class.isAssignableFrom(cls) || String.class.isAssignableFrom(cls) ||
-            java.util.Date.class.isAssignableFrom(cls) || Boolean.class.isAssignableFrom(cls) ||
-            UUID.class.isAssignableFrom(cls));
-    }
-
-    /**
      * @param cacheName Cache name to check mapping for.
-     * @param clsName Class name.
+     * @param typeName Type name.
      * @param fields Fields descriptors.
      * @throws CacheException If failed to check type metadata.
      */
-    private void checkMapping(@Nullable String cacheName, String clsName,
-        JdbcTypeField[] fields) throws CacheException {
+    private void checkMapping(@Nullable String cacheName, String typeName, JdbcTypeField[] fields) throws CacheException {
         try {
-            Class<?> cls = Class.forName(clsName);
-
-            if (simpleType(cls)) {
+            if (SIMPLE_TYPES.contains(typeName)) {
                 if (fields.length != 1)
                     throw new CacheException("More than one field for simple type [cache=" +  U.maskName(cacheName) +
-                        ", type=" + clsName + " ]");
+                        ", type=" + typeName + " ]");
 
                 JdbcTypeField field = fields[0];
 
                 if (field.getDatabaseFieldName() == null)
                     throw new CacheException("Missing database name in mapping description [cache=" +
-                        U.maskName(cacheName) + ", type=" + clsName + " ]");
+                        U.maskName(cacheName) + ", type=" + typeName + " ]");
 
-                field.setJavaFieldType(cls);
+                field.setJavaFieldType(Class.forName(typeName));
             }
             else
                 for (JdbcTypeField field : fields) {
                     if (field.getDatabaseFieldName() == null)
                         throw new CacheException("Missing database name in mapping description [cache=" +
-                            U.maskName(cacheName) + ", type=" + clsName + " ]");
+                            U.maskName(cacheName) + ", type=" + typeName + " ]");
 
                     if (field.getJavaFieldName() == null)
                         throw new CacheException("Missing field name in mapping description [cache=" +
-                            U.maskName(cacheName) + ", type=" + clsName + " ]");
+                            U.maskName(cacheName) + ", type=" + typeName + " ]");
 
                     if (field.getJavaFieldType() == null)
                         throw new CacheException("Missing field type in mapping description [cache=" +
-                            U.maskName(cacheName) + ", type=" + clsName + " ]");
+                            U.maskName(cacheName) + ", type=" + typeName + " ]");
                 }
         }
         catch (ClassNotFoundException e) {
-            throw new CacheException("Failed to find class: " + clsName, e);
+            throw new CacheException("Failed to find class: " + typeName, e);
         }
     }
 
@@ -736,10 +720,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                         throw new CacheException("Key type must be unique in type metadata [cache=" +
                             U.maskName(cacheName) + ", key type=" + keyType + "]");
 
-                    if (!keepSerialized) {
-                        checkMapping(cacheName, keyType, type.getKeyFields());
-                        checkMapping(cacheName, valType, type.getValueFields());
-                    }
+                    checkMapping(cacheName, keyType, type.getKeyFields());
+                    checkMapping(cacheName, valType, type.getValueFields());
 
                     entryMappings.put(keyTypeId, new EntryMapping(cacheName, dialect, type));
                 }
@@ -885,7 +867,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 log.debug("Cache loaded from db: " +  U.maskName(cacheName));
         }
         catch (IgniteCheckedException e) {
-            throw new CacheLoaderException("Failed to load cache: " +  U.maskName(cacheName), e.getCause());
+            throw new CacheLoaderException("Failed to load cache: " + U.maskName(cacheName), e.getCause());
         }
         finally {
             U.shutdownNow(getClass(), pool, log);
@@ -915,7 +897,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next())
-                return buildObject(em.cacheName, em.valueType(), em.valueColumns(), em.loadColIdxs, false, rs);
+                return buildObject(em.cacheName, em.valueType(), em.valueColumns(), null, em.loadColIdxs, rs);
         }
         catch (SQLException e) {
             throw new CacheLoaderException("Failed to load object [table=" + em.fullTableName() +
@@ -1583,21 +1565,21 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     }
 
     /**
-     * Gets hash builder factory.
+     * Gets hash code calculator.
      *
-     * @return Hash builder factory.
+     * @return Hash code calculator.
      */
-    public Factory<JdbcTypeHashBuilder> getHashBuilderFactory() {
-        return hashBuilderFactory;
+    public JdbcTypeHasher getHasher() {
+        return hasher;
     }
 
     /**
-     * Sets hash builder factory..
+     * Sets hash code calculator.
      *
-     * @param hashBuilderFactory Hash builder factory.
+     * @param hasher Hash code calculator.
      */
-    public void setHashBuilderFactory(Factory<JdbcTypeHashBuilder> hashBuilderFactory) {
-        this.hashBuilderFactory = hashBuilderFactory;
+    public void setHasher(JdbcTypeHasher hasher) {
+        this.hasher = hasher;
     }
 
     /**
@@ -1903,8 +1885,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                     colIdxs.put(meta.getColumnLabel(i), i);
 
                 while (rs.next()) {
-                    K1 key = buildObject(em.cacheName, em.keyType(), em.keyColumns(), colIdxs, true, rs);
-                    V1 val = buildObject(em.cacheName, em.valueType(), em.valueColumns(), colIdxs, false, rs);
+                    K1 key = buildObject(em.cacheName, em.keyType(), em.keyColumns(), em.keyCols, colIdxs, rs);
+                    V1 val = buildObject(em.cacheName, em.valueType(), em.valueColumns(), null, colIdxs, rs);
 
                     clo.apply(key, val);
                 }
@@ -1998,8 +1980,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 Map<K1, V1> entries = U.newHashMap(keys.size());
 
                 while (rs.next()) {
-                    K1 key = buildObject(em.cacheName, em.keyType(), em.keyColumns(), em.loadColIdxs, true, rs);
-                    V1 val = buildObject(em.cacheName, em.valueType(), em.valueColumns(), em.loadColIdxs, false, rs);
+                    K1 key = buildObject(em.cacheName, em.keyType(), em.keyColumns(), em.keyCols, em.loadColIdxs, rs);
+                    V1 val = buildObject(em.cacheName, em.valueType(), em.valueColumns(), null, em.loadColIdxs, rs);
 
                     entries.put(key, val);
                 }

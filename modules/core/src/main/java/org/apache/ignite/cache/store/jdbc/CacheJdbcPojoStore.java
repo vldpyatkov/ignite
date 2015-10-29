@@ -18,6 +18,7 @@
 package org.apache.ignite.cache.store.jdbc;
 
 import org.apache.ignite.*;
+import org.apache.ignite.cache.IgniteObject;
 import org.apache.ignite.cache.store.*;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.internal.util.typedef.internal.*;
@@ -121,10 +122,10 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
     /** {@inheritDoc} */
     @Override protected <R> R buildObject(@Nullable String cacheName, String typeName,
-        JdbcTypeField[] fields, Map<String, Integer> loadColIdxs, boolean key, ResultSet rs)
+        JdbcTypeField[] fields, Collection<String> hashFields, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException {
         return (R)(isKeepSerialized(cacheName, typeName)
-            ? buildPortableObject(cacheName, typeName, fields, loadColIdxs, key, rs)
+            ? buildPortableObject(cacheName, typeName, fields, hashFields, loadColIdxs, rs)
             : buildPojoObject(cacheName, typeName, fields, loadColIdxs, rs));
     }
 
@@ -200,14 +201,14 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @param cacheName Cache name.
      * @param typeName Type name.
      * @param fields Fields descriptors.
+     * @param hashFields Collection of fields to build hash for.
      * @param loadColIdxs Select query columns index.
-     * @param hash If {@code true} then build object with hash.
      * @param rs ResultSet.
      * @return Constructed portable object.
      * @throws CacheLoaderException If failed to construct portable object.
      */
     protected Object buildPortableObject(String cacheName, String typeName, JdbcTypeField[] fields,
-        Map<String, Integer> loadColIdxs, boolean hash, ResultSet rs) throws CacheLoaderException {
+        Collection<String> hashFields, Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheLoaderException {
         Map<String, IgniteBiTuple<Boolean, Integer>> cacheTypeIds = portableTypeIds.get(cacheName);
 
         if (cacheTypeIds == null)
@@ -235,34 +236,18 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             else {
                 PortableBuilder builder = ignite.portables().builder(tuple.get2());
 
-                if (hash) {
-                    JdbcTypeHashBuilder hashBuilder = hashBuilderFactory.create();
+                for (JdbcTypeField field : fields) {
+                    Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
 
-                    for (JdbcTypeField field : fields) {
-                        Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
+                    Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
 
-                        String colName = field.getJavaFieldName();
-
-                        Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
-
-                        hashBuilder.toHash(colVal, typeName, colName);
-
-                        builder.setField(colName, colVal);
-                    }
-
-                    return builder.hashCode(hashBuilder.hash()).build();
+                    builder.setField(field.getJavaFieldName(), colVal);
                 }
-                 else {
-                    for (JdbcTypeField field : fields) {
-                        Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
 
-                        Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
+                if (hashFields != null)
+                    builder.hashCode(hasher.hashCode(new PortableBuilderWrapper(builder), hashFields));
 
-                        builder.setField(field.getJavaFieldName(), colVal);
-                    }
-
-                    return builder.build();
-                }
+                return builder.build();
             }
         }
         catch (SQLException e) {
@@ -278,8 +263,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @throws CacheException If failed to calculate type ID for given object.
      */
     @Override protected Object typeIdForObject(Object obj) throws CacheException {
-        if (obj instanceof PortableObject)
-            return ((PortableObject)obj).typeId();
+        if (obj instanceof IgniteObject)
+            return ((IgniteObject)obj).typeId();
 
         return obj.getClass();
     }
@@ -339,7 +324,6 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
                 typeMethods.put(keyType, new PojoMethodsCache(keyType, type.getKeyFields()));
 
-                // TODO: IGNITE-1753 fix if exists and merge getters if needed?
                 String valType = type.getValueType();
                 typeMethods.put(valType, new PojoMethodsCache(valType, type.getValueFields()));
             }
@@ -389,6 +373,43 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     }
 
     /**
+     * Thin wrapper over {@link PortableBuilder} to use it as {@link IgniteObject} for hash code calculation.
+     */
+    private static class PortableBuilderWrapper implements IgniteObject {
+        /** Wrapped builder. */
+        private final PortableBuilder builder;
+
+        /**
+         * Create wrapper.
+         *
+         * @param builder Builder to wrap.
+         */
+        private PortableBuilderWrapper(final PortableBuilder builder) {
+            this.builder = builder;
+        }
+
+        /** {@inheritDoc} */
+        @Override public int typeId() {
+            return 0; // No need to wrap.
+        }
+
+        /** {@inheritDoc} */
+        @Nullable @Override public <F> F field(String fieldName) throws PortableException {
+            return builder.getField(fieldName);
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean hasField(String fieldName) {
+            return false; // No need to wrap.
+        }
+
+        /** {@inheritDoc} */
+        @Nullable @Override public <T> T deserialize() throws PortableException {
+            return null; // No need to wrap.
+        }
+    }
+
+    /**
      * POJO methods cache.
      */
     private static class PojoMethodsCache {
@@ -407,6 +428,18 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         /** Cached getters for POJO object. */
         private Map<String, Method> setters;
 
+
+        /**
+         * Object is a simple type.
+         *
+         * @param cls Class.
+         * @return {@code True} if object is a simple type.
+         */
+        private boolean simpleType(Class<?> cls) {
+            return (Number.class.isAssignableFrom(cls) || String.class.isAssignableFrom(cls) ||
+                java.util.Date.class.isAssignableFrom(cls) || Boolean.class.isAssignableFrom(cls) ||
+                UUID.class.isAssignableFrom(cls));
+        }
         /**
          * POJO methods cache.
          *

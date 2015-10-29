@@ -17,22 +17,21 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
+import org.apache.ignite.cache.IgniteObject;
+
+import java.io.Serializable;
+import java.util.Collection;
+
 /**
  * API for implementing custom hashing logic for portable objects on server side.
  */
-public interface JdbcTypeHashBuilder {
+public interface JdbcTypeHasher extends Serializable {
     /**
-     * Calculate hash code for specified value and field name.
+     * Calculate hash code for specified object and fields.
      *
-     * @param val Value to calculate hash code for.
-     * @param typeName Type name hash is calculating for.
-     * @param fieldName Field name that should participate in hash code calculation.
+     * @param obj Object to calculate hash code for.
+     * @param fields Collection of field names that should participate in hash code calculation.
      * @return Hash code.
      */
-    public int toHash(Object val, String typeName, String fieldName);
-
-    /**
-     * @return Calculated hash code.
-     */
-    public int hash();
+    public int hashCode(IgniteObject obj, Collection<String> fields);
 }

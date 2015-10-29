@@ -55,7 +55,7 @@ public class JdbcType implements Serializable {
     private boolean keepSerialized;
 
     /** Custom type hasher. */
-    private JdbcTypeHashBuilder hasher;
+    private JdbcTypeHasher hasher;
 
     /**
      * Empty constructor (all values are initialized to their defaults).
