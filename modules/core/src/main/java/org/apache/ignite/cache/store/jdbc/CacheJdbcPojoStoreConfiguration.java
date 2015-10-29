@@ -17,6 +17,7 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
+import javax.cache.configuration.Factory;
 import org.apache.ignite.cache.store.jdbc.dialect.*;
 
 import java.io.*;
@@ -55,6 +56,9 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
     /** Parallel load cache minimum threshold. If {@code 0} then load sequentially. */
     private int parallelLoadCacheMinThreshold = DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD;
 
+    /** Factory for.  */
+    private Factory<JdbcTypeHashBuilder> hashBuilderFactory = JdbcTypeDefaultHashBuilderFactory.INSTANCE;
+
     /** Types that store could process. */
     private JdbcType[] types;
 
@@ -79,6 +83,7 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
         maxWrtAttempts = cfg.getMaximumWriteAttempts();
         parallelLoadCacheMinThreshold = cfg.getParallelLoadCacheMinimumThreshold();
         types = cfg.getTypes();
+        hashBuilderFactory = cfg.getHashBuilderFactory();
     }
 
     /**
@@ -224,6 +229,27 @@ public class CacheJdbcPojoStoreConfiguration implements Serializable {
      */
     public CacheJdbcPojoStoreConfiguration setTypes(JdbcType... types) {
         this.types = types;
+
+        return this;
+    }
+
+    /**
+     * Gets hash builder factory.
+     *
+     * @return Hash builder factory.
+     */
+    public Factory<JdbcTypeHashBuilder> getHashBuilderFactory() {
+        return hashBuilderFactory;
+    }
+
+    /**
+     * Sets hash builder factory..
+     *
+     * @param hashBuilderFactory Hash builder factory.
+     * @return {@code This} for chaining.
+     */
+    public CacheJdbcPojoStoreConfiguration setHashBuilderFactory(Factory<JdbcTypeHashBuilder> hashBuilderFactory) {
+        this.hashBuilderFactory = hashBuilderFactory;
 
         return this;
     }

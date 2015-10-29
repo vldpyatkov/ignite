@@ -119,23 +119,12 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             obj.getClass() + ", property=" + fieldName + "]");
     }
 
-    /**
-     * Construct object from query result.
-     *
-     * @param <R> Type of result object.
-     * @param cacheName Cache name.
-     * @param typeName Type name.
-     * @param fields Fields descriptors.
-     * @param loadColIdxs Select query columns index.
-     * @param rs ResultSet.
-     * @return Constructed object.
-     * @throws CacheLoaderException If failed to construct cache object.
-     */
+    /** {@inheritDoc} */
     @Override protected <R> R buildObject(@Nullable String cacheName, String typeName,
-        JdbcTypeField[] fields, Map<String, Integer> loadColIdxs, ResultSet rs)
+        JdbcTypeField[] fields, Map<String, Integer> loadColIdxs, boolean key, ResultSet rs)
         throws CacheLoaderException {
         return (R)(isKeepSerialized(cacheName, typeName)
-            ? buildPortableObject(cacheName, typeName, fields, loadColIdxs, rs)
+            ? buildPortableObject(cacheName, typeName, fields, loadColIdxs, key, rs)
             : buildPojoObject(cacheName, typeName, fields, loadColIdxs, rs));
     }
 
@@ -212,12 +201,13 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @param typeName Type name.
      * @param fields Fields descriptors.
      * @param loadColIdxs Select query columns index.
+     * @param hash If {@code true} then build object with hash.
      * @param rs ResultSet.
      * @return Constructed portable object.
      * @throws CacheLoaderException If failed to construct portable object.
      */
     protected Object buildPortableObject(String cacheName, String typeName, JdbcTypeField[] fields,
-        Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheLoaderException {
+        Map<String, Integer> loadColIdxs, boolean hash, ResultSet rs) throws CacheLoaderException {
         Map<String, IgniteBiTuple<Boolean, Integer>> cacheTypeIds = portableTypeIds.get(cacheName);
 
         if (cacheTypeIds == null)
@@ -245,19 +235,34 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             else {
                 PortableBuilder builder = ignite.portables().builder(tuple.get2());
 
-                int hashCode = 0; // TODO: IGNITE-1753 hash code calculation could change !!!
+                if (hash) {
+                    JdbcTypeHashBuilder hashBuilder = hashBuilderFactory.create();
 
-                for (JdbcTypeField field : fields) {
-                    Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
+                    for (JdbcTypeField field : fields) {
+                        Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
 
-                    Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
+                        String colName = field.getJavaFieldName();
 
-                    hashCode = 31 * hashCode + (colVal != null ? colVal.hashCode() : 0);
+                        Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
 
-                    builder.setField(field.getJavaFieldName(), colVal);
+                        hashBuilder.toHash(colVal, typeName, colName);
+
+                        builder.setField(colName, colVal);
+                    }
+
+                    return builder.hashCode(hashBuilder.hash()).build();
                 }
+                 else {
+                    for (JdbcTypeField field : fields) {
+                        Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
 
-                return builder.hashCode(hashCode).build();
+                        Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
+
+                        builder.setField(field.getJavaFieldName(), colVal);
+                    }
+
+                    return builder.build();
+                }
             }
         }
         catch (SQLException e) {

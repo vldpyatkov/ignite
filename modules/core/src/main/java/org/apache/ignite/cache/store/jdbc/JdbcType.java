@@ -54,6 +54,9 @@ public class JdbcType implements Serializable {
     /** If {@code true} object is stored as IgniteObject. */
     private boolean keepSerialized;
 
+    /** Custom type hasher. */
+    private JdbcTypeHashBuilder hasher;
+
     /**
      * Empty constructor (all values are initialized to their defaults).
      */
