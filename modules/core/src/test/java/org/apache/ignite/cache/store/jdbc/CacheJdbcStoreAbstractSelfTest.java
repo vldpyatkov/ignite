@@ -54,6 +54,9 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
     /** Person count. */
     protected static final int PERSON_CNT = 100000;
 
+    /** Flag indicating that tests should use primitive classes like java.lang.Integer for keys. */
+    protected static boolean primitiveKeys = false;
+
     /**
      * @return Connection to test in-memory H2 database.
      * @throws SQLException
@@ -78,9 +81,9 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
 
         U.closeQuiet(stmt);
 
-        U.closeQuiet(conn);
+        fillSampleDatabase(conn);
 
-        startGrid();
+        U.closeQuiet(conn);
     }
 
     /** {@inheritDoc} */
@@ -153,11 +156,10 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
     /**
      * Fill in-memory database with sample data.
      *
+     * @param conn Connection to database.
      * @throws SQLException In case of filling database with sample data failed.
      */
-    protected void fillSampleDatabase() throws SQLException {
-        Connection conn = getConnection();
-
+    protected void fillSampleDatabase(Connection conn) throws SQLException {
         PreparedStatement orgStmt = conn.prepareStatement("INSERT INTO Organization(id, name, city) VALUES (?, ?, ?)");
 
         for (int i = 0; i < ORGANIZATION_CNT; i++) {
@@ -189,22 +191,35 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         conn.commit();
 
         U.closeQuiet(prnStmt);
-
-        U.closeQuiet(conn);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testLoadCache() throws Exception {
-        fillSampleDatabase();
+        primitiveKeys = false;
+
+        startGrid();
 
         IgniteCache<Object, Object> c1 = grid().cache(null);
 
-        info("Cache load started...");
+        c1.loadCache(null);
+
+        assertEquals(ORGANIZATION_CNT + PERSON_CNT, c1.size());
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testLoadCachePrimitiveKeys() throws Exception {
+        primitiveKeys = true;
+
+        startGrid();
+
+        IgniteCache<Object, Object> c1 = grid().cache(null);
 
         c1.loadCache(null);
 
-        info("Cache load finished!");
+        assertEquals(ORGANIZATION_CNT + PERSON_CNT, c1.size());
     }
 }

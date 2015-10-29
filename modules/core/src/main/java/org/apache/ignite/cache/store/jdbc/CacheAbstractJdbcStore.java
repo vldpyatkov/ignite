@@ -68,6 +68,7 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiInClosure;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lifecycle.LifecycleAware;
+import org.apache.ignite.marshaller.portable.PortableMarshaller;
 import org.apache.ignite.resources.CacheStoreSessionResource;
 import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.resources.LoggerResource;
@@ -123,7 +124,6 @@ import static org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStoreConfiguration
  *    ...
  * </pre>
  */
-@Deprecated
 public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, LifecycleAware {
     /** Connection attribute property name. */
     protected static final String ATTR_CONN_PROP = "JDBC_STORE_CONNECTION";
@@ -672,7 +672,9 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             // If no types configured, check CacheTypeMetadata for backward compatibility.
             if (types == null) {
-                CacheConfiguration ccfg = ignite().cache(cacheName).getConfiguration(CacheConfiguration.class);
+                boolean keepSerialized = ignite.configuration().getMarshaller() instanceof PortableMarshaller;
+
+                CacheConfiguration ccfg = ignite.cache(cacheName).getConfiguration(CacheConfiguration.class);
 
                 Collection<CacheTypeMetadata> oldTypes = ccfg.getTypeMetadata();
 
@@ -682,6 +684,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                 for (CacheTypeMetadata oldType : oldTypes) {
                     JdbcType newType = new JdbcType();
+
+                    newType.setKeepSerialized(keepSerialized);
 
                     newType.setCacheName(cacheName);
 

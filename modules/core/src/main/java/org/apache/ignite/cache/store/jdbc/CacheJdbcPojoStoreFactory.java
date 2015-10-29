@@ -57,7 +57,7 @@ import org.apache.ignite.resources.SpringApplicationContextResource;
  * <br>
  * For information about Spring framework visit <a href="http://www.springframework.org/">www.springframework.org</a>
  */
-public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheJdbcPojoStore<K, V>> {
+public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdbcStore<K, V>> {
     /** */
     private static final long serialVersionUID = 0L;
 

@@ -37,8 +37,16 @@ public class CacheJdbcPojoStoreSelfTest extends CacheJdbcStoreAbstractSelfTest {
         storeTypes[0] = new JdbcType();
         storeTypes[0].setDatabaseSchema("PUBLIC");
         storeTypes[0].setDatabaseTable("ORGANIZATION");
-        storeTypes[0].setKeyType("org.apache.ignite.cache.store.jdbc.model.OrganizationKey");
-        storeTypes[0].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+
+        if (primitiveKeys) {
+            storeTypes[0].setKeyType("java.lang.Integer");
+            storeTypes[0].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        }
+        else {
+            storeTypes[0].setKeyType("org.apache.ignite.cache.store.jdbc.model.OrganizationKey");
+            storeTypes[0].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        }
+
         storeTypes[0].setValueType("org.apache.ignite.cache.store.jdbc.model.Organization");
         storeTypes[0].setValueFields(
             new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"),
@@ -48,8 +56,16 @@ public class CacheJdbcPojoStoreSelfTest extends CacheJdbcStoreAbstractSelfTest {
         storeTypes[1] = new JdbcType();
         storeTypes[1].setDatabaseSchema("PUBLIC");
         storeTypes[1].setDatabaseTable("PERSON");
-        storeTypes[1].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonKey");
-        storeTypes[1].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+
+        if (primitiveKeys) {
+            storeTypes[1].setKeyType("java.lang.Long");
+            storeTypes[1].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Long.class, "id"));
+        }
+        else {
+            storeTypes[1].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonKey");
+            storeTypes[1].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        }
+
         storeTypes[1].setValueType("org.apache.ignite.cache.store.jdbc.model.Person");
         storeTypes[1].setValueFields(
             new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"),

@@ -19,6 +19,7 @@ package org.apache.ignite.cache.store.jdbc;
 
 import java.io.Serializable;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
+import org.apache.ignite.internal.util.typedef.internal.S;
 
 /**
  * Description for type that could be stored into database by store.
@@ -268,5 +269,10 @@ public class JdbcType implements Serializable {
         this.keepSerialized = keepSerialized;
 
         return this;
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(JdbcType.class, this);
     }
 }
