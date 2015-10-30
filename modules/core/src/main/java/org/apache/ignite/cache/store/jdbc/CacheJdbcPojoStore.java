@@ -376,6 +376,9 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * Thin wrapper over {@link PortableBuilder} to use it as {@link IgniteObject} for hash code calculation.
      */
     private static class PortableBuilderWrapper implements IgniteObject {
+        /** */
+        private static final long serialVersionUID = 0L;
+
         /** Wrapped builder. */
         private final PortableBuilder builder;
 
