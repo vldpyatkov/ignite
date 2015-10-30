@@ -17,8 +17,6 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
-import org.apache.ignite.cache.IgniteObject;
-
 import java.io.Serializable;
 import java.util.Collection;
 
@@ -29,9 +27,8 @@ public interface JdbcTypeHasher extends Serializable {
     /**
      * Calculate hash code for specified object and fields.
      *
-     * @param obj Object to calculate hash code for.
-     * @param fields Collection of field names that should participate in hash code calculation.
+     * @param values Collection of values that should participate in hash code calculation.
      * @return Hash code.
      */
-    public int hashCode(IgniteObject obj, Collection<String> fields);
+    public int hashCode(Collection<?> values);
 }

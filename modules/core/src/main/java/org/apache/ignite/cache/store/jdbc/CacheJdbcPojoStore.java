@@ -236,16 +236,23 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             else {
                 PortableBuilder builder = ignite.portables().builder(tuple.get2());
 
+                boolean calcHash = hashFields != null;
+
+                Collection<Object> hashValues = calcHash ? new ArrayList<>(hashFields.size()) : null;
+
                 for (JdbcTypeField field : fields) {
                     Integer colIdx = loadColIdxs.get(field.getDatabaseFieldName());
 
                     Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
 
                     builder.setField(field.getJavaFieldName(), colVal);
+
+                    if (calcHash)
+                        hashValues.add(colVal);
                 }
 
-                if (hashFields != null)
-                    builder.hashCode(hasher.hashCode(new PortableBuilderWrapper(builder), hashFields));
+                if (calcHash)
+                    builder.hashCode(hasher.hashCode(hashValues));
 
                 return builder.build();
             }
@@ -369,46 +376,6 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             newBuilders.put(cacheName, typeIds);
 
             portableTypeIds = newBuilders;
-        }
-    }
-
-    /**
-     * Thin wrapper over {@link PortableBuilder} to use it as {@link IgniteObject} for hash code calculation.
-     */
-    private static class PortableBuilderWrapper implements IgniteObject {
-        /** */
-        private static final long serialVersionUID = 0L;
-
-        /** Wrapped builder. */
-        private final PortableBuilder builder;
-
-        /**
-         * Create wrapper.
-         *
-         * @param builder Builder to wrap.
-         */
-        private PortableBuilderWrapper(final PortableBuilder builder) {
-            this.builder = builder;
-        }
-
-        /** {@inheritDoc} */
-        @Override public int typeId() {
-            return 0; // No need to wrap.
-        }
-
-        /** {@inheritDoc} */
-        @Nullable @Override public <F> F field(String fieldName) throws PortableException {
-            return builder.getField(fieldName);
-        }
-
-        /** {@inheritDoc} */
-        @Override public boolean hasField(String fieldName) {
-            return false; // No need to wrap.
-        }
-
-        /** {@inheritDoc} */
-        @Nullable @Override public <T> T deserialize() throws PortableException {
-            return null; // No need to wrap.
         }
     }
 

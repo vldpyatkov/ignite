@@ -160,6 +160,8 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
      * @throws SQLException In case of filling database with sample data failed.
      */
     protected void fillSampleDatabase(Connection conn) throws SQLException {
+        info("Start to fill sample database...");
+
         PreparedStatement orgStmt = conn.prepareStatement("INSERT INTO Organization(id, name, city) VALUES (?, ?, ?)");
 
         for (int i = 0; i < ORGANIZATION_CNT; i++) {
@@ -191,6 +193,8 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         conn.commit();
 
         U.closeQuiet(prnStmt);
+
+        info("Sample database prepared.");
     }
 
     /**
@@ -200,6 +204,8 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         primitiveKeys = false;
 
         startGrid();
+
+        info("Execute testLoadCache...");
 
         IgniteCache<Object, Object> c1 = grid().cache(null);
 
@@ -215,6 +221,8 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
         primitiveKeys = true;
 
         startGrid();
+
+        info("Execute testLoadCachePrimitiveKeys...");
 
         IgniteCache<Object, Object> c1 = grid().cache(null);
 

@@ -34,14 +34,11 @@ public class JdbcTypeDefaultHasher implements JdbcTypeHasher {
     public static final JdbcTypeHasher INSTANCE = new JdbcTypeDefaultHasher();
 
     /** {@inheritDoc} */
-    @Override public int hashCode(IgniteObject obj, Collection<String> fields) {
+    @Override public int hashCode(Collection<?> values) {
         int hash = 0;
 
-        for (String field : fields) {
-            Object val = obj.field(field);
-
+        for (Object val : values)
             hash = 31 * hash + (val != null ? val.hashCode() : 0);
-        }
 
         return hash;
     }
