@@ -51,9 +51,6 @@ public class JdbcType implements Serializable {
     @GridToStringInclude
     private JdbcTypeField[] valFields;
 
-    /** If {@code true} object is stored as IgniteObject. */
-    private boolean keepSerialized;
-
     /** Custom type hasher. */
     private JdbcTypeHasher hasher;
 
@@ -80,8 +77,6 @@ public class JdbcType implements Serializable {
 
         valType = type.getValueType();
         valFields = type.getValueFields();
-
-        keepSerialized = type.isKeepSerialized();
     }
 
     /**
@@ -249,27 +244,6 @@ public class JdbcType implements Serializable {
      */
     public JdbcType setValueFields(JdbcTypeField... valFields) {
         this.valFields = valFields;
-
-        return this;
-    }
-
-    /**
-     * Gets how value stored in cache.
-     *
-     * @return {@code true} if object is stored as IgniteObject.
-     */
-    public boolean isKeepSerialized() {
-        return keepSerialized;
-    }
-
-    /**
-     * Sets how value stored in cache.
-     *
-     * @param keepSerialized {@code true} if object is stored as IgniteObject.
-     * @return {@code this} for chaining.
-     */
-    public JdbcType setKeepSerialized(boolean keepSerialized) {
-        this.keepSerialized = keepSerialized;
 
         return this;
     }
