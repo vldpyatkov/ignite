@@ -63,7 +63,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     @Override @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, String fieldName,
         Object obj) throws CacheException {
         switch (typeKind(cacheName, typeName)) {
-            case SIMPLE:
+            case BUILT_IN:
                 return obj;
             case POJO:
                 return extractPojoParameter(cacheName, typeName, fieldName, obj);
@@ -98,7 +98,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             Method getter = mc.getters.get(fieldName);
 
             if (getter == null)
-                throw new CacheLoaderException("Failed to find getter in POJO class [clsName=" + typeName +
+                throw new CacheLoaderException("Failed to find getter in POJO class [class=" + typeName +
                     ", prop=" + fieldName + "]");
 
             return getter.invoke(obj);
@@ -123,7 +123,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             return pobj.field(fieldName);
         }
 
-        throw new CacheException("Failed to read property value from non portable object [class name=" +
+        throw new CacheException("Failed to read property value from non portable object [class=" +
             obj.getClass() + ", property=" + fieldName + "]");
     }
 
@@ -132,7 +132,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         JdbcTypeField[] fields, Collection<String> hashFields, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException {
         switch (typeKind(cacheName, typeName)) {
-            case SIMPLE:
+            case BUILT_IN:
                 return (R)buildSimpleObject(typeName, fields, loadColIdxs, rs);
             case POJO:
                 return (R)buildPojoObject(cacheName, typeName, fields, loadColIdxs, rs);
@@ -142,13 +142,13 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     }
 
     /**
-     * Construct simple object from query result.
+     * Construct Java built in object from query result.
      *
      * @param typeName Type name.
      * @param fields Fields descriptors.
-     * @param loadColIdxs Select query columns index.
-     * @param rs ResultSet.
-     * @return Constructed POJO.
+     * @param loadColIdxs Select query columns indexes.
+     * @param rs ResultSet to take data from.
+     * @return Constructed object.
      * @throws CacheLoaderException If failed to construct POJO.
      */
     private Object buildSimpleObject(String typeName, JdbcTypeField[] fields, Map<String, Integer> loadColIdxs,
@@ -197,7 +197,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                 Method setter = mc.setters.get(fldJavaName);
 
                 if (setter == null)
-                    throw new IllegalStateException("Failed to find setter in POJO class [clsName=" + typeName +
+                    throw new IllegalStateException("Failed to find setter in POJO class [type=" + typeName +
                         ", prop=" + fldJavaName + "]");
 
                 String fldDbName = field.getDatabaseFieldName();
@@ -211,12 +211,12 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                         setter.invoke(obj, colVal);
                     }
                     catch (Exception e) {
-                        throw new CacheLoaderException("Failed to set property in POJO class [clsName=" + typeName +
+                        throw new CacheLoaderException("Failed to set property in POJO class [type=" + typeName +
                             ", prop=" + fldJavaName + ", col=" + colIdx + ", dbName=" + fldDbName + "]", e);
                     }
                 }
                 catch (SQLException e) {
-                    throw new CacheLoaderException("Failed to read object property [clsName=: " + typeName +
+                    throw new CacheLoaderException("Failed to read object property [type= " + typeName +
                         ", prop=" + fldJavaName + ", col=" + colIdx + ", dbName=" + fldDbName + "]", e);
                 }
             }
@@ -417,7 +417,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                         getters.put(field.getJavaFieldName(), cls.getMethod("is" + prop));
                     }
                     catch (NoSuchMethodException e) {
-                        throw new CacheException("Failed to find getter in POJO class [clsName=" + clsName +
+                        throw new CacheException("Failed to find getter in POJO class [class=" + clsName +
                             ", prop=" + field.getJavaFieldName() + "]", e);
                     }
                 }
@@ -426,7 +426,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                     setters.put(field.getJavaFieldName(), cls.getMethod("set" + prop, field.getJavaFieldType()));
                 }
                 catch (NoSuchMethodException e) {
-                    throw new CacheException("Failed to find setter in POJO class [clsName=" + clsName +
+                    throw new CacheException("Failed to find setter in POJO class [class=" + clsName +
                         ", prop=" + field.getJavaFieldName() + "]", e);
                 }
             }

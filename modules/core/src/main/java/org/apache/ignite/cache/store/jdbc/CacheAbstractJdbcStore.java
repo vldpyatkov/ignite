@@ -127,24 +127,24 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Connection attribute property name. */
     protected static final String ATTR_CONN_PROP = "JDBC_STORE_CONNECTION";
 
-    /** Simple types names. */
-    protected static final Collection<String> SIMPLE_TYPES = new HashSet<>();
+    /** Built in Java types names. */
+    protected static final Collection<String> BUILT_IN_TYPES = new HashSet<>();
 
     static {
-        SIMPLE_TYPES.add("java.math.BigDecimal");
-        SIMPLE_TYPES.add("java.lang.Boolean");
-        SIMPLE_TYPES.add("java.lang.Byte");
-        SIMPLE_TYPES.add("java.lang.Character");
-        SIMPLE_TYPES.add("java.lang.Double");
-        SIMPLE_TYPES.add("java.util.Date");
-        SIMPLE_TYPES.add("java.sql.Date");
-        SIMPLE_TYPES.add("java.lang.Float");
-        SIMPLE_TYPES.add("java.lang.Integer");
-        SIMPLE_TYPES.add("java.lang.Long");
-        SIMPLE_TYPES.add("java.lang.Short");
-        SIMPLE_TYPES.add("java.lang.String");
-        SIMPLE_TYPES.add("java.sql.Timestamp");
-        SIMPLE_TYPES.add("java.util.UUID");
+        BUILT_IN_TYPES.add("java.math.BigDecimal");
+        BUILT_IN_TYPES.add("java.lang.Boolean");
+        BUILT_IN_TYPES.add("java.lang.Byte");
+        BUILT_IN_TYPES.add("java.lang.Character");
+        BUILT_IN_TYPES.add("java.lang.Double");
+        BUILT_IN_TYPES.add("java.util.Date");
+        BUILT_IN_TYPES.add("java.sql.Date");
+        BUILT_IN_TYPES.add("java.lang.Float");
+        BUILT_IN_TYPES.add("java.lang.Integer");
+        BUILT_IN_TYPES.add("java.lang.Long");
+        BUILT_IN_TYPES.add("java.lang.Short");
+        BUILT_IN_TYPES.add("java.lang.String");
+        BUILT_IN_TYPES.add("java.sql.Timestamp");
+        BUILT_IN_TYPES.add("java.util.UUID");
     }
 
     /** Auto-injected store session. */
@@ -169,7 +169,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Cache with entry mapping description. (cache name, (keyID, mapping description)). */
     protected volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
 
-    /** Map for quick check whether type is Simple, POJO or Portable. */
+    /** Map for quick check whether type is Built in, POJO or Portable. */
     private volatile Map<String, Map<String, TypeKind>> typeKinds = new HashMap<>();
 
     /** Maximum batch size for writeAll and deleteAll operations. */
@@ -562,9 +562,9 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      */
     private void checkMapping(@Nullable String cacheName, TypeKind kind, String typeName, JdbcTypeField[] fields) throws CacheException {
         try {
-            if (kind == TypeKind.SIMPLE) {
+            if (kind == TypeKind.BUILT_IN) {
                 if (fields.length != 1)
-                    throw new CacheException("More than one field for simple type [cache=" +  U.maskName(cacheName) +
+                    throw new CacheException("More than one field for built in type [cache=" +  U.maskName(cacheName) +
                         ", type=" + typeName + " ]");
 
                 JdbcTypeField field = fields[0];
@@ -618,7 +618,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     }
 
     /**
-     * Checks for Simple/POJO/Portable type kind.
+     * Checks for Built in/POJO/Portable type kind.
      *
      * @param cacheName Cache name to get types settings.
      * @param typeName Type name to check for POJO/portable format.
@@ -644,8 +644,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @return {@code True} if class not found.
      */
     private TypeKind kindForName(String type) {
-        if (SIMPLE_TYPES.contains(type))
-            return TypeKind.SIMPLE;
+        if (BUILT_IN_TYPES.contains(type))
+            return TypeKind.BUILT_IN;
 
         try {
             Class.forName(type);
@@ -1649,8 +1649,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * Type kind.
      */
     protected enum TypeKind {
-        /** Type is known java build type, like {@link String} */
-        SIMPLE,
+        /** Type is known as Java built in type, like {@link String} */
+        BUILT_IN,
         /** Class for this type is available. */
         POJO,
         /** Class for this type is not available. */

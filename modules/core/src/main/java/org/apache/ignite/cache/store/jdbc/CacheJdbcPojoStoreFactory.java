@@ -34,7 +34,7 @@ import org.apache.ignite.resources.SpringApplicationContextResource;
  *
  * <h2 class="header">Spring Example</h2>
  * <pre name="code" class="xml">
- *     &lt;bean id= "simpleDataSource" class="org.h2.jdbcx.JdbcDataSource"/&gt;
+ *     &lt;bean id= "myDataSource" class="org.h2.jdbcx.JdbcDataSource"/&gt;
  *
  *     &lt;bean id="ignite.cfg" class="org.apache.ignite.configuration.IgniteConfiguration"&gt;
  *          ...
@@ -47,7 +47,7 @@ import org.apache.ignite.resources.SpringApplicationContextResource;
  *                          &lt;bean class="org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStoreFactory"&gt;
  *                              &lt;property name="configuration" &gt;
  *                                  &lt;bean class="org.apache.ignite.cache.store.jdbc.CacheJdbcStoreFactory"&gt;
- *                                      &lt;property name="dataSourceBean" value="simpleDataSource"
+ *                                      &lt;property name="dataSourceBean" value="myDataSource"
  *                                      &lt;property name="types"&gt;
  *                                          &lt;list&gt;
  *                                              &lt;bean class="org.apache.ignite.cache.store.jdbc.JdbcType"&gt;
