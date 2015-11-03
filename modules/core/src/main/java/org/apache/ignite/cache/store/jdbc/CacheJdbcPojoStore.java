@@ -57,9 +57,13 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      */
     @Override @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, String fieldName,
         Object obj) throws CacheException {
-        return isKeepSerialized(cacheName, typeName)
-            ? extractPortableParameter(fieldName, obj)
-            : extractPojoParameter(cacheName, typeName, fieldName, obj);
+        switch (typeKind(cacheName, typeName)) {
+            case SIMPLE:
+                return obj;
+            case POJO:
+                return extractPojoParameter(cacheName, typeName, fieldName, obj);
+            default: return extractPortableParameter(fieldName, obj);
+        }
     }
 
     /**
@@ -84,9 +88,6 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
             if (mc == null)
                 throw new CacheException("Failed to find POJO type metadata for type: " + typeName);
-
-            if (mc.simple)
-                return obj;
 
             Method getter = mc.getters.get(fieldName);
 
@@ -124,9 +125,32 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     @Override protected <R> R buildObject(@Nullable String cacheName, String typeName,
         JdbcTypeField[] fields, Collection<String> hashFields, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException {
-        return (R)(isKeepSerialized(cacheName, typeName)
-            ? buildPortableObject(cacheName, typeName, fields, hashFields, loadColIdxs, rs)
-            : buildPojoObject(cacheName, typeName, fields, loadColIdxs, rs));
+        switch (typeKind(cacheName, typeName)) {
+            case SIMPLE: return (R)buildSimpleObject(cacheName, typeName, fields, hashFields, loadColIdxs, rs);
+            case POJO: return (R)buildPojoObject(cacheName, typeName, fields, loadColIdxs, rs);
+            default: return (R)buildPortableObject(cacheName, typeName, fields, hashFields, loadColIdxs, rs);
+        }
+    }
+
+    /**
+     *
+     * @param cacheName
+     * @param typeName
+     * @param fields
+     * @param hashFields
+     * @param loadColIdxs
+     * @param rs
+     * @return
+     */
+    private Object buildSimpleObject(@Nullable String cacheName, String typeName, JdbcTypeField[] fields,
+        Collection<String> hashFields, Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheLoaderException {
+        try {
+            JdbcTypeField field = fields[0];
+
+            return getColumnValue(rs, loadColIdxs.get(field.getDatabaseFieldName()), field.getJavaFieldType());
+        } catch (SQLException e) {
+            throw new CacheLoaderException("Failed to read object of class: " + typeName, e);
+        }
     }
 
     /**
@@ -155,12 +179,6 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             throw new CacheLoaderException("Failed to find POJO type metadata for type: " + typeName);
 
         try {
-            if (mc.simple) {
-                JdbcTypeField field = fields[0];
-
-                return getColumnValue(rs, loadColIdxs.get(field.getDatabaseFieldName()), mc.cls);
-            }
-
             Object obj = mc.ctor.newInstance();
 
             for (JdbcTypeField field : fields) {
@@ -177,18 +195,23 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                 Integer colIdx = loadColIdxs.get(fldDbName);
 
                 try {
-                    setter.invoke(obj, getColumnValue(rs, colIdx, field.getJavaFieldType()));
+                    Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
+
+                    try {
+                        setter.invoke(obj, colVal);
+                    }
+                    catch (Exception e) {
+                        throw new CacheLoaderException("Failed to set property in POJO class [clsName=" + typeName +
+                            ", prop=" + fldJavaName + ", col=" + colIdx + ", dbName=" + fldDbName + "]", e);
+                    }
                 }
-                catch (Exception e) {
-                    throw new IllegalStateException("Failed to set property in POJO class [clsName=" + typeName +
+                catch (SQLException e) {
+                    throw new CacheLoaderException("Failed to read object property [clsName=: " + typeName +
                         ", prop=" + fldJavaName + ", col=" + colIdx + ", dbName=" + fldDbName + "]", e);
                 }
             }
 
             return obj;
-        }
-        catch (SQLException e) {
-            throw new CacheLoaderException("Failed to read object of class: " + typeName, e);
         }
         catch (Exception e) {
             throw new CacheLoaderException("Failed to construct instance of class: " + typeName, e);
@@ -276,16 +299,9 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         return obj.getClass();
     }
 
-    /**
-     * Calculate type ID for given type name.
-     *
-     * @param keepSerialized If {@code true} then calculate type ID for portable object otherwise for POJO.
-     * @param typeName String description of type name.
-     * @return Type ID.
-     * @throws CacheException If failed to get type ID for given type name.
-     */
-    @Override protected Object typeIdForTypeName(boolean keepSerialized, String typeName) throws CacheException {
-        if (keepSerialized)
+    /** {@inheritDoc} */
+    @Override protected Object typeIdForTypeName(TypeKind kind, String typeName) throws CacheException {
+        if (kind == TypeKind.PORTABLE)
             return ignite.portables().typeId(typeName);
 
         try {
@@ -322,7 +338,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         Map<String, PojoMethodsCache> typeMethods = U.newHashMap(types.size() * 2);
 
         for (JdbcType type : types) {
-            if (!type.isKeepSerialized()) {
+            // TODO FIX-ME !!!
+            if (typeKind(cacheName, type.getKeyType()) == TypeKind.POJO) {
                 String keyType = type.getKeyType();
 
                 if (typeMethods.containsKey(keyType))
@@ -357,7 +374,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         Map<String, IgniteBiTuple<Boolean, Integer>> typeIds = U.newHashMap(types.size() * 2);
 
         for (JdbcType type : types) {
-            if (type.isKeepSerialized()) {
+            // TODO FIX-ME !!!
+            if (typeKind(cacheName, type.getKeyType()) == TypeKind.PORTABLE) {
                 Ignite ignite = ignite();
 
                 IgnitePortables portables = ignite.portables();
@@ -389,27 +407,12 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         /** Constructor for POJO object. */
         private Constructor ctor;
 
-        /** {@code true} if object is a simple type. */
-        private final boolean simple;
-
         /** Cached setters for POJO object. */
         private Map<String, Method> getters;
 
         /** Cached getters for POJO object. */
         private Map<String, Method> setters;
 
-
-        /**
-         * Object is a simple type.
-         *
-         * @param cls Class.
-         * @return {@code True} if object is a simple type.
-         */
-        private boolean simpleType(Class<?> cls) {
-            return (Number.class.isAssignableFrom(cls) || String.class.isAssignableFrom(cls) ||
-                java.util.Date.class.isAssignableFrom(cls) || Boolean.class.isAssignableFrom(cls) ||
-                UUID.class.isAssignableFrom(cls));
-        }
         /**
          * POJO methods cache.
          *
@@ -420,9 +423,6 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         private PojoMethodsCache(String clsName, JdbcTypeField[] fields) throws CacheException {
             try {
                 cls = Class.forName(clsName);
-
-                if (simple = simpleType(cls))
-                    return;
 
                 ctor = cls.getDeclaredConstructor();
 

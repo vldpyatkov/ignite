@@ -68,7 +68,6 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiInClosure;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lifecycle.LifecycleAware;
-import org.apache.ignite.marshaller.portable.PortableMarshaller;
 import org.apache.ignite.resources.CacheStoreSessionResource;
 import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.resources.LoggerResource;
@@ -170,8 +169,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Cache with entry mapping description. (cache name, (keyID, mapping description)). */
     protected volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
 
-    /** Map for quick check whether type is POJO or Portable. */
-    private volatile Map<String, Map<String, Boolean>> keepSerializedTypes = new HashMap<>();
+    /** Map for quick check whether type is Simple, POJO or Portable. */
+    private volatile Map<String, Map<String, TypeKind>> typeKinds = new HashMap<>();
 
     /** Maximum batch size for writeAll and deleteAll operations. */
     private int batchSz = DFLT_BATCH_SIZE;
@@ -236,12 +235,12 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /**
      * Calculate type ID for given type name.
      *
-     * @param keepSerialized If {@code true} then calculate type ID for portable object otherwise for POJO.
+     * @param kind If {@code true} then calculate type ID for POJO otherwise for portable object .
      * @param typeName String description of type name.
      * @return Type ID.
      * @throws CacheException If failed to get type ID for given type name.
      */
-    protected abstract Object typeIdForTypeName(boolean keepSerialized, String typeName) throws CacheException;
+    protected abstract Object typeIdForTypeName(TypeKind kind, String typeName) throws CacheException;
 
     /**
      * Prepare internal store specific builders for provided types metadata.
@@ -561,9 +560,9 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @param fields Fields descriptors.
      * @throws CacheException If failed to check type metadata.
      */
-    private void checkMapping(@Nullable String cacheName, String typeName, JdbcTypeField[] fields) throws CacheException {
+    private void checkMapping(@Nullable String cacheName, TypeKind kind, String typeName, JdbcTypeField[] fields) throws CacheException {
         try {
-            if (SIMPLE_TYPES.contains(typeName)) {
+            if (kind == TypeKind.SIMPLE) {
                 if (fields.length != 1)
                     throw new CacheException("More than one field for simple type [cache=" +  U.maskName(cacheName) +
                         ", type=" + typeName + " ]");
@@ -619,25 +618,43 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     }
 
     /**
-     * Checks for POJO/portable format.
+     * Checks for Simple/POJO/Portable type kind.
      *
      * @param cacheName Cache name to get types settings.
      * @param typeName Type name to check for POJO/portable format.
      * @return {@code true} If portable format configured.
      * @throws CacheException In case of error.
      */
-    protected boolean isKeepSerialized(String cacheName, String typeName) {
-        Map<String, Boolean> cacheTypes = keepSerializedTypes.get(cacheName);
+    protected TypeKind typeKind(String cacheName, String typeName) {
+        Map<String, TypeKind> cacheTypes = typeKinds.get(cacheName);
 
         if (cacheTypes == null)
             throw new CacheException("Failed to find types metadata for cache: " +  U.maskName(cacheName));
 
-        Boolean keepSerialized = cacheTypes.get(typeName);
+        TypeKind kind = cacheTypes.get(typeName);
 
-        if (keepSerialized == null)
+        if (kind == null)
             throw new CacheException("Failed to find type metadata for type: " + typeName);
 
-        return keepSerialized;
+        return kind;
+    }
+
+    /**
+     * @param type Type name to check.
+     * @return {@code True} if class not found.
+     */
+    private TypeKind kindForName(String type) {
+        if (SIMPLE_TYPES.contains(type))
+            return TypeKind.SIMPLE;
+
+        try {
+            Class.forName(type);
+
+            return TypeKind.POJO;
+        }
+        catch(ClassNotFoundException ignored) {
+            return TypeKind.PORTABLE;
+        }
     }
 
     /**
@@ -661,8 +678,6 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             // If no types configured, check CacheTypeMetadata for backward compatibility.
             if (types == null) {
-                boolean keepSerialized = ignite.configuration().getMarshaller() instanceof PortableMarshaller;
-
                 CacheConfiguration ccfg = ignite.cache(cacheName).getConfiguration(CacheConfiguration.class);
 
                 Collection<CacheTypeMetadata> oldTypes = ccfg.getTypeMetadata();
@@ -673,8 +688,6 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                 for (CacheTypeMetadata oldType : oldTypes) {
                     JdbcType newType = new JdbcType();
-
-                    newType.setKeepSerialized(keepSerialized);
 
                     newType.setCacheName(cacheName);
 
@@ -703,32 +716,32 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
             entryMappings = U.newHashMap(cacheTypes.size());
 
             if (!cacheTypes.isEmpty()) {
-                Map<String, Boolean> tk = new HashMap<>(cacheTypes.size() * 2);
+                Map<String, TypeKind> cacheKinds = new HashMap<>(cacheTypes.size() * 2);
 
                 for (JdbcType type : cacheTypes) {
-                    boolean keepSerialized = type.isKeepSerialized();
-
                     String keyType = type.getKeyType();
                     String valType = type.getValueType();
 
-                    tk.put(keyType, keepSerialized);
-                    tk.put(valType, keepSerialized);
+                    TypeKind kind = kindForName(keyType);
+                    checkMapping(cacheName, kind, keyType, type.getKeyFields());
+                    cacheKinds.put(keyType, kind);
 
-                    Object keyTypeId = typeIdForTypeName(keepSerialized, keyType);
+                    Object keyTypeId = typeIdForTypeName(kind, keyType);
 
                     if (entryMappings.containsKey(keyTypeId))
                         throw new CacheException("Key type must be unique in type metadata [cache=" +
-                            U.maskName(cacheName) + ", key type=" + keyType + "]");
+                            U.maskName(cacheName) + ", type=" + keyType + "]");
 
-                    checkMapping(cacheName, keyType, type.getKeyFields());
-                    checkMapping(cacheName, valType, type.getValueFields());
-
+                    kind = kindForName(valType);
+                    cacheKinds.put(valType, kind);
+                    checkMapping(cacheName, kind, valType, type.getValueFields());
                     entryMappings.put(keyTypeId, new EntryMapping(cacheName, dialect, type));
                 }
 
-                keepSerializedTypes.put(cacheName, tk);
+                typeKinds.put(cacheName, cacheKinds);
 
                 Map<String, Map<Object, EntryMapping>> mappings = new HashMap<>(cacheMappings);
+
                 mappings.put(cacheName, entryMappings);
 
                 prepareBuilders(cacheName, cacheTypes);
@@ -791,7 +804,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
                     String selQry = args[i + 1].toString();
 
-                    EntryMapping em = entryMapping(cacheName, typeIdForTypeName(isKeepSerialized(cacheName, keyType),
+                    EntryMapping em = entryMapping(cacheName, typeIdForTypeName(typeKind(cacheName, keyType),
                         keyType), keyType);
 
                     futs.add(pool.submit(new LoadCacheCustomQueryWorker<>(em, selQry, clo)));
@@ -1630,6 +1643,18 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      */
     protected CacheStoreSession session() {
         return ses;
+    }
+
+    /**
+     * Type kind.
+     */
+    protected enum TypeKind {
+        /** Type is known java build type, like {@link String} */
+        SIMPLE,
+        /** Class for this type is available. */
+        POJO,
+        /** Class for this type is not available. */
+        PORTABLE
     }
 
     /**
