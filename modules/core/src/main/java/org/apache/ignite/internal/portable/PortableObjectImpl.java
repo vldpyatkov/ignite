@@ -17,11 +17,6 @@
 
 package org.apache.ignite.internal.portable;
 
-import java.io.Externalizable;
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
-import java.nio.ByteBuffer;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.IgniteCodeGeneratingFail;
@@ -35,9 +30,25 @@ import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 import org.apache.ignite.portable.PortableException;
+import org.apache.ignite.portable.PortableField;
 import org.apache.ignite.portable.PortableMetadata;
 import org.apache.ignite.portable.PortableObject;
 import org.jetbrains.annotations.Nullable;
+
+import java.io.Externalizable;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.nio.ByteBuffer;
+
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.BOOLEAN;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.BYTE;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.CHAR;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.DOUBLE;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.FLOAT;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.INT;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.LONG;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.SHORT;
 
 /**
  * Portable object implementation.
@@ -50,9 +61,6 @@ public final class PortableObjectImpl extends PortableObjectEx implements Extern
 
     /** */
     private static final long serialVersionUID = 0L;
-
-    /** */
-    private static final PortablePrimitives PRIM = PortablePrimitives.get();
 
     /** */
     @GridDirectTransient
@@ -143,7 +151,7 @@ public final class PortableObjectImpl extends PortableObjectEx implements Extern
 
     /** {@inheritDoc} */
     @Override public int length() {
-        return PRIM.readInt(arr, start + GridPortableMarshaller.TOTAL_LEN_POS);
+        return PortablePrimitives.readInt(arr, start + GridPortableMarshaller.TOTAL_LEN_POS);
     }
 
     /**
@@ -219,7 +227,7 @@ public final class PortableObjectImpl extends PortableObjectEx implements Extern
 
     /** {@inheritDoc} */
     @Override public int typeId() {
-        return PRIM.readInt(arr, start + GridPortableMarshaller.TYPE_ID_POS);
+        return PortablePrimitives.readInt(arr, start + GridPortableMarshaller.TYPE_ID_POS);
     }
 
     /** {@inheritDoc} */
@@ -235,7 +243,103 @@ public final class PortableObjectImpl extends PortableObjectEx implements Extern
     @Nullable @Override public <F> F field(String fieldName) throws PortableException {
         PortableReaderExImpl reader = new PortableReaderExImpl(ctx, arr, start, null);
 
-        return (F)reader.unmarshal(fieldName);
+        return (F)reader.unmarshalField(fieldName);
+    }
+
+    /** {@inheritDoc} */
+    @SuppressWarnings("unchecked")
+    @Nullable @Override public <F> F field(int fieldId) throws PortableException {
+        PortableReaderExImpl reader = new PortableReaderExImpl(ctx, arr, start, null);
+
+        return (F)reader.unmarshalField(fieldId);
+    }
+
+    /** {@inheritDoc} */
+    @SuppressWarnings("unchecked")
+    @Nullable @Override protected <F> F fieldByOffset(int fieldOffset) {
+        Object val;
+
+        int schemaOffset = PortablePrimitives.readInt(arr, start + GridPortableMarshaller.SCHEMA_OR_RAW_OFF_POS);
+        int fieldPos = PortablePrimitives.readInt(arr, start + schemaOffset + fieldOffset);
+
+        // Read header and try performing fast lookup for well-known types (the most common types go first).
+        byte hdr = PortablePrimitives.readByte(arr, fieldPos);
+
+        switch (hdr) {
+            case INT:
+                val = PortablePrimitives.readInt(arr, fieldPos + 1);
+
+                break;
+
+            case LONG:
+                val = PortablePrimitives.readLong(arr, fieldPos + 1);
+
+                break;
+
+            case BOOLEAN:
+                val = PortablePrimitives.readBoolean(arr, fieldPos + 1);
+
+                break;
+
+            case SHORT:
+                val = PortablePrimitives.readShort(arr, fieldPos + 1);
+
+                break;
+
+            case BYTE:
+                val = PortablePrimitives.readByte(arr, fieldPos + 1);
+
+                break;
+
+            case CHAR:
+                val = PortablePrimitives.readChar(arr, fieldPos + 1);
+
+                break;
+
+            case FLOAT:
+                val = PortablePrimitives.readFloat(arr, fieldPos + 1);
+
+                break;
+
+            case DOUBLE:
+                val = PortablePrimitives.readDouble(arr, fieldPos + 1);
+
+                break;
+
+//            case DECIMAL:
+//                val = doReadDecimal();
+//
+//                break;
+//
+//            case STRING:
+//                val = doReadString();
+//
+//                break;
+//
+//            case UUID:
+//                val = doReadUuid();
+//
+//                break;
+//
+//            case DATE:
+//                val = doReadDate();
+//
+//                break;
+//
+//            case TIMESTAMP:
+//                val = doReadTimestamp();
+//
+//                break;
+
+            default: {
+                // TODO: Pass absolute offset, not relative.
+                PortableReaderExImpl reader = new PortableReaderExImpl(ctx, arr, start, null);
+
+                val = reader.unmarshalFieldByOffset(fieldOffset);
+            }
+        }
+
+        return (F)val;
     }
 
     /** {@inheritDoc} */
@@ -247,7 +351,7 @@ public final class PortableObjectImpl extends PortableObjectEx implements Extern
             null,
             rCtx);
 
-        return (F)reader.unmarshal(fieldName);
+        return (F)reader.unmarshalField(fieldName);
     }
 
     /** {@inheritDoc} */
@@ -286,7 +390,30 @@ public final class PortableObjectImpl extends PortableObjectEx implements Extern
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        return PRIM.readInt(arr, start + GridPortableMarshaller.HASH_CODE_POS);
+        return PortablePrimitives.readInt(arr, start + GridPortableMarshaller.HASH_CODE_POS);
+    }
+
+    /** {@inheritDoc} */
+    @Override protected int schemaId() {
+        return PortablePrimitives.readInt(arr, start + GridPortableMarshaller.SCHEMA_ID_POS);
+    }
+
+    /** {@inheritDoc} */
+    @Override protected PortableSchema createSchema() {
+        PortableReaderExImpl reader = new PortableReaderExImpl(ctx, arr, start, null);
+
+        return reader.createSchema();
+    }
+
+    /** {@inheritDoc} */
+    @Override public PortableField fieldDescriptor(String fieldName) throws PortableException {
+        int typeId = typeId();
+
+        PortableSchemaRegistry schemaReg = ctx.schemaRegistry(typeId);
+
+        int fieldId = ctx.userTypeIdMapper(typeId).fieldId(typeId, fieldName);
+
+        return new PortableFieldImpl(schemaReg, fieldId);
     }
 
     /** {@inheritDoc} */

@@ -155,6 +155,9 @@ public class PortableContext implements Externalizable {
     /** */
     private boolean keepDeserialized;
 
+    /** Object schemas. */
+    private volatile Map<Integer, PortableSchemaRegistry> schemas;
+
     /**
      * For {@link Externalizable}.
      */
@@ -851,6 +854,54 @@ public class PortableContext implements Externalizable {
      */
     public boolean isConvertString() {
         return convertStrings;
+    }
+
+    /**
+     * Get schema registry for type ID.
+     *
+     * @param typeId Type ID.
+     * @return Schema registry for type ID.
+     */
+    public PortableSchemaRegistry schemaRegistry(int typeId) {
+        Map<Integer, PortableSchemaRegistry> schemas0 = schemas;
+
+        if (schemas0 == null) {
+            synchronized (this) {
+                schemas0 = schemas;
+
+                if (schemas0 == null) {
+                    schemas0 = new HashMap<>();
+
+                    PortableSchemaRegistry reg = new PortableSchemaRegistry();
+
+                    schemas0.put(typeId, reg);
+
+                    schemas = schemas0;
+
+                    return reg;
+                }
+            }
+        }
+
+        PortableSchemaRegistry reg = schemas0.get(typeId);
+
+        if (reg == null) {
+            synchronized (this) {
+                reg = schemas.get(typeId);
+
+                if (reg == null) {
+                    reg = new PortableSchemaRegistry();
+
+                    schemas0 = new HashMap<>(schemas);
+
+                    schemas0.put(typeId, reg);
+
+                    schemas = schemas0;
+                }
+            }
+        }
+
+        return reg;
     }
 
     /**
