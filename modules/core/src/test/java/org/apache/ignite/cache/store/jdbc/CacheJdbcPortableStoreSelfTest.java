@@ -47,7 +47,6 @@ public class CacheJdbcPortableStoreSelfTest extends CacheJdbcStoreAbstractSelfTe
         JdbcType[] storeTypes = new JdbcType[2];
 
         storeTypes[0] = new JdbcType();
-        storeTypes[0].setKeepSerialized(true);
         storeTypes[0].setDatabaseSchema("PUBLIC");
         storeTypes[0].setDatabaseTable("ORGANIZATION");
         storeTypes[0].setKeyType("org.apache.ignite.cache.store.jdbc.model.OrganizationKey");
@@ -59,7 +58,6 @@ public class CacheJdbcPortableStoreSelfTest extends CacheJdbcStoreAbstractSelfTe
             new JdbcTypeField(Types.VARCHAR, "CITY", String.class, "city"));
 
         storeTypes[1] = new JdbcType();
-        storeTypes[1].setKeepSerialized(true);
         storeTypes[1].setDatabaseSchema("PUBLIC");
         storeTypes[1].setDatabaseTable("PERSON");
         storeTypes[1].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonKey");
