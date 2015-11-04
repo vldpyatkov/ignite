@@ -22,6 +22,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.store.jdbc.dialect.H2Dialect;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -41,7 +42,7 @@ import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 /**
  * Class for {@code PojoCacheStore} tests.
  */
-public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractTest {
+public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstractTest {
     /** IP finder. */
     protected static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 
@@ -55,7 +56,13 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
     protected static final int PERSON_CNT = 100000;
 
     /** Flag indicating that tests should use primitive classes like java.lang.Integer for keys. */
-    protected static boolean primitiveKeys = false;
+    protected static boolean builtinKeys = false;
+
+    /** Flag indicating that classes for keys available on class path or not. */
+    protected static boolean noKeyClasses = false;
+
+    /** Flag indicating that classes for values available on class path or not. */
+    protected static boolean noValClasses = false;
 
     /**
      * @return Connection to test in-memory H2 database.
@@ -116,7 +123,9 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
      */
     protected abstract Marshaller marshaller();
 
-    /** */
+    /**
+     * @return Store configuration.
+     */
     protected CacheJdbcPojoStoreConfiguration storeConfiguration() {
         CacheJdbcPojoStoreConfiguration storeCfg = new CacheJdbcPojoStoreConfiguration();
 
@@ -130,9 +139,54 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
     /**
      * @return Types to be used in test.
      */
-    protected abstract JdbcType[] storeTypes();
+    protected JdbcType[] storeTypes() {
+        JdbcType[] storeTypes = new JdbcType[2];
 
-    /** */
+        storeTypes[0] = new JdbcType();
+        storeTypes[0].setDatabaseSchema("PUBLIC");
+        storeTypes[0].setDatabaseTable("ORGANIZATION");
+
+        if (builtinKeys) {
+            storeTypes[0].setKeyType("java.lang.Integer");
+            storeTypes[0].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        }
+        else {
+            storeTypes[0].setKeyType("org.apache.ignite.cache.store.jdbc.model.OrganizationKey" + (noKeyClasses ? "1" : ""));
+            storeTypes[0].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        }
+
+        storeTypes[0].setValueType("org.apache.ignite.cache.store.jdbc.model.Organization" + (noValClasses ? "1" : ""));
+        storeTypes[0].setValueFields(
+            new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"),
+            new JdbcTypeField(Types.VARCHAR, "NAME", String.class, "name"),
+            new JdbcTypeField(Types.VARCHAR, "CITY", String.class, "city"));
+
+        storeTypes[1] = new JdbcType();
+        storeTypes[1].setDatabaseSchema("PUBLIC");
+        storeTypes[1].setDatabaseTable("PERSON");
+
+        if (builtinKeys) {
+            storeTypes[1].setKeyType("java.lang.Long");
+            storeTypes[1].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Long.class, "id"));
+        }
+        else {
+            storeTypes[1].setKeyType("org.apache.ignite.cache.store.jdbc.model.PersonKey" + (noKeyClasses ? "1" : ""));
+            storeTypes[1].setKeyFields(new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"));
+        }
+
+        storeTypes[1].setValueType("org.apache.ignite.cache.store.jdbc.model.Person" + (noValClasses ? "1" : ""));
+        storeTypes[1].setValueFields(
+            new JdbcTypeField(Types.INTEGER, "ID", Integer.class, "id"),
+            new JdbcTypeField(Types.INTEGER, "ORG_ID", Integer.class, "orgId"),
+            new JdbcTypeField(Types.VARCHAR, "NAME", String.class, "name"));
+
+        return storeTypes;
+    }
+
+    /**
+     * @return Cache configuration for test.
+     * @throws Exception In case when failed to create cache configuration.
+     */
     protected CacheConfiguration cacheConfiguration() throws Exception {
         CacheConfiguration cc = defaultCacheConfiguration();
 
@@ -198,15 +252,25 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
     }
 
     /**
-     * @throws Exception If failed.
+     * Start test grid with specified options.
+     *
+     * @param pk {@code True} if keys are built in java types.
+     * @param noKeyCls {@code True} if keys classes are not on class path.
+     * @param noValCls {@code True} if values classes are not on class path.
+     * @throws Exception
      */
-    public void testLoadCache() throws Exception {
-        primitiveKeys = false;
+    protected void startTestGrid(boolean pk, boolean noKeyCls, boolean noValCls) throws Exception {
+        builtinKeys = pk;
+        noKeyClasses = noKeyCls;
+        noValClasses = noValCls;
 
         startGrid();
+    }
 
-        info("Execute testLoadCache...");
-
+    /**
+     * Check that data was loaded correctly.
+     */
+    protected void checkCacheContent() {
         IgniteCache<Object, Object> c1 = grid().cache(null);
 
         c1.loadCache(null);
@@ -217,17 +281,18 @@ public abstract class CacheJdbcStoreAbstractSelfTest extends GridCommonAbstractT
     /**
      * @throws Exception If failed.
      */
+    public void testLoadCache() throws Exception {
+        startTestGrid(false, false, false);
+
+        checkCacheContent();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testLoadCachePrimitiveKeys() throws Exception {
-        primitiveKeys = true;
+        startTestGrid(true, false, false);
 
-        startGrid();
-
-        info("Execute testLoadCachePrimitiveKeys...");
-
-        IgniteCache<Object, Object> c1 = grid().cache(null);
-
-        c1.loadCache(null);
-
-        assertEquals(ORGANIZATION_CNT + PERSON_CNT, c1.size());
+        checkCacheContent();
     }
 }
