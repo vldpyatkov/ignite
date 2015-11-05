@@ -169,7 +169,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Cache with entry mapping description. (cache name, (keyID, mapping description)). */
     protected volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
 
-    /** Map for quick check whether type is Built in, POJO or Portable. */
+    /** Map for quick check whether type is Built in, POJO or Binary. */
     private volatile Map<String, Map<String, TypeKind>> typeKinds = new HashMap<>();
 
     /** Maximum batch size for writeAll and deleteAll operations. */
@@ -235,7 +235,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /**
      * Calculate type ID for given type name.
      *
-     * @param kind If {@code true} then calculate type ID for POJO otherwise for portable object .
+     * @param kind If {@code true} then calculate type ID for POJO otherwise for binary object .
      * @param typeName String description of type name.
      * @return Type ID.
      * @throws CacheException If failed to get type ID for given type name.
@@ -618,11 +618,11 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     }
 
     /**
-     * Checks for Built in/POJO/Portable type kind.
+     * Checks for Built in/POJO/Binary type kind.
      *
      * @param cacheName Cache name to get types settings.
-     * @param typeName Type name to check for POJO/portable format.
-     * @return {@code true} If portable format configured.
+     * @param typeName Type name to check for Builtin/POJO/binary format.
+     * @return {@code true} Type kind.
      * @throws CacheException In case of error.
      */
     protected TypeKind typeKind(String cacheName, String typeName) {
@@ -653,7 +653,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
             return TypeKind.POJO;
         }
         catch(ClassNotFoundException ignored) {
-            return TypeKind.PORTABLE;
+            return TypeKind.BINARY;
         }
     }
 
@@ -1654,7 +1654,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
         /** Class for this type is available. */
         POJO,
         /** Class for this type is not available. */
-        PORTABLE
+        BINARY
     }
 
     /**

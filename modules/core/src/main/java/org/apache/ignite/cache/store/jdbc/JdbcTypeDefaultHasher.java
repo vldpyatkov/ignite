@@ -17,8 +17,6 @@
 
 package org.apache.ignite.cache.store.jdbc;
 
-import org.apache.ignite.cache.IgniteObject;
-
 import java.util.Collection;
 
 /**

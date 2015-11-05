@@ -28,13 +28,12 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.cache.CacheException;
 import javax.cache.integration.CacheLoaderException;
-import org.apache.ignite.IgnitePortables;
-import org.apache.ignite.cache.IgniteObject;
+import org.apache.ignite.IgniteBinary;
+import org.apache.ignite.binary.BinaryObject;
+import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.portable.PortableBuilder;
-import org.apache.ignite.portable.PortableObject;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -47,8 +46,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     /** POJO methods cache. */
     private volatile Map<String, Map<String, PojoMethodsCache>> pojosMethods = Collections.emptyMap();
 
-    /** Portables builders cache. */
-    private volatile Map<String, Map<String, Integer>> portablesTypeIds = Collections.emptyMap();
+    /** Binary types cache. */
+    private volatile Map<String, Map<String, Integer>> binariesTypeIds = Collections.emptyMap();
 
     /**
      * Get field value from object for use as query parameter.
@@ -68,7 +67,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             case POJO:
                 return extractPojoParameter(cacheName, typeName, fieldName, obj);
             default:
-                return extractPortableParameter(fieldName, obj);
+                return extractBinaryParameter(fieldName, obj);
         }
     }
 
@@ -109,21 +108,21 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     }
 
     /**
-     * Get field value from Portable for use as query parameter.
+     * Get field value from Binary object for use as query parameter.
      *
      * @param fieldName Field name to extract query parameter for.
      * @param obj Object to process.
      * @return Field value from object.
      * @throws CacheException in case of error.
      */
-    private Object extractPortableParameter(String fieldName, Object obj) throws CacheException {
-        if (obj instanceof PortableObject) {
-            PortableObject pobj = (PortableObject)obj;
+    private Object extractBinaryParameter(String fieldName, Object obj) throws CacheException {
+        if (obj instanceof BinaryObject) {
+            BinaryObject pobj = (BinaryObject)obj;
 
             return pobj.field(fieldName);
         }
 
-        throw new CacheException("Failed to read property value from non portable object [class=" +
+        throw new CacheException("Failed to read property value from non binary object [class=" +
             obj.getClass() + ", property=" + fieldName + "]");
     }
 
@@ -137,7 +136,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             case POJO:
                 return (R)buildPojoObject(cacheName, typeName, fields, loadColIdxs, rs);
             default:
-                return (R)buildPortableObject(cacheName, typeName, fields, hashFields, loadColIdxs, rs);
+                return (R)buildBinaryObject(cacheName, typeName, fields, hashFields, loadColIdxs, rs);
         }
     }
 
@@ -229,7 +228,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     }
 
     /**
-     * Construct portable object from query result.
+     * Construct binary object from query result.
      *
      * @param cacheName Cache name.
      * @param typeName Type name.
@@ -237,23 +236,23 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @param hashFields Collection of fields to build hash for.
      * @param loadColIdxs Select query columns index.
      * @param rs ResultSet.
-     * @return Constructed portable object.
-     * @throws CacheLoaderException If failed to construct portable object.
+     * @return Constructed binary object.
+     * @throws CacheLoaderException If failed to construct binary object.
      */
-    protected Object buildPortableObject(String cacheName, String typeName, JdbcTypeField[] fields,
+    protected Object buildBinaryObject(String cacheName, String typeName, JdbcTypeField[] fields,
         Collection<String> hashFields, Map<String, Integer> loadColIdxs, ResultSet rs) throws CacheLoaderException {
-        Map<String, Integer> cacheTypeIds = portablesTypeIds.get(cacheName);
+        Map<String, Integer> cacheTypeIds = binariesTypeIds.get(cacheName);
 
         if (cacheTypeIds == null)
-            throw new CacheLoaderException("Failed to find portable types IDs for cache: " + U.maskName(cacheName));
+            throw new CacheLoaderException("Failed to find binary types IDs for cache: " + U.maskName(cacheName));
 
         Integer typeId = cacheTypeIds.get(typeName);
 
         if (typeId == null)
-            throw new CacheLoaderException("Failed to find portable type ID for type: " + typeName);
+            throw new CacheLoaderException("Failed to find binary type ID for type: " + typeName);
 
         try {
-            PortableBuilder builder = ignite.portables().builder(typeId);
+            BinaryObjectBuilder builder = ignite.binary().builder(typeId);
 
             boolean calcHash = hashFields != null;
 
@@ -276,7 +275,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             return builder.build();
         }
         catch (SQLException e) {
-            throw new CacheException("Failed to read portable object", e);
+            throw new CacheException("Failed to read binary object", e);
         }
     }
 
@@ -288,16 +287,16 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @throws CacheException If failed to calculate type ID for given object.
      */
     @Override protected Object typeIdForObject(Object obj) throws CacheException {
-        if (obj instanceof IgniteObject)
-            return ((IgniteObject)obj).typeId();
+        if (obj instanceof BinaryObject)
+            return ((BinaryObject)obj).typeId();
 
         return obj.getClass();
     }
 
     /** {@inheritDoc} */
     @Override protected Object typeIdForTypeName(TypeKind kind, String typeName) throws CacheException {
-        if (kind == TypeKind.PORTABLE)
-            return ignite.portables().typeId(typeName);
+        if (kind == TypeKind.BINARY)
+            return ignite.binary().typeId(typeName);
 
         try {
             return Class.forName(typeName);
@@ -319,7 +318,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         Map<String, PojoMethodsCache> pojoMethods = U.newHashMap(types.size() * 2);
         Map<String, Integer> typeIds = U.newHashMap(types.size() * 2);
 
-        IgnitePortables portables = ignite.portables();
+        IgniteBinary binary = ignite.binary();
 
         for (JdbcType type : types) {
             String keyTypeName = type.getKeyType();
@@ -333,8 +332,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
                 pojoMethods.put(keyTypeName, new PojoMethodsCache(keyTypeName, type.getKeyFields()));
             }
-            else if (keyKind == TypeKind.PORTABLE)
-                typeIds.put(keyTypeName, portables.typeId(keyTypeName));
+            else if (keyKind == TypeKind.BINARY)
+                typeIds.put(keyTypeName, binary.typeId(keyTypeName));
 
             String valTypeName = type.getValueType();
 
@@ -342,8 +341,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
             if (valKind == TypeKind.POJO)
                 pojoMethods.put(valTypeName, new PojoMethodsCache(valTypeName, type.getValueFields()));
-            else if (valKind == TypeKind.PORTABLE)
-                typeIds.put(valTypeName, portables.typeId(valTypeName));
+            else if (valKind == TypeKind.BINARY)
+                typeIds.put(valTypeName, binary.typeId(valTypeName));
         }
 
         if (!pojoMethods.isEmpty()) {
@@ -355,11 +354,11 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         }
 
         if (!typeIds.isEmpty()) {
-            Map<String, Map<String, Integer>> newPortablesTypeIds = new HashMap<>(portablesTypeIds);
+            Map<String, Map<String, Integer>> newBinariesTypeIds = new HashMap<>(binariesTypeIds);
 
-            newPortablesTypeIds.put(cacheName, typeIds);
+            newBinariesTypeIds.put(cacheName, typeIds);
 
-            portablesTypeIds = newPortablesTypeIds;
+            binariesTypeIds = newBinariesTypeIds;
         }
     }
 

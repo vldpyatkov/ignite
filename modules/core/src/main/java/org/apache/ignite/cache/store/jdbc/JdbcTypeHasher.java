@@ -21,7 +21,7 @@ import java.io.Serializable;
 import java.util.Collection;
 
 /**
- * API for implementing custom hashing logic for portable objects on server side.
+ * API for implementing custom hashing logic for binary objects on server side.
  */
 public interface JdbcTypeHasher extends Serializable {
     /**

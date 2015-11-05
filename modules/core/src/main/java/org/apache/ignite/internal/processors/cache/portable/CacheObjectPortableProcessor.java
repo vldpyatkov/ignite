@@ -20,28 +20,28 @@ package org.apache.ignite.internal.processors.cache.portable;
 import java.util.Collection;
 import java.util.Map;
 import org.apache.ignite.IgniteException;
-import org.apache.ignite.IgnitePortables;
+import org.apache.ignite.IgniteBinary;
 import org.apache.ignite.internal.processors.cacheobject.IgniteCacheObjectProcessor;
-import org.apache.ignite.portable.PortableBuilder;
-import org.apache.ignite.portable.PortableMetadata;
-import org.apache.ignite.portable.PortableObject;
+import org.apache.ignite.binary.BinaryObjectBuilder;
+import org.apache.ignite.binary.BinaryType;
+import org.apache.ignite.binary.BinaryObject;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Extended cache object processor interface with additional methods for portables.
+ * Extended cache object processor interface with additional methods for binary.
  */
 public interface CacheObjectPortableProcessor extends IgniteCacheObjectProcessor {
     /**
      * @param typeId Type ID.
      * @return Builder.
      */
-    public PortableBuilder builder(int typeId);
+    public BinaryObjectBuilder builder(int typeId);
 
     /**
      * @param clsName Class name.
      * @return Builder.
      */
-    public PortableBuilder builder(String clsName);
+    public BinaryObjectBuilder builder(String clsName);
 
     /**
      * Creates builder initialized by existing portable object.
@@ -49,14 +49,14 @@ public interface CacheObjectPortableProcessor extends IgniteCacheObjectProcessor
      * @param portableObj Portable object to edit.
      * @return Portable builder.
      */
-    public PortableBuilder builder(PortableObject portableObj);
+    public BinaryObjectBuilder builder(BinaryObject portableObj);
 
     /**
      * @param typeId Type ID.
      * @param newMeta New meta data.
      * @throws IgniteException In case of error.
      */
-    public void addMeta(int typeId, final PortableMetadata newMeta) throws IgniteException;
+    public void addMeta(int typeId, final BinaryType newMeta) throws IgniteException;
 
     /**
      * @param typeId Type ID.
@@ -73,26 +73,26 @@ public interface CacheObjectPortableProcessor extends IgniteCacheObjectProcessor
      * @return Meta data.
      * @throws IgniteException In case of error.
      */
-    @Nullable public PortableMetadata metadata(int typeId) throws IgniteException;
+    @Nullable public BinaryType metadata(int typeId) throws IgniteException;
 
     /**
      * @param typeIds Type ID.
      * @return Meta data.
      * @throws IgniteException In case of error.
      */
-    public Map<Integer, PortableMetadata> metadata(Collection<Integer> typeIds) throws IgniteException;
+    public Map<Integer, BinaryType> metadata(Collection<Integer> typeIds) throws IgniteException;
 
     /**
      * @return Metadata for all types.
      * @throws IgniteException In case of error.
      */
-    public Collection<PortableMetadata> metadata() throws IgniteException;
+    public Collection<BinaryType> metadata() throws IgniteException;
 
     /**
      * @return Portables interface.
      * @throws IgniteException If failed.
      */
-    public IgnitePortables portables() throws IgniteException;
+    public IgniteBinary portables() throws IgniteException;
 
     /**
      * @param obj Original object.
