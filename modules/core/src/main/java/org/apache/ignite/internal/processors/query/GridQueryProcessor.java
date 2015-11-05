@@ -249,6 +249,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
                         types.put(altTypeId, desc);
 
                     desc.registered(idx.registerType(ccfg.getName(), desc));
+
                 }
             }
 
@@ -257,7 +258,6 @@ public class GridQueryProcessor extends GridProcessorAdapter {
                     if (F.isEmpty(meta.getValueType()))
                         throw new IgniteCheckedException("Value type is not set: " + meta);
 
-                    // Skip meta that was configured for POJO store only.
                     if (meta.getQueryFields().isEmpty() && meta.getAscendingFields().isEmpty() &&
                         meta.getDescendingFields().isEmpty() && meta.getGroups().isEmpty())
                         continue;

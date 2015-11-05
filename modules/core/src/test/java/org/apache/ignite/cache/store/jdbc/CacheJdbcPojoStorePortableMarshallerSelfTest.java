@@ -26,11 +26,7 @@ import org.apache.ignite.marshaller.portable.PortableMarshaller;
 public class CacheJdbcPojoStorePortableMarshallerSelfTest extends CacheJdbcPojoStoreAbstractSelfTest {
     /** {@inheritDoc} */
     @Override protected Marshaller marshaller(){
-        PortableMarshaller marshaller = new PortableMarshaller();
-
-        marshaller.setMetaDataEnabled(false);
-
-        return marshaller;
+        return new PortableMarshaller();
     }
 
     /**
