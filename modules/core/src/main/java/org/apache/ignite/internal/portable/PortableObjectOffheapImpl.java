@@ -21,12 +21,19 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.sql.Timestamp;
+import java.util.Date;
+import java.util.UUID;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.portable.streams.PortableOffheapInputStream;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.CacheObjectContext;
 import org.apache.ignite.internal.util.GridUnsafe;
+import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
@@ -36,6 +43,22 @@ import org.apache.ignite.portable.PortableMetadata;
 import org.apache.ignite.portable.PortableObject;
 import org.jetbrains.annotations.Nullable;
 import sun.misc.Unsafe;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.BOOLEAN;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.BYTE;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.CHAR;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.DATE;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.DECIMAL;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.DOUBLE;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.FLOAT;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.INT;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.LONG;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.NULL;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.SHORT;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.STRING;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.TIMESTAMP;
+import static org.apache.ignite.internal.portable.GridPortableMarshaller.UUID;
 
 /**
  *  Portable object implementation over offheap memory
@@ -118,13 +141,15 @@ public class PortableObjectOffheapImpl extends PortableObjectEx implements Exter
 
     /** {@inheritDoc} */
     @Override public PortableField fieldDescriptor(String fieldName) throws PortableException {
+        A.notNull(fieldName, "fieldName");
+
         int typeId = typeId();
 
         PortableSchemaRegistry schemaReg = ctx.schemaRegistry(typeId);
 
         int fieldId = ctx.userTypeIdMapper(typeId).fieldId(typeId, fieldName);
 
-        return new PortableFieldImpl(schemaReg, fieldId);
+        return new PortableFieldImpl(schemaReg, fieldName, fieldId);
     }
 
     /** {@inheritDoc} */
@@ -179,13 +204,154 @@ public class PortableObjectOffheapImpl extends PortableObjectEx implements Exter
 
     /** {@inheritDoc} */
     @SuppressWarnings("unchecked")
-    @Nullable @Override protected <F> F fieldByOffset(int fieldOffset) {
-        PortableReaderExImpl reader = new PortableReaderExImpl(ctx,
-            new PortableOffheapInputStream(ptr, size, false),
-            start,
-            null);
+    @Nullable @Override protected <F> F fieldByOrder(int order) {
+        Object val;
 
-        return (F)reader.unmarshalFieldByOffset(fieldOffset);
+        // Calculate field position.
+        int schemaOffset = PortablePrimitives.readInt(ptr, start + GridPortableMarshaller.SCHEMA_OR_RAW_OFF_POS);
+
+        short flags = PortablePrimitives.readShort(ptr, start + GridPortableMarshaller.FLAGS_POS);
+        int fieldOffsetSize = PortableUtils.fieldOffsetSize(flags);
+
+        int fieldOffsetPos = start + schemaOffset + order * (4 + fieldOffsetSize) + 4;
+
+        int fieldPos;
+
+        if (fieldOffsetSize == PortableUtils.OFFSET_1)
+            fieldPos = start + ((int)PortablePrimitives.readByte(ptr, fieldOffsetPos) & 0xFF);
+        else if (fieldOffsetSize == PortableUtils.OFFSET_2)
+            fieldPos = start + ((int)PortablePrimitives.readShort(ptr, fieldOffsetPos) & 0xFFFF);
+        else
+            fieldPos = start + PortablePrimitives.readInt(ptr, fieldOffsetPos);
+
+        // Read header and try performing fast lookup for well-known types (the most common types go first).
+        byte hdr = PortablePrimitives.readByte(ptr, fieldPos);
+
+        switch (hdr) {
+            case INT:
+                val = PortablePrimitives.readInt(ptr, fieldPos + 1);
+
+                break;
+
+            case LONG:
+                val = PortablePrimitives.readLong(ptr, fieldPos + 1);
+
+                break;
+
+            case BOOLEAN:
+                val = PortablePrimitives.readBoolean(ptr, fieldPos + 1);
+
+                break;
+
+            case SHORT:
+                val = PortablePrimitives.readShort(ptr, fieldPos + 1);
+
+                break;
+
+            case BYTE:
+                val = PortablePrimitives.readByte(ptr, fieldPos + 1);
+
+                break;
+
+            case CHAR:
+                val = PortablePrimitives.readChar(ptr, fieldPos + 1);
+
+                break;
+
+            case FLOAT:
+                val = PortablePrimitives.readFloat(ptr, fieldPos + 1);
+
+                break;
+
+            case DOUBLE:
+                val = PortablePrimitives.readDouble(ptr, fieldPos + 1);
+
+                break;
+
+            case STRING: {
+                boolean utf = PortablePrimitives.readBoolean(ptr, fieldPos + 1);
+
+                if (utf) {
+                    int dataLen = PortablePrimitives.readInt(ptr, fieldPos + 2);
+                    byte[] data = PortablePrimitives.readByteArray(ptr, fieldPos + 6, dataLen);
+
+                    val = new String(data, UTF_8);
+                }
+                else {
+                    int dataLen = PortablePrimitives.readInt(ptr, fieldPos + 2);
+                    char[] data = PortablePrimitives.readCharArray(ptr, fieldPos + 6, dataLen);
+
+                    val = String.valueOf(data);
+                }
+
+                break;
+            }
+
+            case DATE: {
+                long time = PortablePrimitives.readLong(ptr, fieldPos + 1);
+
+                val = new Date(time);
+
+                break;
+            }
+
+            case TIMESTAMP: {
+                long time = PortablePrimitives.readLong(ptr, fieldPos + 1);
+                int nanos = PortablePrimitives.readInt(ptr, fieldPos + 1 + 8);
+
+                Timestamp ts = new Timestamp(time);
+
+                ts.setNanos(ts.getNanos() + nanos);
+
+                val = ts;
+
+                break;
+            }
+
+            case UUID: {
+                long most = PortablePrimitives.readLong(ptr, fieldPos + 1);
+                long least = PortablePrimitives.readLong(ptr, fieldPos + 1 + 8);
+
+                val = new UUID(most, least);
+
+                break;
+            }
+
+            case DECIMAL: {
+                int scale = PortablePrimitives.readInt(ptr, fieldPos + 1);
+
+                int dataLen = PortablePrimitives.readInt(ptr, fieldPos + 5);
+                byte[] data = PortablePrimitives.readByteArray(ptr, fieldPos + 9, dataLen);
+
+                BigInteger intVal = new BigInteger(data);
+
+                if (scale < 0) {
+                    scale &= 0x7FFFFFFF;
+
+                    intVal = intVal.negate();
+                }
+
+                val = new BigDecimal(intVal, scale);
+
+                break;
+            }
+
+            case NULL:
+                val = null;
+
+                break;
+
+            default: {
+                PortableReaderExImpl reader = new PortableReaderExImpl(ctx,
+                    new PortableOffheapInputStream(ptr, size, false),
+                    start,
+                    null);
+
+                val = reader.unmarshalFieldByAbsolutePosition(fieldPos);
+            }
+        }
+
+        return (F)val;
     }
 
     /** {@inheritDoc} */

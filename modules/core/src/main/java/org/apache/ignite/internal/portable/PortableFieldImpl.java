@@ -17,6 +17,8 @@
 
 package org.apache.ignite.internal.portable;
 
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.portable.PortableField;
 import org.apache.ignite.portable.PortableObject;
 
@@ -25,7 +27,11 @@ import org.apache.ignite.portable.PortableObject;
  */
 public class PortableFieldImpl implements PortableField {
     /** Well-known object schemas. */
+    @GridToStringExclude
     private final PortableSchemaRegistry schemas;
+
+    /** Field name. */
+    private final String fieldName;
 
     /** Pre-calculated field ID. */
     private final int fieldId;
@@ -34,18 +40,29 @@ public class PortableFieldImpl implements PortableField {
      * Constructor.
      *
      * @param schemas Schemas.
+     * @param fieldName Field name.
      * @param fieldId Field ID.
      */
-    public PortableFieldImpl(PortableSchemaRegistry schemas, int fieldId) {
+    public PortableFieldImpl(PortableSchemaRegistry schemas, String fieldName, int fieldId) {
+        assert schemas != null;
+        assert fieldName != null;
+        assert fieldId != 0;
+
         this.schemas = schemas;
+        this.fieldName = fieldName;
         this.fieldId = fieldId;
+    }
+
+    /** {@inheritDoc} */
+    @Override public String name() {
+        return fieldName;
     }
 
     /** {@inheritDoc} */
     @Override public boolean exists(PortableObject obj) {
         PortableObjectEx obj0 = (PortableObjectEx)obj;
 
-        return fieldOffset(obj0) != 0;
+        return fieldOrder(obj0) != PortableSchema.ORDER_NOT_FOUND;
     }
 
     /** {@inheritDoc} */
@@ -53,9 +70,9 @@ public class PortableFieldImpl implements PortableField {
     @Override public <T> T value(PortableObject obj) {
         PortableObjectEx obj0 = (PortableObjectEx)obj;
 
-        int offset = fieldOffset(obj0);
+        int order = fieldOrder(obj0);
 
-        return offset != 0 ? (T)obj0.fieldByOffset(offset) : null;
+        return order != PortableSchema.ORDER_NOT_FOUND ? (T)obj0.fieldByOrder(order) : null;
     }
 
     /**
@@ -64,7 +81,7 @@ public class PortableFieldImpl implements PortableField {
      * @param obj Object.
      * @return Field offset.
      */
-    private int fieldOffset(PortableObjectEx obj) {
+    private int fieldOrder(PortableObjectEx obj) {
         int schemaId = obj.schemaId();
 
         PortableSchema schema = schemas.schema(schemaId);
@@ -77,6 +94,11 @@ public class PortableFieldImpl implements PortableField {
 
         assert schema != null;
 
-        return schema.offset(fieldId);
+        return schema.order(fieldId);
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(PortableFieldImpl.class, this);
     }
 }
