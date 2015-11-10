@@ -67,9 +67,6 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
     @Override protected CacheJdbcPojoStore<Object, Object> store() {
         CacheJdbcPojoStoreFactory<Object, Object> storeFactory = new CacheJdbcPojoStoreFactory<>();
 
-        CacheJdbcPojoStoreConfiguration storeCfg = new CacheJdbcPojoStoreConfiguration();
-        storeCfg.setDialect(new H2Dialect());
-
         JdbcType[] storeTypes = new JdbcType[6];
 
         storeTypes[0] = new JdbcType();
@@ -139,9 +136,9 @@ public class CacheJdbcPojoStoreTest extends GridAbstractCacheStoreSelfTest<Cache
         storeTypes[5].setValueType("java.util.UUID");
         storeTypes[5].setValueFields(new JdbcTypeField(Types.BINARY, "VAL", UUID.class, null));
 
-        storeCfg.setTypes(storeTypes);
+        storeFactory.setTypes(storeTypes);
 
-        storeFactory.setConfiguration(storeCfg);
+        storeFactory.setDialect(new H2Dialect());
 
         CacheJdbcPojoStore<Object, Object> store = storeFactory.create();
 

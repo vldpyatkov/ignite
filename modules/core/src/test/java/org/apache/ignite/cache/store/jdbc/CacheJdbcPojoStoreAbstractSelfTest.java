@@ -124,19 +124,6 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
     protected abstract Marshaller marshaller();
 
     /**
-     * @return Store configuration.
-     */
-    protected CacheJdbcPojoStoreConfiguration storeConfiguration() {
-        CacheJdbcPojoStoreConfiguration storeCfg = new CacheJdbcPojoStoreConfiguration();
-
-        storeCfg.setDialect(new H2Dialect());
-
-        storeCfg.setTypes(storeTypes());
-
-        return storeCfg;
-    }
-
-    /**
      * @return Types to be used in test.
      */
     protected JdbcType[] storeTypes() {
@@ -196,7 +183,8 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
         cc.setWriteBehindEnabled(false);
 
         CacheJdbcPojoStoreFactory<Object, Object> storeFactory = new CacheJdbcPojoStoreFactory<>();
-        storeFactory.setConfiguration(storeConfiguration());
+        storeFactory.setDialect(new H2Dialect());
+        storeFactory.setTypes(storeTypes());
         storeFactory.setDataSource(JdbcConnectionPool.create(DFLT_CONN_URL, "sa", "")); // H2 DataSource
 
         cc.setCacheStoreFactory(storeFactory);
