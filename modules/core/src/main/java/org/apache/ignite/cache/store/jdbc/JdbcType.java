@@ -49,7 +49,7 @@ public class JdbcType implements Serializable {
 
     /** List of fields descriptors for value object. */
     @GridToStringInclude
-    private JdbcTypeField[] valFields;
+    private JdbcTypeField[] valFlds;
 
     /** Custom type hasher. */
     private JdbcTypeHasher hasher;
@@ -76,7 +76,7 @@ public class JdbcType implements Serializable {
         keyFields = type.getKeyFields();
 
         valType = type.getValueType();
-        valFields = type.getValueFields();
+        valFlds = type.getValueFields();
     }
 
     /**
@@ -218,11 +218,11 @@ public class JdbcType implements Serializable {
     /**
      * Sets optional persistent key fields (needed only if {@link CacheJdbcPojoStore} is used).
      *
-     * @param keyFields Persistent key fields.
+     * @param keyFlds Persistent key fields.
      * @return {@code this} for chaining.
      */
-    public JdbcType setKeyFields(JdbcTypeField... keyFields) {
-        this.keyFields = keyFields;
+    public JdbcType setKeyFields(JdbcTypeField... keyFlds) {
+        this.keyFields = keyFlds;
 
         return this;
     }
@@ -233,17 +233,17 @@ public class JdbcType implements Serializable {
      * @return Persistent value fields.
      */
     public JdbcTypeField[] getValueFields() {
-        return valFields;
+        return valFlds;
     }
 
     /**
      * Sets optional persistent value fields (needed only if {@link CacheJdbcPojoStore} is used).
      *
-     * @param valFields Persistent value fields.
+     * @param valFlds Persistent value fields.
      * @return {@code this} for chaining.
      */
-    public JdbcType setValueFields(JdbcTypeField... valFields) {
-        this.valFields = valFields;
+    public JdbcType setValueFields(JdbcTypeField... valFlds) {
+        this.valFlds = valFlds;
 
         return this;
     }

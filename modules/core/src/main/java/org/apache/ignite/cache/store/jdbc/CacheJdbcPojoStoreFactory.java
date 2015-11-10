@@ -107,7 +107,7 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdb
     public static final int DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD = 512;
 
     /** Maximum batch size for writeAll and deleteAll operations. */
-    private int batchSz = DFLT_BATCH_SIZE;
+    private int batchSizw = DFLT_BATCH_SIZE;
 
     /** Name of data source bean. */
     private String dataSrcBean;
@@ -116,10 +116,10 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdb
     private JdbcDialect dialect;
 
     /** Max workers thread count. These threads are responsible for load cache. */
-    private int maxPoolSz = Runtime.getRuntime().availableProcessors();
+    private int maxPoolSize = Runtime.getRuntime().availableProcessors();
 
     /** Maximum write attempts in case of database error. */
-    private int maxWrtAttempts = DFLT_WRITE_ATTEMPTS;
+    private int maxWriteAttempts = DFLT_WRITE_ATTEMPTS;
 
     /** Parallel load cache minimum threshold. If {@code 0} then load sequentially. */
     private int parallelLoadCacheMinThreshold = DFLT_PARALLEL_LOAD_CACHE_MINIMUM_THRESHOLD;
@@ -141,10 +141,10 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdb
     @Override public CacheJdbcPojoStore<K, V> create() {
         CacheJdbcPojoStore<K, V> store = new CacheJdbcPojoStore<>();
 
-        store.setBatchSize(batchSz);
+        store.setBatchSize(batchSizw);
         store.setDialect(dialect);
-        store.setMaximumPoolSize(maxPoolSz);
-        store.setMaximumWriteAttempts(maxWrtAttempts);
+        store.setMaximumPoolSize(maxPoolSize);
+        store.setMaximumWriteAttempts(maxWriteAttempts);
         store.setParallelLoadCacheMinimumThreshold(parallelLoadCacheMinThreshold);
         store.setTypes(types);
 
@@ -193,17 +193,17 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdb
      * @return Maximum batch size.
      */
     public int getBatchSize() {
-        return batchSz;
+        return batchSizw;
     }
 
     /**
      * Set maximum batch size for write and delete operations.
      *
-     * @param batchSz Maximum batch size.
+     * @param batchSize Maximum batch size.
      * @return {@code This} for chaining.
      */
-    public CacheJdbcPojoStoreFactory setBatchSize(int batchSz) {
-        this.batchSz = batchSz;
+    public CacheJdbcPojoStoreFactory setBatchSize(int batchSize) {
+        this.batchSizw = batchSize;
 
         return this;
     }
@@ -256,17 +256,17 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdb
      * @return Maximum workers thread count.
      */
     public int getMaximumPoolSize() {
-        return maxPoolSz;
+        return maxPoolSize;
     }
 
     /**
      * Set Maximum workers thread count. These threads are responsible for queries execution.
      *
-     * @param maxPoolSz Max workers thread count.
+     * @param maxPoolSize Max workers thread count.
      * @return {@code This} for chaining.
      */
-    public CacheJdbcPojoStoreFactory setMaximumPoolSize(int maxPoolSz) {
-        this.maxPoolSz = maxPoolSz;
+    public CacheJdbcPojoStoreFactory setMaximumPoolSize(int maxPoolSize) {
+        this.maxPoolSize = maxPoolSize;
 
         return this;
     }
@@ -277,7 +277,7 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdb
      * @return Maximum number of write attempts.
      */
     public int getMaximumWriteAttempts() {
-        return maxWrtAttempts;
+        return maxWriteAttempts;
     }
 
     /**
@@ -287,7 +287,7 @@ public class CacheJdbcPojoStoreFactory<K, V> implements Factory<CacheAbstractJdb
      * @return {@code This} for chaining.
      */
     public CacheJdbcPojoStoreFactory setMaximumWriteAttempts(int maxWrtAttempts) {
-        this.maxWrtAttempts = maxWrtAttempts;
+        this.maxWriteAttempts = maxWrtAttempts;
 
         return this;
     }

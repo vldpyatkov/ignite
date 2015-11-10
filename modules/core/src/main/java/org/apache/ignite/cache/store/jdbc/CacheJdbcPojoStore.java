@@ -43,27 +43,27 @@ import org.jetbrains.annotations.Nullable;
  */
 public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
     /** POJO methods cache. */
-    private volatile Map<String, Map<String, PojoMethodsCache>> pojosMethods = Collections.emptyMap();
+    private volatile Map<String, Map<String, PojoMethodsCache>> pojosMthds = Collections.emptyMap();
 
     /**
      * Get field value from object for use as query parameter.
      *
      * @param cacheName Cache name.
      * @param typeName Type name.
-     * @param fieldName Field name.
+     * @param fldName Field name.
      * @param obj Cache object.
      * @return Field value from object.
      * @throws CacheException in case of error.
      */
-    @Override @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, String fieldName,
+    @Override @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, String fldName,
         Object obj) throws CacheException {
         switch (typeKind(cacheName, typeName)) {
             case BUILT_IN:
                 return obj;
             case POJO:
-                return extractPojoParameter(cacheName, typeName, fieldName, obj);
+                return extractPojoParameter(cacheName, typeName, fldName, obj);
             default:
-                return extractBinaryParameter(fieldName, obj);
+                return extractBinaryParameter(fldName, obj);
         }
     }
 
@@ -72,15 +72,15 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      *
      * @param cacheName Cache name.
      * @param typeName Type name.
-     * @param fieldName Field name.
+     * @param fldName Field name.
      * @param obj Cache object.
      * @return Field value from object.
      * @throws CacheException in case of error.
      */
-    @Nullable private Object extractPojoParameter(@Nullable String cacheName, String typeName, String fieldName,
+    @Nullable private Object extractPojoParameter(@Nullable String cacheName, String typeName, String fldName,
         Object obj) throws CacheException {
         try {
-            Map<String, PojoMethodsCache> cacheMethods = pojosMethods.get(cacheName);
+            Map<String, PojoMethodsCache> cacheMethods = pojosMthds.get(cacheName);
 
             if (cacheMethods == null)
                 throw new CacheException("Failed to find POJO type metadata for cache: " + U.maskName(cacheName));
@@ -90,11 +90,11 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
             if (mc == null)
                 throw new CacheException("Failed to find POJO type metadata for type: " + typeName);
 
-            Method getter = mc.getters.get(fieldName);
+            Method getter = mc.getters.get(fldName);
 
             if (getter == null)
                 throw new CacheLoaderException("Failed to find getter in POJO class [class=" + typeName +
-                    ", prop=" + fieldName + "]");
+                    ", prop=" + fldName + "]");
 
             return getter.invoke(obj);
         }
@@ -124,15 +124,15 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
     /** {@inheritDoc} */
     @Override protected <R> R buildObject(@Nullable String cacheName, String typeName,
-        JdbcTypeField[] fields, Collection<String> hashFields, Map<String, Integer> loadColIdxs, ResultSet rs)
+        JdbcTypeField[] flds, Collection<String> hashFlds, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException {
         switch (typeKind(cacheName, typeName)) {
             case BUILT_IN:
-                return (R)buildSimpleObject(typeName, fields, loadColIdxs, rs);
+                return (R)buildSimpleObject(typeName, flds, loadColIdxs, rs);
             case POJO:
-                return (R)buildPojoObject(cacheName, typeName, fields, loadColIdxs, rs);
+                return (R)buildPojoObject(cacheName, typeName, flds, loadColIdxs, rs);
             default:
-                return (R)buildBinaryObject(typeName, fields, hashFields, loadColIdxs, rs);
+                return (R)buildBinaryObject(typeName, flds, hashFlds, loadColIdxs, rs);
         }
     }
 
@@ -163,17 +163,17 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      *
      * @param cacheName Cache name.
      * @param typeName Type name.
-     * @param fields Fields descriptors.
+     * @param flds Fields descriptors.
      * @param loadColIdxs Select query columns index.
      * @param rs ResultSet.
      * @return Constructed POJO.
      * @throws CacheLoaderException If failed to construct POJO.
      */
     private Object buildPojoObject(@Nullable String cacheName, String typeName,
-        JdbcTypeField[] fields, Map<String, Integer> loadColIdxs, ResultSet rs)
+        JdbcTypeField[] flds, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException {
 
-        Map<String, PojoMethodsCache> cacheMethods = pojosMethods.get(cacheName);
+        Map<String, PojoMethodsCache> cacheMethods = pojosMthds.get(cacheName);
 
         if (cacheMethods == null)
             throw new CacheLoaderException("Failed to find POJO types metadata for cache: " + U.maskName(cacheName));
@@ -186,8 +186,8 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         try {
             Object obj = mc.ctor.newInstance();
 
-            for (JdbcTypeField field : fields) {
-                String fldJavaName = field.getJavaFieldName();
+            for (JdbcTypeField fld : flds) {
+                String fldJavaName = fld.getJavaFieldName();
 
                 Method setter = mc.setters.get(fldJavaName);
 
@@ -195,12 +195,12 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
                     throw new IllegalStateException("Failed to find setter in POJO class [type=" + typeName +
                         ", prop=" + fldJavaName + "]");
 
-                String fldDbName = field.getDatabaseFieldName();
+                String fldDbName = fld.getDatabaseFieldName();
 
                 Integer colIdx = loadColIdxs.get(fldDbName);
 
                 try {
-                    Object colVal = getColumnValue(rs, colIdx, field.getJavaFieldType());
+                    Object colVal = getColumnValue(rs, colIdx, fld.getJavaFieldType());
 
                     try {
                         setter.invoke(obj, colVal);
@@ -324,11 +324,11 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         }
 
         if (!pojoMethods.isEmpty()) {
-            Map<String, Map<String, PojoMethodsCache>> newPojosMethods = new HashMap<>(pojosMethods);
+            Map<String, Map<String, PojoMethodsCache>> newPojosMethods = new HashMap<>(pojosMthds);
 
             newPojosMethods.put(cacheName, pojoMethods);
 
-            pojosMethods = newPojosMethods;
+            pojosMthds = newPojosMethods;
         }
     }
 

@@ -28,16 +28,16 @@ public class JdbcTypeField implements Serializable {
     private static final long serialVersionUID = 0L;
 
     /** Field JDBC type in database. */
-    private int dbFieldType;
+    private int dbFldType;
 
     /** Field name in database. */
-    private String dbFieldName;
+    private String dbFldName;
 
     /** Field java type. */
-    private Class<?> javaFieldType;
+    private Class<?> javaFldType;
 
     /** Field name in java object. */
-    private String javaFieldName;
+    private String javaFldName;
 
     /**
      * Default constructor.
@@ -49,16 +49,16 @@ public class JdbcTypeField implements Serializable {
     /**
      * Full constructor.
      *
-     * @param dbFieldType Field JDBC type in database.
-     * @param dbFieldName Field name in database.
-     * @param javaFieldType Field java type.
-     * @param javaFieldName Field name in java object.
+     * @param dbFldType Field JDBC type in database.
+     * @param dbFldName Field name in database.
+     * @param javaFldType Field java type.
+     * @param javaFldName Field name in java object.
      */
-    public JdbcTypeField(int dbFieldType, String dbFieldName, Class<?> javaFieldType, String javaFieldName) {
-        this.dbFieldType = dbFieldType;
-        this.dbFieldName = dbFieldName;
-        this.javaFieldType = javaFieldType;
-        this.javaFieldName = javaFieldName;
+    public JdbcTypeField(int dbFldType, String dbFldName, Class<?> javaFldType, String javaFldName) {
+        this.dbFldType = dbFldType;
+        this.dbFldName = dbFldName;
+        this.javaFldType = javaFldType;
+        this.javaFldName = javaFldName;
     }
 
     /**
@@ -75,7 +75,7 @@ public class JdbcTypeField implements Serializable {
      * @return Column JDBC type in database.
      */
     public int getDatabaseFieldType() {
-        return dbFieldType;
+        return dbFldType;
     }
 
     /**
@@ -83,7 +83,7 @@ public class JdbcTypeField implements Serializable {
      * @return {@code this} for chaining.
      */
     public JdbcTypeField setDatabaseFieldType(int dbType) {
-        this.dbFieldType = dbType;
+        this.dbFldType = dbType;
 
         return this;
     }
@@ -93,7 +93,7 @@ public class JdbcTypeField implements Serializable {
      * @return Column name in database.
      */
     public String getDatabaseFieldName() {
-        return dbFieldName;
+        return dbFldName;
     }
 
     /**
@@ -101,7 +101,7 @@ public class JdbcTypeField implements Serializable {
      * @return {@code this} for chaining.
      */
     public JdbcTypeField setDatabaseFieldName(String dbName) {
-        this.dbFieldName = dbName;
+        this.dbFldName = dbName;
 
         return this;
     }
@@ -110,15 +110,15 @@ public class JdbcTypeField implements Serializable {
      * @return Field java type.
      */
     public Class<?> getJavaFieldType() {
-        return javaFieldType;
+        return javaFldType;
     }
 
     /**
-     * @param javaType Corresponding java type.
+     * @param javaFldType Corresponding java type.
      * @return {@code this} for chaining.
      */
-    public JdbcTypeField setJavaFieldType(Class<?> javaType) {
-        this.javaFieldType = javaType;
+    public JdbcTypeField setJavaFieldType(Class<?> javaFldType) {
+        this.javaFldType = javaFldType;
 
         return this;
     }
@@ -127,15 +127,15 @@ public class JdbcTypeField implements Serializable {
      * @return Field name in java object.
      */
     public String getJavaFieldName() {
-        return javaFieldName;
+        return javaFldName;
     }
 
     /**
-     * @param javaName Field name in java object.
+     * @param javaFldName Field name in java object.
      * @return {@code this} for chaining.
      */
-    public JdbcTypeField setJavaFieldName(String javaName) {
-        this.javaFieldName = javaName;
+    public JdbcTypeField setJavaFieldName(String javaFldName) {
+        this.javaFldName = javaFldName;
 
         return this;
     }
@@ -150,17 +150,17 @@ public class JdbcTypeField implements Serializable {
 
         JdbcTypeField that = (JdbcTypeField)o;
 
-        return dbFieldType == that.dbFieldType && dbFieldName.equals(that.dbFieldName) &&
-            javaFieldType == that.javaFieldType && javaFieldName.equals(that.javaFieldName);
+        return dbFldType == that.dbFldType && dbFldName.equals(that.dbFldName) &&
+            javaFldType == that.javaFldType && javaFldName.equals(that.javaFldName);
     }
 
     /** {@inheritDoc} */
     @Override public int hashCode() {
-        int res = dbFieldType;
-        res = 31 * res + dbFieldName.hashCode();
+        int res = dbFldType;
+        res = 31 * res + dbFldName.hashCode();
 
-        res = 31 * res + javaFieldType.hashCode();
-        res = 31 * res + javaFieldName.hashCode();
+        res = 31 * res + javaFldType.hashCode();
+        res = 31 * res + javaFldName.hashCode();
 
         return res;
     }
