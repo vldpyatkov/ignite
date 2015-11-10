@@ -105,16 +105,12 @@ import static org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStoreFactory.DFLT_
  * <h2 class="header">Java Example</h2>
  * <pre name="code" class="java">
  *    ...
- *    // Create store configuration:
- *    CacheJdbcPojoStoreConfiguration storeCfg = new CacheJdbcPojoStoreConfiguration();
- *    storeCfg.setDataSourceBean("your_data_source_name");
- *    storeCfg.setDialect(new H2Dialect());
- *    storeCfg.setTypes(array_with_your_types);
- *    ...
  *    // Create store factory.
  *    CacheJdbcPojoStoreFactory storeFactory = new CacheJdbcPojoStoreFactory();
- *    storeFactory.setConfiguration(storeCfg);
- *
+ *    storeFactory.setDataSourceBean("your_data_source_name");
+ *    storeFactory.setDialect(new H2Dialect());
+ *    storeFactory.setTypes(array_with_your_types);
+ *    ...
  *    ccfg.setCacheStoreFactory(storeFactory);
  *    ccfg.setReadThrough(true);
  *    ccfg.setWriteThrough(true);
@@ -166,7 +162,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
     /** Data source. */
     protected DataSource dataSrc;
 
-    /** Cache with entry mapping description. (cache name, (keyID, mapping description)). */
+    /** Cache with entry mapping description. (cache name, (key id, mapping description)). */
     protected volatile Map<String, Map<Object, EntryMapping>> cacheMappings = Collections.emptyMap();
 
     /** Map for quick check whether type is Built in, POJO or Binary. */
