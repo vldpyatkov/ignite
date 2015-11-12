@@ -328,6 +328,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @throws SQLException In case of error.
      */
     protected Connection connection() throws SQLException {
+        log.debug("Open connection");
+
         CacheStoreSession ses = session();
 
         if (ses.transaction() != null) {
@@ -376,6 +378,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
     /** {@inheritDoc} */
     @Override public void sessionEnd(boolean commit) throws CacheWriterException {
+        log.debug("sessionEnd: " + commit);
+
         CacheStoreSession ses = session();
 
         Transaction tx = ses.transaction();
