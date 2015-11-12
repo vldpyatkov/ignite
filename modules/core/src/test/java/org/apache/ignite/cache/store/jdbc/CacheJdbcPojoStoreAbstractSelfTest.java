@@ -25,6 +25,8 @@ import java.sql.Statement;
 import java.sql.Types;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.store.jdbc.dialect.H2Dialect;
+import org.apache.ignite.cache.store.jdbc.model.Person;
+import org.apache.ignite.cache.store.jdbc.model.PersonKey;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.ConnectorConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
@@ -37,6 +39,7 @@ import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.h2.jdbcx.JdbcConnectionPool;
 
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
+import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 
 /**
@@ -54,6 +57,9 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
 
     /** Person count. */
     protected static final int PERSON_CNT = 100000;
+
+    /** Flag indicating that tests should use transactional cache. */
+    protected static boolean transactional = false;
 
     /** Flag indicating that tests should use primitive classes like java.lang.Integer for keys. */
     protected static boolean builtinKeys = false;
@@ -178,7 +184,7 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
         CacheConfiguration cc = defaultCacheConfiguration();
 
         cc.setCacheMode(PARTITIONED);
-        cc.setAtomicityMode(ATOMIC);
+        cc.setAtomicityMode(transactional ? TRANSACTIONAL : ATOMIC);
         cc.setSwapEnabled(false);
         cc.setWriteBehindEnabled(false);
 
@@ -242,13 +248,13 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
     /**
      * Start test grid with specified options.
      *
-     * @param pk {@code True} if keys are built in java types.
+     * @param builtin {@code True} if keys are built in java types.
      * @param noKeyCls {@code True} if keys classes are not on class path.
      * @param noValCls {@code True} if values classes are not on class path.
      * @throws Exception
      */
-    protected void startTestGrid(boolean pk, boolean noKeyCls, boolean noValCls) throws Exception {
-        builtinKeys = pk;
+    protected void startTestGrid(boolean builtin, boolean noKeyCls, boolean noValCls) throws Exception {
+        builtinKeys = builtin;
         noKeyClasses = noKeyCls;
         noValClasses = noValCls;
 
@@ -282,5 +288,18 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
         startTestGrid(true, false, false);
 
         checkCacheContent();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxPut() throws Exception {
+        transactional = true;
+
+        startTestGrid(false, false, false);
+
+        IgniteCache<PersonKey, Person> c1 = grid().cache(null);
+
+        c1.put(new PersonKey(999), new Person(999, 777, "tx-person", 999));
     }
 }
