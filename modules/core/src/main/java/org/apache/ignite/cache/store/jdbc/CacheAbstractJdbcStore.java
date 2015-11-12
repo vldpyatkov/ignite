@@ -378,7 +378,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
     /** {@inheritDoc} */
     @Override public void sessionEnd(boolean commit) throws CacheWriterException {
-        log.debug("sessionEnd: " + commit);
+        U.dumpStack(log, "sessionEnd: " + commit);
 
         CacheStoreSession ses = session();
 
