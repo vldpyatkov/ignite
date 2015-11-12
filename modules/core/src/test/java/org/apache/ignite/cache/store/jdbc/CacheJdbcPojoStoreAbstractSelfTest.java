@@ -59,16 +59,16 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
     protected static final int PERSON_CNT = 100000;
 
     /** Flag indicating that tests should use transactional cache. */
-    protected static boolean transactional = false;
+    protected static boolean transactional;
 
     /** Flag indicating that tests should use primitive classes like java.lang.Integer for keys. */
-    protected static boolean builtinKeys = false;
+    protected static boolean builtinKeys;
 
     /** Flag indicating that classes for keys available on class path or not. */
-    protected static boolean noKeyClasses = false;
+    protected static boolean noKeyClasses;
 
     /** Flag indicating that classes for values available on class path or not. */
-    protected static boolean noValClasses = false;
+    protected static boolean noValClasses;
 
     /**
      * @return Connection to test in-memory H2 database.
@@ -251,12 +251,14 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
      * @param builtin {@code True} if keys are built in java types.
      * @param noKeyCls {@code True} if keys classes are not on class path.
      * @param noValCls {@code True} if values classes are not on class path.
+     * @param trn {@code True} if cache should be started in transactional mode.
      * @throws Exception
      */
-    protected void startTestGrid(boolean builtin, boolean noKeyCls, boolean noValCls) throws Exception {
+    protected void startTestGrid(boolean builtin, boolean noKeyCls, boolean noValCls, boolean trn) throws Exception {
         builtinKeys = builtin;
         noKeyClasses = noKeyCls;
         noValClasses = noValCls;
+        transactional = trn;
 
         startGrid();
     }
@@ -276,7 +278,16 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
      * @throws Exception If failed.
      */
     public void testLoadCache() throws Exception {
-        startTestGrid(false, false, false);
+        startTestGrid(false, false, false, false);
+
+        checkCacheContent();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testLoadCacheTx() throws Exception {
+        startTestGrid(false, false, false, true);
 
         checkCacheContent();
     }
@@ -285,7 +296,7 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
      * @throws Exception If failed.
      */
     public void testLoadCachePrimitiveKeys() throws Exception {
-        startTestGrid(true, false, false);
+        startTestGrid(true, false, false, false);
 
         checkCacheContent();
     }
@@ -293,10 +304,28 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
     /**
      * @throws Exception If failed.
      */
-    public void testTxPut() throws Exception {
-        transactional = true;
+    public void testLoadCachePrimitiveKeysTx() throws Exception {
+        startTestGrid(true, false, false, true);
 
-        startTestGrid(false, false, false);
+        checkCacheContent();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testPut() throws Exception {
+        startTestGrid(false, false, false, false);
+
+        IgniteCache<PersonKey, Person> c1 = grid().cache(null);
+
+        c1.put(new PersonKey(999), new Person(999, 777, "tx-person", 999));
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testPutTx() throws Exception {
+        startTestGrid(false, false, false, true);
 
         IgniteCache<PersonKey, Person> c1 = grid().cache(null);
 

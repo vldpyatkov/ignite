@@ -33,7 +33,16 @@ public class CacheJdbcPojoStorePortableMarshallerSelfTest extends CacheJdbcPojoS
      * @throws Exception If failed.
      */
     public void testLoadCacheNoKeyClasses() throws Exception {
-        startTestGrid(false, true, false);
+        startTestGrid(false, true, false, false);
+
+        checkCacheContent();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testLoadCacheNoKeyClassesTx() throws Exception {
+        startTestGrid(false, true, false, true);
 
         checkCacheContent();
     }
@@ -42,7 +51,16 @@ public class CacheJdbcPojoStorePortableMarshallerSelfTest extends CacheJdbcPojoS
      * @throws Exception If failed.
      */
     public void testLoadCacheNoValueClasses() throws Exception {
-        startTestGrid(false, false, true);
+        startTestGrid(false, false, true, false);
+
+        checkCacheContent();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testLoadCacheNoValueClassesTx() throws Exception {
+        startTestGrid(false, false, true, true);
 
         checkCacheContent();
     }
@@ -51,7 +69,16 @@ public class CacheJdbcPojoStorePortableMarshallerSelfTest extends CacheJdbcPojoS
      * @throws Exception If failed.
      */
     public void testLoadCacheNoKeyAndValueClasses() throws Exception {
-        startTestGrid(false, true, true);
+        startTestGrid(false, true, true, false);
+
+        checkCacheContent();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testLoadCacheNoKeyAndValueClassesTx() throws Exception {
+        startTestGrid(false, true, true, true);
 
         checkCacheContent();
     }

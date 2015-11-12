@@ -55,9 +55,9 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @return Field value from object.
      * @throws CacheException in case of error.
      */
-    @Override @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, String fldName,
-        Object obj) throws CacheException {
-        switch (typeKind(cacheName, typeName)) {
+    @Override @Nullable protected Object extractParameter(@Nullable String cacheName, String typeName, TypeKind typeKind,
+        String fldName, Object obj) throws CacheException {
+        switch (typeKind) {
             case BUILT_IN:
                 return obj;
             case POJO:
@@ -112,23 +112,20 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @throws CacheException in case of error.
      */
     private Object extractBinaryParameter(String fieldName, Object obj) throws CacheException {
-        if (obj instanceof BinaryObject) {
-            BinaryObject pobj = (BinaryObject)obj;
-
-            return pobj.field(fieldName);
-        }
+        if (obj instanceof BinaryObject)
+            return ((BinaryObject)obj).field(fieldName);
 
         throw new CacheException("Failed to read property value from non binary object [class=" +
             obj.getClass() + ", property=" + fieldName + "]");
     }
 
     /** {@inheritDoc} */
-    @Override protected <R> R buildObject(@Nullable String cacheName, String typeName,
+    @Override protected <R> R buildObject(@Nullable String cacheName, String typeName, TypeKind typeKind,
         JdbcTypeField[] flds, Collection<String> hashFlds, Map<String, Integer> loadColIdxs, ResultSet rs)
         throws CacheLoaderException {
-        switch (typeKind(cacheName, typeName)) {
+        switch (typeKind) {
             case BUILT_IN:
-                return (R)buildSimpleObject(typeName, flds, loadColIdxs, rs);
+                return (R)buildBuiltinObject(typeName, flds, loadColIdxs, rs);
             case POJO:
                 return (R)buildPojoObject(cacheName, typeName, flds, loadColIdxs, rs);
             default:
@@ -146,7 +143,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
      * @return Constructed object.
      * @throws CacheLoaderException If failed to construct POJO.
      */
-    private Object buildSimpleObject(String typeName, JdbcTypeField[] fields, Map<String, Integer> loadColIdxs,
+    private Object buildBuiltinObject(String typeName, JdbcTypeField[] fields, Map<String, Integer> loadColIdxs,
         ResultSet rs) throws CacheLoaderException {
         try {
             JdbcTypeField field = fields[0];
@@ -305,7 +302,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
         for (JdbcType type : types) {
             String keyTypeName = type.getKeyType();
 
-            TypeKind keyKind = typeKind(cacheName, keyTypeName);
+            TypeKind keyKind = kindForName(keyTypeName);
 
             if (keyKind == TypeKind.POJO) {
                 if (pojoMethods.containsKey(keyTypeName))
@@ -317,7 +314,7 @@ public class CacheJdbcPojoStore<K, V> extends CacheAbstractJdbcStore<K, V> {
 
             String valTypeName = type.getValueType();
 
-            TypeKind valKind = typeKind(cacheName, valTypeName);
+            TypeKind valKind = kindForName(valTypeName);
 
             if (valKind == TypeKind.POJO)
                 pojoMethods.put(valTypeName, new PojoMethodsCache(valTypeName, type.getValueFields()));

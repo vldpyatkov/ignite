@@ -179,8 +179,6 @@ public final class GridNearTxFinishFuture<K, V> extends GridCompoundIdentityFutu
      * @param e Error.
      */
     void onError(Throwable e) {
-        U.dumpStack(log, "onError: " + e.getClass().getName());
-
         tx.commitError(e);
 
         if (err.compareAndSet(null, e)) {

@@ -79,11 +79,11 @@ public class JdbcTypeField implements Serializable {
     }
 
     /**
-     * @param dbType Column JDBC type in database.
+     * @param dbFldType Column JDBC type in database.
      * @return {@code this} for chaining.
      */
-    public JdbcTypeField setDatabaseFieldType(int dbType) {
-        this.dbFldType = dbType;
+    public JdbcTypeField setDatabaseFieldType(int dbFldType) {
+        this.dbFldType = dbFldType;
 
         return this;
     }
@@ -97,11 +97,11 @@ public class JdbcTypeField implements Serializable {
     }
 
     /**
-     * @param dbName Column name in database.
+     * @param dbFldName Column name in database.
      * @return {@code this} for chaining.
      */
-    public JdbcTypeField setDatabaseFieldName(String dbName) {
-        this.dbFldName = dbName;
+    public JdbcTypeField setDatabaseFieldName(String dbFldName) {
+        this.dbFldName = dbFldName;
 
         return this;
     }
