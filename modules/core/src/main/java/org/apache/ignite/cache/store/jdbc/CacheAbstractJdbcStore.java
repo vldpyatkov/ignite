@@ -642,7 +642,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @return Type mappings for specified cache name.
      * @throws CacheException If failed to initialize cache mappings.
      */
-    private Map<Object, EntryMapping> cacheMappings(@Nullable String cacheName) throws CacheException {
+    private Map<Object, EntryMapping> getOrCreateCacheMappings(@Nullable String cacheName) throws CacheException {
         Map<Object, EntryMapping> entryMappings = cacheMappings.get(cacheName);
 
         if (entryMappings != null)
@@ -755,13 +755,15 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @throws CacheException If mapping for key was not found.
      */
     private EntryMapping entryMapping(String cacheName, Object typeId) throws CacheException {
-        EntryMapping em = cacheMappings(cacheName).get(typeId);
+        Map<Object, EntryMapping> mappings = getOrCreateCacheMappings(cacheName);
+
+        EntryMapping em = mappings.get(typeId);
 
         if (em == null) {
             String maskedCacheName = U.maskName(cacheName);
 
-            throw new CacheException("Failed to find mapping description [typeId=" + typeId +
-                ", cache=" + maskedCacheName + "]. Please configure JdbcType to associate '" + maskedCacheName +
+            throw new CacheException("Failed to find mapping description [cache=" + maskedCacheName +
+                ", typeId=" + typeId + "]. Please configure JdbcType to associate cache '" + maskedCacheName +
                 "' with JdbcPojoStore.");
         }
 
@@ -780,6 +782,8 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             Collection<Future<?>> futs = new ArrayList<>();
 
+            Map<Object, EntryMapping> mappings = getOrCreateCacheMappings(cacheName);
+
             if (args != null && args.length > 0) {
                 if (args.length % 2 != 0)
                     throw new CacheLoaderException("Expected even number of arguments, but found: " + args.length);
@@ -787,21 +791,18 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
                 if (log.isDebugEnabled())
                     log.debug("Start loading entries from db using user queries from arguments...");
 
-                // We must build cache mappings first.
-                cacheMappings(cacheName);
-
                 for (int i = 0; i < args.length; i += 2) {
                     String keyType = args[i].toString();
 
                     String selQry = args[i + 1].toString();
 
-                    EntryMapping em = entryMapping(cacheName, keyType);
+                    EntryMapping em = entryMapping(cacheName, typeIdForTypeName(kindForName(keyType), keyType));
 
                     futs.add(pool.submit(new LoadCacheCustomQueryWorker<>(em, selQry, clo)));
                 }
             }
             else {
-                Collection<EntryMapping> entryMappings = cacheMappings(session().cacheName()).values();
+                Collection<EntryMapping> entryMappings = mappings.values();
 
                 for (EntryMapping em : entryMappings) {
                     if (parallelLoadCacheMinThreshold > 0) {
@@ -924,7 +925,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             String cacheName = session().cacheName();
 
-            Map<Object, LoadWorker<K, V>> workers = U.newHashMap(cacheMappings(cacheName).size());
+            Map<Object, LoadWorker<K, V>> workers = U.newHashMap(getOrCreateCacheMappings(cacheName).size());
 
             Map<K, V> res = new HashMap<>();
 
@@ -1254,13 +1255,12 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             if (delCnt != 1)
                 U.warn(log, "Unexpected number of deleted entries [table=" + em.fullTableName() + ", key=" + key +
-                    ", expected=1, actual=" + delCnt + "]");
+                        ", expected=1, actual=" + delCnt + "]");
         }
         catch (SQLException e) {
             throw new CacheWriterException("Failed to remove value from database [table=" + em.fullTableName() +
                 ", key=" + key + "]", e);
-        }
-        finally {
+        } finally {
             end(conn, stmt);
         }
     }
