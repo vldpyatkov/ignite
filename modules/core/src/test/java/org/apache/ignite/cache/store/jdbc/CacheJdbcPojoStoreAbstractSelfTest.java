@@ -20,6 +20,7 @@ package org.apache.ignite.cache.store.jdbc;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
@@ -87,8 +88,15 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
         stmt.executeUpdate("DROP TABLE IF EXISTS Organization");
         stmt.executeUpdate("DROP TABLE IF EXISTS Person");
 
-        stmt.executeUpdate("CREATE TABLE Organization (id integer PRIMARY KEY, name varchar(50), city varchar(50))");
-        stmt.executeUpdate("CREATE TABLE Person (id integer PRIMARY KEY, org_id integer, name varchar(50))");
+        stmt.executeUpdate("CREATE TABLE Organization (" +
+            " id INTEGER PRIMARY KEY," +
+            " name VARCHAR(50)," +
+            " city VARCHAR(50))");
+
+        stmt.executeUpdate("CREATE TABLE Person (" +
+            " id INTEGER PRIMARY KEY," +
+            " org_id INTEGER," +
+            " name VARCHAR(50))");
 
         conn.commit();
 
@@ -311,14 +319,69 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
     }
 
     /**
+     * Check put in cache and store it in db.
+     *
+     * @throws Exception If failed.
+     */
+    private void checkPut() throws Exception {
+        IgniteCache<PersonKey, Person> c1 = grid().cache(null);
+
+        Connection conn = getConnection();
+        try {
+            PreparedStatement stmt = conn.prepareStatement("SELECT ID, ORG_ID, NAME FROM PERSON WHERE ID = ?");
+
+            stmt.setInt(1, -1);
+
+            ResultSet rs = stmt.executeQuery();
+
+            assertFalse("Unexpected non empty result set", rs.next());
+
+            U.closeQuiet(rs);
+
+            // Test put-insert.
+            PersonKey key = new PersonKey(-1);
+
+            c1.put(key, new Person(-1, -2, "Person-to-test-put-insert", 999));
+
+            rs = stmt.executeQuery();
+
+            assertTrue("Unexpected empty result set", rs.next());
+
+            assertEquals(-1, rs.getInt(1));
+            assertEquals(-2, rs.getInt(2));
+            assertEquals("Person-to-test-put-insert", rs.getString(3));
+
+            assertFalse("Unexpected more data in result set", rs.next());
+
+            U.closeQuiet(rs);
+
+            // Test put-update.
+            c1.put(key, new Person(-1, -3, "Person-to-test-put-update", 999));
+
+            rs = stmt.executeQuery();
+
+            assertTrue("Unexpected empty result set", rs.next());
+
+            assertEquals(-1, rs.getInt(1));
+            assertEquals(-3, rs.getInt(2));
+            assertEquals("Person-to-test-put-update", rs.getString(3));
+
+            assertFalse("Unexpected more data in result set", rs.next());
+
+            U.closeQuiet(rs);
+        }
+        finally {
+            U.closeQuiet(conn);
+        }
+    }
+
+    /**
      * @throws Exception If failed.
      */
     public void testPut() throws Exception {
         startTestGrid(false, false, false, false);
 
-        IgniteCache<PersonKey, Person> c1 = grid().cache(null);
-
-        c1.put(new PersonKey(999), new Person(999, 777, "tx-person", 999));
+        checkPut();
     }
 
     /**
@@ -327,8 +390,6 @@ public abstract class CacheJdbcPojoStoreAbstractSelfTest extends GridCommonAbstr
     public void testPutTx() throws Exception {
         startTestGrid(false, false, false, true);
 
-        IgniteCache<PersonKey, Person> c1 = grid().cache(null);
-
-        c1.put(new PersonKey(999), new Person(999, 777, "tx-person", 999));
+        checkPut();
     }
 }

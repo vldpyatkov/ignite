@@ -328,8 +328,6 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
      * @throws SQLException In case of error.
      */
     protected Connection connection() throws SQLException {
-        log.debug("Open connection");
-
         CacheStoreSession ses = session();
 
         if (ses.transaction() != null) {
