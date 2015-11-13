@@ -1255,12 +1255,13 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
             if (delCnt != 1)
                 U.warn(log, "Unexpected number of deleted entries [table=" + em.fullTableName() + ", key=" + key +
-                        ", expected=1, actual=" + delCnt + "]");
+                    ", expected=1, actual=" + delCnt + "]");
         }
         catch (SQLException e) {
             throw new CacheWriterException("Failed to remove value from database [table=" + em.fullTableName() +
                 ", key=" + key + "]", e);
-        } finally {
+        }
+        finally {
             end(conn, stmt);
         }
     }
