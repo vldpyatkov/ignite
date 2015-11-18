@@ -15,30 +15,25 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.portable;
-
-import org.apache.ignite.binary.BinaryObjectException;
-import org.apache.ignite.binary.BinaryType;
+package org.apache.ignite.platform;
 
 /**
- * Portable meta data handler.
+ * Binarizable object defined only in Java.
  */
-public interface PortableMetaDataHandler {
+public class PlatformComputeJavaBinarizable extends PlatformComputeBinarizable {
     /**
-     * Adds meta data.
-     *
-     * @param typeId Type ID.
-     * @param meta Meta data.
-     * @throws org.apache.ignite.binary.BinaryObjectException In case of error.
+     * Constructor.
      */
-    public void addMeta(int typeId, BinaryType meta) throws BinaryObjectException;
+    public PlatformComputeJavaBinarizable() {
+        // No-op.
+    }
 
     /**
-     * Gets meta data for provided type ID.
+     * Constructor.
      *
-     * @param typeId Type ID.
-     * @return Meta data.
-     * @throws org.apache.ignite.binary.BinaryObjectException In case of error.
+     * @param field Field.
      */
-    public BinaryType metadata(int typeId) throws BinaryObjectException;
+    public PlatformComputeJavaBinarizable(int field) {
+        super(field);
+    }
 }

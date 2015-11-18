@@ -1879,7 +1879,7 @@ public class GridQueryProcessor extends GridProcessorAdapter {
 
             if (field0 == null)
             {
-                field0 = obj.fieldDescriptor(propName);
+                field0 = obj.type().field(propName);
 
                 assert field0 != null;
 
