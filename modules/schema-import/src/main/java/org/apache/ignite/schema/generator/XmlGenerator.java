@@ -25,7 +25,6 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.Map;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -37,8 +36,7 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import org.apache.ignite.cache.CacheTypeFieldMetadata;
 import org.apache.ignite.cache.CacheTypeMetadata;
-import org.apache.ignite.lang.IgniteBiTuple;
-import org.apache.ignite.schema.model.IndexItem;
+import org.apache.ignite.cache.QueryIndex;
 import org.apache.ignite.schema.model.PojoDescriptor;
 import org.apache.ignite.schema.model.PojoField;
 import org.apache.ignite.schema.ui.ConfirmCallable;
@@ -208,33 +206,32 @@ public class XmlGenerator {
      *
      * @param doc XML document.
      * @param parent Parent XML node.
-     * @param groups Map with indexes.
+     * @param idxs Indexes.
      */
-    private static void addQueryGroups(Document doc, Node parent,
-        Map<String, Map<String, IndexItem>> groups) {
-        if (!groups.isEmpty()) {
-            Element prop = addProperty(doc, parent, "groups", null);
+    private static void addQueryIndexes(Document doc, Node parent, Collection<QueryIndex> idxs) {
+        if (!idxs.isEmpty()) {
+            Element prop = addProperty(doc, parent, "indexes", null);
 
             Element map = addElement(doc, prop, "map");
 
-            for (Map.Entry<String, Map<String, IndexItem>> group : groups.entrySet()) {
-                Element entry1 = addElement(doc, map, "entry", "key", group.getKey());
-
-                Element val1 = addElement(doc, entry1, "map");
-
-                Map<String, IndexItem> grpItems = group.getValue();
-
-                for (Map.Entry<String, IndexItem> grpItem : grpItems.entrySet()) {
-                    Element entry2 = addElement(doc, val1, "entry", "key", grpItem.getKey());
-
-                    Element val2 = addBean(doc, entry2, IgniteBiTuple.class);
-
-                    IndexItem idxCol = grpItem.getValue();
-
-                    addElement(doc, val2, "constructor-arg", null, null, "value", idxCol.type());
-                    addElement(doc, val2, "constructor-arg", null, null, "value", String.valueOf(idxCol.descending()));
-                }
-            }
+//            for (Map.Entry<String, Map<String, IndexItem>> group : idxs.entrySet()) {
+//                Element entry1 = addElement(doc, map, "entry", "key", group.getKey());
+//
+//                Element val1 = addElement(doc, entry1, "map");
+//
+//                Map<String, IndexItem> grpItems = group.getValue();
+//
+//                for (Map.Entry<String, IndexItem> grpItem : grpItems.entrySet()) {
+//                    Element entry2 = addElement(doc, val1, "entry", "key", grpItem.getKey());
+//
+//                    Element val2 = addBean(doc, entry2, IgniteBiTuple.class);
+//
+//                    IndexItem idxCol = grpItem.getValue();
+//
+//                    addElement(doc, val2, "constructor-arg", null, null, "value", idxCol.type());
+//                    addElement(doc, val2, "constructor-arg", null, null, "value", String.valueOf(idxCol.descending()));
+//                }
+//            }
         }
     }
 
@@ -264,11 +261,7 @@ public class XmlGenerator {
 
         addQueryFields(doc, bean, "queryFields", pojo.fields());
 
-        addQueryFields(doc, bean, "ascendingFields", pojo.ascendingFields());
-
-        addQueryFields(doc, bean, "descendingFields", pojo.descendingFields());
-
-        addQueryGroups(doc, bean, pojo.groups());
+        addQueryIndexes(doc, bean, pojo.indexes());
     }
 
     /**

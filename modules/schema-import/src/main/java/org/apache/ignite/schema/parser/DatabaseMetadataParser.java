@@ -30,6 +30,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import org.apache.ignite.cache.QueryIndex;
 import org.apache.ignite.schema.model.PojoDescriptor;
 import org.apache.ignite.schema.model.SchemaDescriptor;
 import org.apache.ignite.schema.parser.dialect.DB2MetadataDialect;
@@ -76,7 +77,7 @@ public class DatabaseMetadataParser {
      *
      * @param conn Connection to database.
      * @return List of schema descriptors.
-     * @throws SQLException If shemas loading failed.
+     * @throws SQLException If schemas loading failed.
      */
     public static ObservableList<SchemaDescriptor> schemas(Connection conn) throws SQLException  {
         List<String> dbSchemas = dialect(conn).schemas(conn);
@@ -114,8 +115,7 @@ public class DatabaseMetadataParser {
 
             if (parent == null) {
                 parent = new PojoDescriptor(null, new DbTable(schema, "", Collections.<DbColumn>emptyList(),
-                    Collections.<String>emptySet(), Collections.<String>emptySet(),
-                    Collections.<String, Map<String, Boolean>>emptyMap()));
+                    Collections.<QueryIndex>emptyList()));
 
                 children = new ArrayList<>();
 
