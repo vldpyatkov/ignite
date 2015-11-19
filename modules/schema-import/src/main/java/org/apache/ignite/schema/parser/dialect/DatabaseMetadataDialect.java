@@ -45,7 +45,7 @@ public abstract class DatabaseMetadataDialect {
      * Gets tables from database.
      *
      * @param conn Database connection.
-     * @param schemas Collention of schema names to load.
+     * @param schemas Collection of schema names to load.
      * @param tblsOnly If {@code true} then gets only tables otherwise gets tables and views.
      * @return Collection of table descriptors.
      * @throws SQLException If failed to get tables.

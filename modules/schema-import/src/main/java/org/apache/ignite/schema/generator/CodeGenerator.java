@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.apache.ignite.cache.QueryIndex;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.schema.model.PojoDescriptor;
 import org.apache.ignite.schema.model.PojoField;
 import org.apache.ignite.schema.ui.ConfirmCallable;
@@ -273,10 +274,14 @@ public class CodeGenerator {
         boolean constructor, boolean includeKeys, ConfirmCallable askOverwrite) throws IOException {
         String type = key ? pojo.keyClassName() : pojo.valueClassName();
 
-        File out = new File(pkgFolder, type + ".java");
-
         checkValidJavaIdentifier(pkg, true, "Package", type);
+
         checkValidJavaIdentifier(type, false, "Type", type);
+
+        if (!pkgFolder.exists() && !pkgFolder.mkdirs())
+            throw new IOException("Failed to create folders for package: " + pkg);
+
+        File out = new File(pkgFolder, type + ".java");
 
         if (out.exists()) {
             MessageBox.Result choice = askOverwrite.confirm(out.getName());
@@ -524,9 +529,6 @@ public class CodeGenerator {
         boolean includeKeys, ConfirmCallable askOverwrite) throws IOException {
         File pkgFolder = new File(outFolder, pkg.replace('.', File.separatorChar));
 
-        if (!pkgFolder.exists() && !pkgFolder.mkdirs())
-            throw new IOException("Failed to create folders for package: " + pkg);
-
         generateCode(pojo, true, pkg, pkgFolder, constructor, false, askOverwrite);
 
         generateCode(pojo, false, pkg, pkgFolder, constructor, includeKeys, askOverwrite);
@@ -637,8 +639,6 @@ public class CodeGenerator {
         add0(src, "");
 
         boolean first = true;
-        boolean firstIdxs = true;
-        boolean firstIdx = true;
 
         for (PojoDescriptor pojo : pojos) {
             String tbl = pojo.table();
@@ -680,11 +680,13 @@ public class CodeGenerator {
         add0(src, "");
 
         // Queries entities.
-        first = true;
-
         add2(src, "// Configure query entities. ");
         add2(src, "Collection<QueryEntity> qryEntities = new ArrayList<>();");
         add0(src, "");
+
+        first = true;
+        boolean firstIdxs = true;
+        boolean firstIdx = true;
 
         for (PojoDescriptor pojo : pojos) {
             String tbl = pojo.table();
@@ -709,33 +711,41 @@ public class CodeGenerator {
                 firstIdxs = false;
 
                 for (QueryIndex idx : idxs) {
-                    add2(src, (firstIdx ? "QueryIndex " : "") + "idx = new QueryIndex();");
-                    add0(src, "");
+                    if (idx.getFields().size() == 1) {
+                        Map.Entry<String, Boolean> fld = F.first(idx.getFields().entrySet());
 
-                    add2(src, "idx.setName(\"" + idx.getName() + "\");");
-                    add0(src, "");
+                        add2(src, "idxs.add(new QueryIndex(\"" + fld.getKey() + fld.getValue() +
+                            "\"" + idx.getName()  + "\"));");
+                        add0(src, "");
+                    }
+                    else {
+                        add2(src, (firstIdx ? "QueryIndex " : "") + "idx = new QueryIndex();");
+                        add0(src, "");
 
-                    add2(src, (firstIdx ? "LinkedHashMap<String, Boolean> " : "") +
+                        add2(src, "idx.setName(\"" + idx.getName() + "\");");
+                        add0(src, "");
+
+                        add2(src, (firstIdx ? "LinkedHashMap<String, Boolean> " : "") +
                             "idxFlds = new LinkedHashMap<>();");
+                        add0(src, "");
 
-                    add0(src, "");
+                        for (Map.Entry<String, Boolean> idxFld : idx.getFields().entrySet())
+                            add2(src, "idxFlds.put(\"" + idxFld.getKey()  + "\", " + idxFld.getValue() + ");");
 
-                    for (Map.Entry<String, Boolean> idxFld : idx.getFields().entrySet())
-                        add2(src, "idxFlds.put(\"" + idxFld.getKey()  + "\", " + idxFld.getValue() + ");");
+                        add0(src, "");
 
-                    add0(src, "");
+                        add2(src, "idx.setFields(idxFlds);");
+                        add0(src, "");
 
-                    add2(src, "idx.setFields(idxFlds);");
-                    add0(src, "");
+                        add2(src, "idxs.add(idx);");
+                        add0(src, "");
 
-                    add2(src, "idxs.add(idx);");
-
-                    firstIdx = false;
+                        firstIdx = false;
+                    }
                 }
 
-                add0(src, "");
-
                 add2(src, "qryEntity.setIndexes(idxs);");
+                add0(src, "");
             }
 
             add2(src, "ccfg.setQueryEntities(qryEntities);");

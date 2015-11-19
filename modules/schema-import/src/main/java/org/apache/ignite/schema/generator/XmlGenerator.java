@@ -25,6 +25,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Map;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -34,9 +35,11 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import org.apache.ignite.cache.CacheTypeFieldMetadata;
-import org.apache.ignite.cache.CacheTypeMetadata;
+import org.apache.ignite.cache.QueryEntity;
 import org.apache.ignite.cache.QueryIndex;
+import org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStoreFactory;
+import org.apache.ignite.cache.store.jdbc.JdbcType;
+import org.apache.ignite.cache.store.jdbc.JdbcTypeField;
 import org.apache.ignite.schema.model.PojoDescriptor;
 import org.apache.ignite.schema.model.PojoField;
 import org.apache.ignite.schema.ui.ConfirmCallable;
@@ -164,20 +167,20 @@ public class XmlGenerator {
      * @param name Property name.
      * @param fields Collection of POJO fields.
      */
-    private static void addFields(Document doc, Node parent, String name, Collection<PojoField> fields) {
+    private static void addJdbcFields(Document doc, Node parent, String name, Collection<PojoField> fields) {
         if (!fields.isEmpty()) {
             Element prop = addProperty(doc, parent, name, null);
 
             Element list = addElement(doc, prop, "list");
 
             for (PojoField field : fields) {
-                Element item = addBean(doc, list, CacheTypeFieldMetadata.class);
+                Element item = addBean(doc, list, JdbcTypeField.class);
 
-                addProperty(doc, item, "databaseName", field.dbName());
-                Element dbType = addProperty(doc, item, "databaseType", null);
+                Element dbType = addProperty(doc, item, "databaseFieldType", null);
                 addElement(doc, dbType, "util:constant", "static-field", "java.sql.Types." + field.dbTypeName());
-                addProperty(doc, item, "javaName", field.javaName());
-                addProperty(doc, item, "javaType", field.javaTypeName());
+                addProperty(doc, item, "databaseFieldName", field.dbName());
+                addProperty(doc, item, "javaFieldType", field.javaTypeName());
+                addProperty(doc, item, "javaFieldName", field.javaName());
             }
         }
     }
@@ -212,40 +215,39 @@ public class XmlGenerator {
         if (!idxs.isEmpty()) {
             Element prop = addProperty(doc, parent, "indexes", null);
 
-            Element map = addElement(doc, prop, "map");
+            Element list = addElement(doc, prop, "list");
 
-//            for (Map.Entry<String, Map<String, IndexItem>> group : idxs.entrySet()) {
-//                Element entry1 = addElement(doc, map, "entry", "key", group.getKey());
-//
-//                Element val1 = addElement(doc, entry1, "map");
-//
-//                Map<String, IndexItem> grpItems = group.getValue();
-//
-//                for (Map.Entry<String, IndexItem> grpItem : grpItems.entrySet()) {
-//                    Element entry2 = addElement(doc, val1, "entry", "key", grpItem.getKey());
-//
-//                    Element val2 = addBean(doc, entry2, IgniteBiTuple.class);
-//
-//                    IndexItem idxCol = grpItem.getValue();
-//
-//                    addElement(doc, val2, "constructor-arg", null, null, "value", idxCol.type());
-//                    addElement(doc, val2, "constructor-arg", null, null, "value", String.valueOf(idxCol.descending()));
-//                }
-//            }
+            for (QueryIndex idx : idxs) {
+                Element idxBean = addBean(doc, list, QueryIndex.class);
+
+                addProperty(doc, idxBean, "name", idx.getName());
+
+                Element idxType = addProperty(doc, idxBean, "indexType", null);
+                addElement(doc, idxType, "util:constant", "static-field", "org.apache.ignite.cache.QueryIndexType." + idx.getIndexType());
+
+                addProperty(doc, idxBean, "fields", null);
+
+                Element fldsMap = addElement(doc, idxBean, "map");
+
+                Map<String, Boolean> flds = idx.getFields();
+
+                for (Map.Entry<String, Boolean> fld : flds.entrySet())
+                    addElement(doc, fldsMap, "entry", "key", fld.getKey(), "value", fld.getValue().toString());
+            }
         }
     }
 
     /**
-     * Add element with type metadata to XML document.
+     * Add element with JDBC POJO store factory to XML document.
      *
      * @param doc XML document.
      * @param parent Parent XML node.
      * @param pkg Package fo types.
      * @param pojo POJO descriptor.
      */
-    private static void addTypeMetadata(Document doc, Node parent, String pkg, PojoDescriptor pojo,
+    private static void addJdbcPojoStoreFactory(Document doc, Node parent, String pkg, PojoDescriptor pojo,
         boolean includeKeys) {
-        Element bean = addBean(doc, parent, CacheTypeMetadata.class);
+        Element bean = addBean(doc, parent, JdbcType.class);
 
         addProperty(doc, bean, "databaseSchema", pojo.schema());
 
@@ -255,9 +257,25 @@ public class XmlGenerator {
 
         addProperty(doc, bean, "valueType", pkg + "." + pojo.valueClassName());
 
-        addFields(doc, bean, "keyFields", pojo.keyFields());
+        addJdbcFields(doc, bean, "keyFields", pojo.keyFields());
 
-        addFields(doc, bean, "valueFields", pojo.valueFields(includeKeys));
+        addJdbcFields(doc, bean, "valueFields", pojo.valueFields(includeKeys));
+    }
+
+    /**
+     * Add element with query entity to XML document.
+     *
+     * @param doc XML document.
+     * @param parent Parent XML node.
+     * @param pkg Package fo types.
+     * @param pojo POJO descriptor.
+     */
+    private static void addQueryEntity(Document doc, Node parent, String pkg, PojoDescriptor pojo) {
+        Element bean = addBean(doc, parent, QueryEntity.class);
+
+        addProperty(doc, bean, "keyType", pkg + "." + pojo.keyClassName());
+
+        addProperty(doc, bean, "valueType", pkg + "." + pojo.valueClassName());
 
         addQueryFields(doc, bean, "queryFields", pojo.fields());
 
@@ -326,8 +344,15 @@ public class XmlGenerator {
                 "http://www.springframework.org/schema/util " +
                 "http://www.springframework.org/schema/util/spring-util.xsd");
 
+            Element factoryBean = addBean(doc, beans, CacheJdbcPojoStoreFactory.class);
+            Element typesElem = addProperty(doc, factoryBean, "types", null);
+            Element typesItemsElem = addElement(doc, typesElem, "list");
+
             for (PojoDescriptor pojo : pojos)
-                addTypeMetadata(doc, beans, pkg, pojo, includeKeys);
+                addJdbcPojoStoreFactory(doc, typesItemsElem, pkg, pojo, includeKeys);
+
+            for (PojoDescriptor pojo : pojos)
+                addQueryEntity(doc, beans, pkg, pojo);
 
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
 

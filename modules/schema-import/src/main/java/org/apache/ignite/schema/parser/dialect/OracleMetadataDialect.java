@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.ignite.cache.QueryIndex;
+import org.apache.ignite.cache.QueryIndexType;
 import org.apache.ignite.schema.parser.DbColumn;
 import org.apache.ignite.schema.parser.DbTable;
 
@@ -273,6 +274,7 @@ public class OracleMetadataDialect extends DatabaseMetadataDialect {
                 if (idx == null) {
                     idx = new QueryIndex();
                     idx.setName(idxName);
+                    idx.setIndexType(QueryIndexType.SORTED);
                     idx.setFields(new LinkedHashMap<String, Boolean>());
 
                     idxs.put(idxName, idx);
@@ -298,7 +300,7 @@ public class OracleMetadataDialect extends DatabaseMetadataDialect {
 
         PreparedStatement idxStmt = conn.prepareStatement(SQL_INDEXES);
 
-        if (schemas.size() == 0)
+        if (schemas.isEmpty())
             schemas.add(null);
 
         Set<String> sysSchemas = systemSchemas();

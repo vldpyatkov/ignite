@@ -60,7 +60,7 @@ public class DatabaseMetadataParser {
                 return new OracleMetadataDialect();
             else if (dbProductName.startsWith("DB2/"))
                 return new DB2MetadataDialect();
-            else if (dbProductName.equals("MySQL"))
+            else if ("MySQL".equals(dbProductName))
                 return new MySQLMetadataDialect();
             else
                 return new JdbcMetadataDialect();
@@ -94,7 +94,7 @@ public class DatabaseMetadataParser {
      * Parse database metadata.
      *
      * @param conn Connection to database.
-     * @param schemas Collention of schema names to load.
+     * @param schemas Collection of schema names to load.
      * @param tblsOnly If {@code true} then process tables only else process tables and views.
      * @return Collection of POJO descriptors.
      * @throws SQLException If parsing failed.
