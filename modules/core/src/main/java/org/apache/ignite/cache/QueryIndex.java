@@ -107,6 +107,22 @@ public class QueryIndex implements Serializable {
     }
 
     /**
+     * Creates index for one field. The last boolean parameter is ignored for non-sorted indexes.
+     *
+     * @param field Field name.
+     * @param type Index type.
+     * @param asc Ascending flag.
+     * @param name Index name.
+     */
+    public QueryIndex(String field, QueryIndexType type, boolean asc, String name) {
+        fields = new LinkedHashMap<>();
+        fields.put(field, asc);
+
+        this.type = type;
+        this.name = name;
+    }
+
+    /**
      * Creates index for a collection of fields. If index is sorted, fields will be sorted in
      * ascending order.
      *
