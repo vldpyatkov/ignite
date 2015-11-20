@@ -190,14 +190,13 @@ public class XmlGenerator {
      *
      * @param doc XML document.
      * @param parent Parent XML node.
-     * @param name Property name.
      * @param fields Map with fields.
      */
-    private static void addQueryFields(Document doc, Node parent, String name, Collection<PojoField> fields) {
+    private static void addQueryFields(Document doc, Node parent, Collection<PojoField> fields) {
         if (!fields.isEmpty()) {
-            Element prop = addProperty(doc, parent, name, null);
+            Element prop = addProperty(doc, parent, "fields", null);
 
-            Element map = addElement(doc, prop, "map");
+            Element map = addElement(doc, prop, "util:map", "map-class", "java.util.LinkedHashMap");
 
             for (PojoField field : fields)
                 addElement(doc, map, "entry", "key", field.javaName(), "value", field.javaTypeName());
@@ -225,13 +224,13 @@ public class XmlGenerator {
                 Element idxType = addProperty(doc, idxBean, "indexType", null);
                 addElement(doc, idxType, "util:constant", "static-field", "org.apache.ignite.cache.QueryIndexType." + idx.getIndexType());
 
-                addProperty(doc, idxBean, "fields", null);
+                Element flds = addProperty(doc, idxBean, "fields", null);
 
-                Element fldsMap = addElement(doc, idxBean, "map");
+                Element fldsMap = addElement(doc, flds, "map");
 
-                Map<String, Boolean> flds = idx.getFields();
+                Map<String, Boolean> idxFlds = idx.getFields();
 
-                for (Map.Entry<String, Boolean> fld : flds.entrySet())
+                for (Map.Entry<String, Boolean> fld : idxFlds.entrySet())
                     addElement(doc, fldsMap, "entry", "key", fld.getKey(), "value", fld.getValue().toString());
             }
         }
@@ -277,7 +276,7 @@ public class XmlGenerator {
 
         addProperty(doc, bean, "valueType", pkg + "." + pojo.valueClassName());
 
-        addQueryFields(doc, bean, "queryFields", pojo.fields());
+        addQueryFields(doc, bean, pojo.fields());
 
         addQueryIndexes(doc, bean, pojo.indexes());
     }

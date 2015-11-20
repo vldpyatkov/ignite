@@ -647,6 +647,8 @@ public class CodeGenerator {
             add2(src, (first ? "JdbcType " : "") + "jdbcType = new JdbcType();");
             add0(src, "");
 
+            add2(src, "jdbcType.setCacheName(cacheName);");
+
             // Database info.
             add2(src, "jdbcType.setDatabaseSchema(\"" + pojo.schema() + "\");");
             add2(src, "jdbcType.setDatabaseTable(\"" + tbl + "\");");
@@ -714,8 +716,8 @@ public class CodeGenerator {
                     if (idx.getFields().size() == 1) {
                         Map.Entry<String, Boolean> fld = F.first(idx.getFields().entrySet());
 
-                        add2(src, "idxs.add(new QueryIndex(\"" + fld.getKey() + fld.getValue() +
-                            "\"" + idx.getName()  + "\"));");
+                        add2(src, "idxs.add(new QueryIndex(\"" + fld.getKey() + "\", " + fld.getValue() + ", \"" +
+                            idx.getName()  + "\"));");
                         add0(src, "");
                     }
                     else {

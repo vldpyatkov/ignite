@@ -17,19 +17,19 @@ Use Schema Import Utility for generation of type mapping and domain model in Jav
 
 For example you may use the following script for create sample type 'Person' in your RDBMS system:
 
-create table PERSON(id integer not null, firstName varchar(50), lastName varchar(50), PRIMARY KEY(id));
+create table PERSON(id integer not null PRIMARY KEY, firstName varchar(50), lastName varchar(50), salary double);
 
-insert into PERSON(id, first_name, last_name) values(1, 'Johannes', 'Kepler');
-insert into PERSON(id, first_name, last_name) values(2, 'Galileo', 'Galilei');
-insert into PERSON(id, first_name, last_name) values(3, 'Henry', 'More');
-insert into PERSON(id, first_name, last_name) values(4, 'Polish', 'Brethren');
-insert into PERSON(id, first_name, last_name) values(5, 'Robert', 'Boyle');
-insert into PERSON(id, first_name, last_name) values(6, 'Isaac', 'Newton');
+insert into PERSON(id, firstName, lastName, salary) values(1, 'Johannes', 'Kepler', 1000);
+insert into PERSON(id, firstName, lastName, salary) values(2, 'Galileo', 'Galilei', 1200);
+insert into PERSON(id, firstName, lastName, salary) values(3, 'Henry', 'More', 1150);
+insert into PERSON(id, firstName, lastName, salary) values(4, 'Polish', 'Brethren', 2000);
+insert into PERSON(id, firstName, lastName, salary) values(5, 'Robert', 'Boyle', 2500);
+insert into PERSON(id, firstName, lastName, salary) values(6, 'Isaac', 'Newton', 1300);
 
 The Ignite Schema Import utility generates the following artifacts:
- # Java POJO key and value classes
- # XML CacheTypeMetadata configuration
- # Java configuration snippet (alternative to XML)
+ # Java POJO key and value classes (enter "org.apache.ignite.schema" package name before generation).
+ # XML CacheTypeMetadata configuration.
+ # Java configuration snippet (alternative to XML).
 
 After you exit from the wizard, you should:
  # Copy generated POJO java classes to you project source folder.
@@ -94,7 +94,7 @@ Example of spring configuration:
                                         <property name="javaType" value="long"/>
                                     </bean>
                                     <bean class="org.apache.ignite.cache.CacheTypeFieldMetadata">
-                                        <property name="databaseName" value="FIRST_NAME"/>
+                                        <property name="databaseName" value="FIRSTNAME"/>
                                         <property name="databaseType">
                                             <util:constant static-field="java.sql.Types.VARCHAR"/>
                                         </property>
@@ -102,7 +102,7 @@ Example of spring configuration:
                                         <property name="javaType" value="java.lang.String"/>
                                     </bean>
                                     <bean class="org.apache.ignite.cache.CacheTypeFieldMetadata">
-                                        <property name="databaseName" value="LAST_NAME"/>
+                                        <property name="databaseName" value="LASTNAME"/>
                                         <property name="databaseType">
                                             <util:constant static-field="java.sql.Types.VARCHAR"/>
                                         </property>
@@ -157,8 +157,8 @@ tm.setKeyFields(F.asList(new CacheTypeFieldMetadata("ID", Types.BIGINT, "id", Lo
 // Value fields for PERSONS.
 tm.setValueFields(F.asList(
     new CacheTypeFieldMetadata("ID", Types.BIGINT, "id", long.class),
-    new CacheTypeFieldMetadata("FIRST_NAME", Types.VARCHAR, "firstName", String.class),
-    new CacheTypeFieldMetadata("LAST_NAME", Types.VARCHAR, "lastName", String.class)
+    new CacheTypeFieldMetadata("FIRSTNAME", Types.VARCHAR, "firstName", String.class),
+    new CacheTypeFieldMetadata("LASTNAME", Types.VARCHAR, "lastName", String.class)
 ));
 ...
 ccfg.setTypeMetadata(tm);
