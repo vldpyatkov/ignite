@@ -619,15 +619,15 @@ public class CodeGenerator {
         add1(src, "/**");
         add1(src, "* Configure cache.");
         add1(src, "*");
-        add1(src, "* @param name Cache name.");
+        add1(src, "* @param cacheName Cache name.");
         add1(src, "* @param storeFactory Cache store factory.");
         add1(src, "*/");
-        add1(src, "public static <K, V> CacheConfiguration<K, V> cache(String name," +
+        add1(src, "public static <K, V> CacheConfiguration<K, V> cache(String cacheName," +
             " CacheJdbcPojoStoreFactory<K, V> storeFactory) {");
         add2(src, "if (storeFactory == null)");
         add3(src, " throw new IllegalArgumentException(\"Cache store factory cannot be null.\");");
         add0(src, "");
-        add2(src, "CacheConfiguration<K, V> ccfg = new CacheConfiguration<>(name);");
+        add2(src, "CacheConfiguration<K, V> ccfg = new CacheConfiguration<>(cacheName);");
         add0(src, "");
         add2(src, "ccfg.setCacheStoreFactory(storeFactory);");
         add2(src, "ccfg.setReadThrough(true);");
