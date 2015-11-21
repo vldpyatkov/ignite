@@ -15,42 +15,30 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.internal.util;
-
-import java.util.concurrent.ConcurrentMap;
-import org.jsr166.ConcurrentHashMap8;
+package org.apache.ignite.internal.processors.cache.transactions;
 
 /**
- * Cache for enum constants.
+ *
  */
-public class GridEnumCache {
-    /** Cache for enum constants. */
-    private static final ConcurrentMap<Class<?>, Object[]> ENUM_CACHE = new ConcurrentHashMap8<>();
+public interface IgniteTxLocalState extends IgniteTxState {
+    /**
+     * @param entry Entry.
+     */
+    public void addEntry(IgniteTxEntry entry);
 
     /**
-     * Gets enum constants for provided class.
+     * @param txSize Transaction size.
+     * @return {@code True} if transaction was successfully  started.
+     */
+    public boolean init(int txSize);
+
+    /**
+     * @return {@code True} if init method was called.
+     */
+    public boolean initialized();
+
+    /**
      *
-     * @param cls Class.
-     * @return Enum constants.
      */
-    public static Object[] get(Class<?> cls) {
-        assert cls != null;
-
-        Object[] vals = ENUM_CACHE.get(cls);
-
-        if (vals == null) {
-            vals = cls.getEnumConstants();
-
-            ENUM_CACHE.putIfAbsent(cls, vals);
-        }
-
-        return vals;
-    }
-
-    /**
-     * Clears cache.
-     */
-    public static void clear() {
-        ENUM_CACHE.clear();
-    }
+    public void seal();
 }

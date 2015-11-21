@@ -17,15 +17,17 @@
 
 package org.apache.ignite.internal.portable;
 
+import org.apache.ignite.binary.BinaryObject;
+import org.apache.ignite.binary.BinaryObjectException;
+import org.apache.ignite.binary.Binarylizable;
 import org.apache.ignite.internal.portable.builder.PortableLazyValue;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiTuple;
-import org.apache.ignite.binary.BinaryObjectException;
-import org.apache.ignite.binary.BinaryObject;
 import org.jetbrains.annotations.Nullable;
 import org.jsr166.ConcurrentHashMap8;
 
+import java.io.Externalizable;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.Collection;
@@ -660,32 +662,6 @@ public class PortableUtils {
     }
 
     /**
-     * Write portable header.
-     *
-     * @param writer Writer.
-     * @param typeId Type ID.
-     * @param hashCode Hash code.
-     * @param clsName Class name (optional).
-     * @return Position where length should be written.
-     */
-    public static int writeHeader(BinaryWriterExImpl writer, int typeId, int hashCode, @Nullable String clsName) {
-        writer.doWriteByte(GridPortableMarshaller.OBJ);
-        writer.doWriteByte(GridPortableMarshaller.PROTO_VER);
-
-        writer.doWriteShort((short) 0);
-
-        writer.doWriteInt(typeId);
-        writer.doWriteInt(hashCode);
-
-        int reserved = writer.reserve(12);
-
-        if (clsName != null)
-            writer.doWriteString(clsName);
-
-        return reserved;
-    }
-
-    /**
      * Get portable object length.
      *
      * @param in Input stream.
@@ -902,5 +878,109 @@ public class PortableUtils {
             return changed ? new BinaryMetadata(oldMeta.typeId(), oldMeta.typeName(), mergedFields,
                 oldMeta.affinityKeyFieldName(), mergedSchemas) : oldMeta;
         }
+    }
+
+    /**
+     * @param cls Class.
+     * @return Mode.
+     */
+    @SuppressWarnings("IfMayBeConditional")
+    public static BinaryWriteMode mode(Class<?> cls) {
+        assert cls != null;
+
+        /** Primitives. */
+        if (cls == byte.class)
+            return BinaryWriteMode.P_BYTE;
+        else if (cls == boolean.class)
+            return BinaryWriteMode.P_BOOLEAN;
+        else if (cls == short.class)
+            return BinaryWriteMode.P_SHORT;
+        else if (cls == char.class)
+            return BinaryWriteMode.P_CHAR;
+        else if (cls == int.class)
+            return BinaryWriteMode.P_INT;
+        else if (cls == long.class)
+            return BinaryWriteMode.P_LONG;
+        else if (cls == float.class)
+            return BinaryWriteMode.P_FLOAT;
+        else if (cls == double.class)
+            return BinaryWriteMode.P_DOUBLE;
+
+        /** Boxed primitives. */
+        else if (cls == Byte.class)
+            return BinaryWriteMode.BYTE;
+        else if (cls == Boolean.class)
+            return BinaryWriteMode.BOOLEAN;
+        else if (cls == Short.class)
+            return BinaryWriteMode.SHORT;
+        else if (cls == Character.class)
+            return BinaryWriteMode.CHAR;
+        else if (cls == Integer.class)
+            return BinaryWriteMode.INT;
+        else if (cls == Long.class)
+            return BinaryWriteMode.LONG;
+        else if (cls == Float.class)
+            return BinaryWriteMode.FLOAT;
+        else if (cls == Double.class)
+            return BinaryWriteMode.DOUBLE;
+
+        /** The rest types. */
+        else if (cls == BigDecimal.class)
+            return BinaryWriteMode.DECIMAL;
+        else if (cls == String.class)
+            return BinaryWriteMode.STRING;
+        else if (cls == UUID.class)
+            return BinaryWriteMode.UUID;
+        else if (cls == Date.class)
+            return BinaryWriteMode.DATE;
+        else if (cls == Timestamp.class)
+            return BinaryWriteMode.TIMESTAMP;
+        else if (cls == byte[].class)
+            return BinaryWriteMode.BYTE_ARR;
+        else if (cls == short[].class)
+            return BinaryWriteMode.SHORT_ARR;
+        else if (cls == int[].class)
+            return BinaryWriteMode.INT_ARR;
+        else if (cls == long[].class)
+            return BinaryWriteMode.LONG_ARR;
+        else if (cls == float[].class)
+            return BinaryWriteMode.FLOAT_ARR;
+        else if (cls == double[].class)
+            return BinaryWriteMode.DOUBLE_ARR;
+        else if (cls == char[].class)
+            return BinaryWriteMode.CHAR_ARR;
+        else if (cls == boolean[].class)
+            return BinaryWriteMode.BOOLEAN_ARR;
+        else if (cls == BigDecimal[].class)
+            return BinaryWriteMode.DECIMAL_ARR;
+        else if (cls == String[].class)
+            return BinaryWriteMode.STRING_ARR;
+        else if (cls == UUID[].class)
+            return BinaryWriteMode.UUID_ARR;
+        else if (cls == Date[].class)
+            return BinaryWriteMode.DATE_ARR;
+        else if (cls == Timestamp[].class)
+            return BinaryWriteMode.TIMESTAMP_ARR;
+        else if (cls.isArray())
+            return cls.getComponentType().isEnum() ?
+                BinaryWriteMode.ENUM_ARR : BinaryWriteMode.OBJECT_ARR;
+        else if (cls == BinaryObjectImpl.class)
+            return BinaryWriteMode.PORTABLE_OBJ;
+        else if (Binarylizable.class.isAssignableFrom(cls))
+            return BinaryWriteMode.PORTABLE;
+        else if (Externalizable.class.isAssignableFrom(cls))
+            return BinaryWriteMode.EXTERNALIZABLE;
+        else if (Map.Entry.class.isAssignableFrom(cls))
+            return BinaryWriteMode.MAP_ENTRY;
+        else if (Collection.class.isAssignableFrom(cls))
+            return BinaryWriteMode.COL;
+        else if (Map.class.isAssignableFrom(cls))
+            return BinaryWriteMode.MAP;
+        else if (cls.isEnum())
+            return BinaryWriteMode.ENUM;
+        else if (cls == Class.class)
+            return BinaryWriteMode.CLASS;
+        else
+            return BinaryWriteMode.OBJECT;
     }
 }

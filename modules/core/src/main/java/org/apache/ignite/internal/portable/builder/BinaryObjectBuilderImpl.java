@@ -178,7 +178,9 @@ public class BinaryObjectBuilderImpl implements BinaryObjectBuilder {
 
     /** {@inheritDoc} */
     @Override public BinaryObject build() {
-        try (BinaryWriterExImpl writer = new BinaryWriterExImpl(ctx, typeId, false)) {
+        try (BinaryWriterExImpl writer = new BinaryWriterExImpl(ctx)) {
+            writer.typeId(typeId);
+
             PortableBuilderSerializer serializationCtx = new PortableBuilderSerializer();
 
             serializationCtx.registerObjectWriting(this, 0);
@@ -197,16 +199,12 @@ public class BinaryObjectBuilderImpl implements BinaryObjectBuilder {
      */
     void serializeTo(BinaryWriterExImpl writer, PortableBuilderSerializer serializer) {
         try {
-            PortableUtils.writeHeader(writer,
-                registeredType ? typeId : UNREGISTERED_TYPE_ID,
-                hashCode,
-                registeredType ? null : clsNameToWrite
-            );
+            writer.preWrite(registeredType ? null : clsNameToWrite);
 
             Set<Integer> remainsFlds = null;
 
             if (reader != null) {
-                PortableSchema schema = reader.schema(start);
+                PortableSchema schema = reader.schema();
 
                 Map<Integer, Object> assignedFldsById;
 
@@ -361,7 +359,7 @@ public class BinaryObjectBuilderImpl implements BinaryObjectBuilder {
                 reader.position(start + PortableUtils.length(reader, start));
             }
 
-            writer.postWrite(true);
+            writer.postWrite(true, registeredType, hashCode);
 
             // Update metadata if needed.
             int schemaId = writer.schemaId();
@@ -440,7 +438,7 @@ public class BinaryObjectBuilderImpl implements BinaryObjectBuilder {
             int fieldIdLen = PortableUtils.fieldIdLength(flags);
             int fieldOffsetLen = PortableUtils.fieldOffsetLength(flags);
 
-            PortableSchema schema = reader.schema(start);
+            PortableSchema schema = reader.schema();
 
             Map<Integer, Object> readCache = new HashMap<>();
 
