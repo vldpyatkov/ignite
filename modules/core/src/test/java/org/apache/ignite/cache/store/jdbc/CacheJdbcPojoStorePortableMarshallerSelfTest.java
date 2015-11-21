@@ -18,7 +18,7 @@
 package org.apache.ignite.cache.store.jdbc;
 
 import org.apache.ignite.marshaller.Marshaller;
-import org.apache.ignite.marshaller.portable.PortableMarshaller;
+import org.apache.ignite.marshaller.portable.BinaryMarshaller;
 
 /**
  * Class for {@code PojoCacheStore} tests.
@@ -26,7 +26,7 @@ import org.apache.ignite.marshaller.portable.PortableMarshaller;
 public class CacheJdbcPojoStorePortableMarshallerSelfTest extends CacheJdbcPojoStoreAbstractSelfTest {
     /** {@inheritDoc} */
     @Override protected Marshaller marshaller(){
-        return new PortableMarshaller();
+        return new BinaryMarshaller();
     }
 
     /**
