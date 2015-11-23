@@ -38,6 +38,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.cache.Cache;
 import javax.cache.CacheException;
@@ -157,7 +158,7 @@ public abstract class CacheAbstractJdbcStore<K, V> implements CacheStore<K, V>, 
 
     /** Lock for metadata cache. */
     @GridToStringExclude
-    private final ReentrantLock cacheMappingsLock = new ReentrantLock();
+    private final Lock cacheMappingsLock = new ReentrantLock();
 
     /** Data source. */
     protected DataSource dataSrc;
