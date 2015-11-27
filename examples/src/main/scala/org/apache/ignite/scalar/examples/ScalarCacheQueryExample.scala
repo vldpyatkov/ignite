@@ -50,7 +50,7 @@ object ScalarCacheQueryExample {
      */
     def main(args: Array[String]) {
         scalar(CONFIG) {
-            val cache = createCache$(NAME, indexedTypes = Seq(classOf[UUID], classOf[Organization],
+            val cache = createCache$(NAME, indexedTypes = Seq(classOf[JLong], classOf[Organization],
                 classOf[AffinityKey[_]], classOf[Person]))
 
             try {
@@ -72,12 +72,12 @@ object ScalarCacheQueryExample {
         initialize()
 
         // Cache instance shortcut.
-        val cache = mkCache[AffinityKey[UUID], Person]
+        val cache = mkCache[AffinityKey[JLong], Person]
 
         // Using distributed queries for partitioned cache and local queries for replicated cache.
         // Since in replicated caches data is available on all nodes, including local one,
         // it is enough to just query the local node.
-        val prj = if (cache.getConfiguration(classOf[CacheConfiguration[AffinityKey[UUID], Person]]).getCacheMode == PARTITIONED)
+        val prj = if (cache.getConfiguration(classOf[CacheConfiguration[AffinityKey[JLong], Person]]).getCacheMode == PARTITIONED)
             ignite.cluster().forRemotes()
         else
             ignite.cluster().forLocal()
