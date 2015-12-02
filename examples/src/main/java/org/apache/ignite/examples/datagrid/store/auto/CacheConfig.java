@@ -18,16 +18,13 @@
 package org.apache.ignite.examples.datagrid.store.auto;
 
 import java.sql.Types;
-import java.util.Arrays;
-import java.util.Collections;
-import javax.cache.configuration.Factory;
-import org.apache.ignite.cache.CacheTypeFieldMetadata;
-import org.apache.ignite.cache.CacheTypeMetadata;
-import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStore;
+import org.apache.ignite.cache.store.jdbc.CacheJdbcPojoStoreFactory;
+import org.apache.ignite.cache.store.jdbc.JdbcType;
+import org.apache.ignite.cache.store.jdbc.JdbcTypeField;
+import org.apache.ignite.cache.store.jdbc.dialect.H2Dialect;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.examples.model.Person;
-import org.h2.jdbcx.JdbcConnectionPool;
 
 import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 
@@ -35,41 +32,44 @@ import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
  * Predefined configuration for examples with {@link CacheJdbcPojoStore}.
  */
 public class CacheConfig {
+    /** Cache name. */
+    public static final String CACHE_NAME = "CacheAutoStore";
+
     /**
      * Configure cache with store.
      */
-    public static CacheConfiguration<Long, Person> jdbcPojoStoreCache(String name) {
-        CacheConfiguration<Long, Person> cfg = new CacheConfiguration<>(name);
+    public static CacheConfiguration<Long, Person> jdbcPojoStoreCache() {
+        CacheJdbcPojoStoreFactory<Long, Person> storeFactory = new CacheJdbcPojoStoreFactory<>();
+
+        storeFactory.setDataSourceBean("h2-example-db");
+        storeFactory.setDialect(new H2Dialect());
+
+        JdbcType jdbcType = new JdbcType();
+
+        jdbcType.setCacheName(CACHE_NAME);
+        jdbcType.setDatabaseSchema("PUBLIC");
+        jdbcType.setDatabaseTable("PERSON");
+
+        jdbcType.setKeyType("java.lang.Long");
+        jdbcType.setValueType("org.apache.ignite.examples.model.Person");
+
+        jdbcType.setKeyFields(new JdbcTypeField(Types.BIGINT, "ID", Long.class, "id"));
+        jdbcType.setValueFields(
+            new JdbcTypeField(Types.BIGINT, "ID", long.class, "id"),
+            new JdbcTypeField(Types.VARCHAR, "FIRST_NAME", String.class, "firstName"),
+            new JdbcTypeField(Types.VARCHAR, "LAST_NAME", String.class, "lastName")
+        );
+
+        storeFactory.setTypes(jdbcType);
+
+        CacheConfiguration<Long, Person> cfg = new CacheConfiguration<>(CACHE_NAME);
+
+        cfg.setCacheStoreFactory(storeFactory);
 
         // Set atomicity as transaction, since we are showing transactions in the example.
         cfg.setAtomicityMode(TRANSACTIONAL);
 
-        cfg.setCacheStoreFactory(new Factory<CacheStore<? super Long, ? super Person>>() {
-            @Override public CacheStore<? super Long, ? super Person> create() {
-                CacheJdbcPojoStore<Long, Person> store = new CacheJdbcPojoStore<>();
-
-                store.setDataSource(JdbcConnectionPool.create("jdbc:h2:tcp://localhost/mem:ExampleDb", "sa", ""));
-
-                return store;
-            }
-        });
-
-        CacheTypeMetadata meta = new CacheTypeMetadata();
-
-        meta.setDatabaseTable("PERSON");
-
-        meta.setKeyType("java.lang.Long");
-        meta.setValueType("org.apache.ignite.examples.model.Person");
-
-        meta.setKeyFields(Collections.singletonList(new CacheTypeFieldMetadata("ID", Types.BIGINT, "id", Long.class)));
-
-        meta.setValueFields(Arrays.asList(
-            new CacheTypeFieldMetadata("ID", Types.BIGINT, "id", long.class),
-            new CacheTypeFieldMetadata("FIRST_NAME", Types.VARCHAR, "firstName", String.class),
-            new CacheTypeFieldMetadata("LAST_NAME", Types.VARCHAR, "lastName", String.class)
-        ));
-
-        cfg.setTypeMetadata(Collections.singletonList(meta));
+        cfg.setKeepBinaryInStore(true);
 
         cfg.setWriteBehindEnabled(true);
 

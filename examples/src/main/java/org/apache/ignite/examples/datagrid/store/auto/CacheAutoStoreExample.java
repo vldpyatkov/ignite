@@ -46,9 +46,6 @@ import org.apache.ignite.transactions.Transaction;
  * start node with {@code examples/config/example-ignite.xml} configuration.
  */
 public class CacheAutoStoreExample {
-    /** Cache name. */
-    public static final String CACHE_NAME = CacheAutoStoreLoadDataExample.class.getSimpleName();
-
     /** Global person ID to use across entire example. */
     private static final Long id = Math.abs(UUID.randomUUID().getLeastSignificantBits());
 
@@ -64,7 +61,7 @@ public class CacheAutoStoreExample {
             System.out.println();
             System.out.println(">>> Cache auto store example started.");
 
-            try (IgniteCache<Long, Person> cache = ignite.getOrCreateCache(CacheConfig.jdbcPojoStoreCache(CACHE_NAME))) {
+            try (IgniteCache<Long, Person> cache = ignite.getOrCreateCache(CacheConfig.jdbcPojoStoreCache())) {
                 try (Transaction tx = ignite.transactions().txStart()) {
                     Person val = cache.get(id);
 
