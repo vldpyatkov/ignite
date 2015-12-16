@@ -20,6 +20,7 @@ package org.apache.ignite.internal.visor.util;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.InetAddress;
@@ -819,6 +820,68 @@ public class VisorTaskUtils {
             Thread.currentThread().interrupt();
 
             return false;
+        }
+    }
+
+    /**
+     * Start local node in terminal.
+     *
+     * @param log Logger.
+     * @param cfgPath Path to node configuration to start with.
+     * @param nodesToStart Number of nodes to start.
+     * @param quite If {@code true} then start node in quiet mode.
+     * @return List of started processes.
+     * @throws IOException If failed to start.
+     */
+    public static List<Process> startLocalNode(@Nullable IgniteLogger log, String cfgPath, int nodesToStart,
+        boolean quite) throws IOException {
+        String quitePar = quite ? "" : "-v";
+
+        String cmdFile = new File("bin", U.isWindows() ? "ignite.bat" : "ignite.sh").getPath();
+
+        File cmdFilePath = U.resolveIgnitePath(cmdFile);
+
+        if (cmdFilePath == null || !cmdFilePath.exists())
+            throw new FileNotFoundException(String.format("File not found: %s", cmdFile));
+
+        String ignite = cmdFilePath.getCanonicalPath();
+
+        File nodesCfgPath = U.resolveIgnitePath(cfgPath);
+
+        if (nodesCfgPath == null || !nodesCfgPath.exists())
+            throw new FileNotFoundException(String.format("File not found: %s", cfgPath));
+
+        String nodeCfg = nodesCfgPath.getCanonicalPath();
+
+        log(log, String.format("Starting %s local %s with '%s' config", nodesToStart, nodesToStart > 1 ? "nodes" : "node", nodeCfg));
+
+        List<Process> run = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < nodesToStart; i++) {
+                if (U.isMacOs()) {
+                    StringBuilder envs = new StringBuilder();
+
+                    for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
+                        String value = entry.getValue();
+
+                        if (value.indexOf(';') < 0 && value.indexOf('\'') < 0)
+                            envs.append(String.format("export %s='%s'; ",
+                                    entry.getKey(), value.replace('\n', ' ').replace("'", "\'")));
+                    }
+
+                    run.add(openInConsole(envs.toString(), ignite, quitePar, nodeCfg));
+                } else
+                    run.add(openInConsole(ignite, quitePar, nodeCfg));
+            }
+
+            return run;
+        }
+        catch (Exception e) {
+            for (Process proc: run)
+                proc.destroy();
+
+            throw e;
         }
     }
 
