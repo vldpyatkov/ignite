@@ -864,11 +864,11 @@ public class VisorTaskUtils {
                     StringBuilder envs = new StringBuilder();
 
                     for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
-                        String value = entry.getValue();
+                        String val = entry.getValue();
 
-                        if (value.indexOf(';') < 0 && value.indexOf('\'') < 0)
+                        if (val.indexOf(';') < 0 && val.indexOf('\'') < 0)
                             envs.append(String.format("export %s='%s'; ",
-                                    entry.getKey(), value.replace('\n', ' ').replace("'", "\'")));
+                                    entry.getKey(), val.replace('\n', ' ').replace("'", "\'")));
                     }
 
                     run.add(openInConsole(null, envVars, envs.toString(), ignite, quitePar, nodeCfg));
