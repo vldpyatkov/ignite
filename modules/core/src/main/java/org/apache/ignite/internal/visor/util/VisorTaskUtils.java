@@ -830,11 +830,12 @@ public class VisorTaskUtils {
      * @param cfgPath Path to node configuration to start with.
      * @param nodesToStart Number of nodes to start.
      * @param quite If {@code true} then start node in quiet mode.
+     * @param envVars Optional map with environment variables.
      * @return List of started processes.
      * @throws IOException If failed to start.
      */
     public static List<Process> startLocalNode(@Nullable IgniteLogger log, String cfgPath, int nodesToStart,
-        boolean quite) throws IOException {
+        boolean quite, Map<String, String> envVars) throws IOException {
         String quitePar = quite ? "" : "-v";
 
         String cmdFile = new File("bin", U.isWindows() ? "ignite.bat" : "ignite.sh").getPath();
@@ -870,9 +871,9 @@ public class VisorTaskUtils {
                                     entry.getKey(), value.replace('\n', ' ').replace("'", "\'")));
                     }
 
-                    run.add(openInConsole(envs.toString(), ignite, quitePar, nodeCfg));
+                    run.add(openInConsole(null, envVars, envs.toString(), ignite, quitePar, nodeCfg));
                 } else
-                    run.add(openInConsole(ignite, quitePar, nodeCfg));
+                    run.add(openInConsole(null, envVars, ignite, quitePar, nodeCfg));
             }
 
             return run;
@@ -902,9 +903,22 @@ public class VisorTaskUtils {
      * @param workFolder Work folder for command.
      * @param args A string array containing the program and its arguments.
      * @return Started process.
+     * @throws IOException in case of error.
+     */
+    public static Process openInConsole(@Nullable File workFolder, String... args) throws IOException {
+        return openInConsole(workFolder, null, args);
+    }
+
+    /**
+     * Run command in separated console.
+     *
+     * @param workFolder Work folder for command.
+     * @param envVars Optional map with environment variables.
+     * @param args A string array containing the program and its arguments.
+     * @return Started process.
      * @throws IOException If failed to start process.
      */
-    public static Process openInConsole(@Nullable File workFolder, String... args)
+    public static Process openInConsole(@Nullable File workFolder, Map<String, String> envVars, String... args)
         throws IOException {
         String[] commands = args;
 
@@ -924,6 +938,23 @@ public class VisorTaskUtils {
 
         if (workFolder != null)
             pb.directory(workFolder);
+
+        if (envVars != null) {
+            String sep = U.isWindows() ? ";" : ":";
+
+            Map<String, String> goalVars = pb.environment();
+
+            for (Map.Entry<String, String> var: envVars.entrySet()) {
+                String envVar = goalVars.get(var.getKey());
+
+                if (envVar == null || envVar.isEmpty())
+                    envVar = var.getValue();
+                else
+                    envVar += sep + var.getValue();
+
+                goalVars.put(var.getKey(), envVar);
+            }
+        }
 
         return pb.start();
     }
