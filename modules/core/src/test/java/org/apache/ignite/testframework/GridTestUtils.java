@@ -623,7 +623,9 @@ public final class GridTestUtils {
         // Compound future, that adds cancel() support to execution future.
         GridCompoundFuture<Long, Long> compFut = new GridCompoundFuture<>();
 
-        compFut.addAll(cancelFut, runFut);
+        compFut.add(cancelFut);
+        compFut.add(runFut);
+
         compFut.reducer(F.sumLongReducer());
         compFut.markInitialized();
 

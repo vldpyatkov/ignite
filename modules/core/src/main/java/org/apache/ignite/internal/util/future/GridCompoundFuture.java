@@ -93,21 +93,6 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
         this.rdc = rdc;
     }
 
-    /**
-     * @param rdc Reducer to add.
-     * @param futs Futures to add.
-     */
-    public GridCompoundFuture(
-        @Nullable IgniteReducer<T, R> rdc,
-        @Nullable Iterable<IgniteInternalFuture<T>> futs
-    ) {
-        this.rdc = rdc;
-
-        addAll(futs);
-
-        markInitialized();
-    }
-
     /** {@inheritDoc} */
     @Override public boolean cancel() throws IgniteCheckedException {
         if (onCancelled()) {
@@ -216,37 +201,6 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
                 onDone(e);
             }
         }
-    }
-
-    /**
-     * Adds futures to this compound future.
-     *
-     * @param futs Futures to add.
-     */
-    @SafeVarargs
-    public final void addAll(@Nullable IgniteInternalFuture<T>... futs) {
-        addAll(F.asList(futs));
-    }
-
-    /**
-     * Adds futures to this compound future.
-     *
-     * @param futs Futures to add.
-     */
-    public void addAll(@Nullable Iterable<IgniteInternalFuture<T>> futs) {
-        if (futs != null) {
-            for (IgniteInternalFuture<T> fut : futs)
-                add(fut);
-        }
-    }
-
-    /**
-     * Gets optional reducer.
-     *
-     * @return Optional reducer.
-     */
-    @Nullable public IgniteReducer<T, R> reducer() {
-        return rdc;
     }
 
     /**
