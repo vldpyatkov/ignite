@@ -978,9 +978,7 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
      */
     @SuppressWarnings("unchecked")
     public IgniteInternalFuture<?> finishAtomicUpdates(AffinityTopologyVersion topVer) {
-        GridCompoundFuture<Object, Object> res = new GridCompoundFuture<>();
-
-        res.ignoreChildFailures(ClusterTopologyCheckedException.class, CachePartialUpdateCheckedException.class);
+        GridCompoundFuture<Object, Object> res = new FinishAtomicUpdateFuture();
 
         for (GridCacheAtomicFuture<?> fut : atomicFuts.values()) {
             IgniteInternalFuture<Void> complete = fut.completeFuture(topVer);
@@ -1215,6 +1213,19 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
             }
             else
                 return S.toString(FinishLockFuture.class, this, super.toString());
+        }
+    }
+
+    /**
+     * Finish atomic update future.
+     */
+    private static class FinishAtomicUpdateFuture extends GridCompoundFuture<Object, Object> {
+        /** {@inheritDoc} */
+        @Override protected boolean ignoreFailure(Throwable err) {
+            Class cls = err.getClass();
+
+            return ClusterTopologyCheckedException.class.isAssignableFrom(cls) ||
+                CachePartialUpdateCheckedException.class.isAssignableFrom(cls);
         }
     }
 

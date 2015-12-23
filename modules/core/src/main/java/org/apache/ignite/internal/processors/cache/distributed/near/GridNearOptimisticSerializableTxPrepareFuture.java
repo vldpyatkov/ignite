@@ -88,9 +88,11 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
         super(cctx, tx);
 
         assert tx.optimistic() && tx.serializable() : tx;
+    }
 
-        // Should wait for all mini futures completion before finishing tx.
-        ignoreChildFailures(IgniteCheckedException.class);
+    /** {@inheritDoc} */
+    @Override protected boolean ignoreFailure(Throwable err) {
+        return IgniteCheckedException.class.isAssignableFrom(err.getClass());
     }
 
     /** {@inheritDoc} */

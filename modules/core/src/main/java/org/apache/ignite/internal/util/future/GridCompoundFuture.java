@@ -64,9 +64,6 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
     @GridToStringInclude
     private IgniteReducer<T, R> rdc;
 
-    /** Exceptions to ignore. */
-    private Class<? extends Throwable>[] ignoreChildFailures;
-
     /**
      * Updated via {@link #flagsUpd}.
      *
@@ -142,11 +139,13 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
     }
 
     /**
-     * @param ignoreChildFailures Flag indicating whether compound future should ignore child futures failures.
+     * Checks if this compound future should ignore this particular exception.
+     *
+     * @param err Exception to check.
+     * @return {@code True} if this error should be ignored.
      */
-    @SafeVarargs
-    public final void ignoreChildFailures(Class<? extends Throwable>... ignoreChildFailures) {
-        this.ignoreChildFailures = ignoreChildFailures;
+    protected boolean ignoreFailure(Throwable err) {
+        return false;
     }
 
     /**
@@ -276,26 +275,6 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
         synchronized (futs) {
             return futs.size();
         }
-    }
-
-    /**
-     * Checks if this compound future should ignore this particular exception.
-     *
-     * @param err Exception to check.
-     * @return {@code True} if this error should be ignored.
-     */
-    private boolean ignoreFailure(@Nullable Throwable err) {
-        if (err == null)
-            return true;
-
-        if (ignoreChildFailures != null) {
-            for (Class<? extends Throwable> ignoreCls : ignoreChildFailures) {
-                if (ignoreCls.isAssignableFrom(err.getClass()))
-                    return true;
-            }
-        }
-
-        return false;
     }
 
     /** {@inheritDoc} */
