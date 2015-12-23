@@ -42,8 +42,8 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
     /** */
     private static final long serialVersionUID = 0L;
 
-    /** */
-    private static final int INITED = 0b1;
+    /** Initialization flag. */
+    private static final int INIT_FLAG = 0x1;
 
     /** */
     private static final AtomicIntegerFieldUpdater<GridCompoundFuture> flagsUpd =
@@ -63,7 +63,7 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
     /**
      * Updated via {@link #flagsUpd}.
      *
-     * @see #INITED
+     * @see #INIT_FLAG
      */
     @SuppressWarnings("unused")
     private volatile int flags;
@@ -159,33 +159,8 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
      * @return Collection of futures.
      */
     public Collection<IgniteInternalFuture<T>> futures() {
-        return futures(false);
-    }
-
-    /**
-     * Gets pending (unfinished) futures.
-     *
-     * @return Pending futures.
-     */
-    public Collection<IgniteInternalFuture<T>> pending() {
-        return futures(true);
-    }
-
-    /**
-     * Gets collection of futures.
-     *
-     * @return Collection of futures.
-     */
-    private Collection<IgniteInternalFuture<T>> futures(boolean pending) {
         synchronized (futs) {
-            Collection<IgniteInternalFuture<T>> res = new ArrayList<>(futs.size());
-
-            for (IgniteInternalFuture<T> fut : futs) {
-                if (!pending || !fut.isDone())
-                    res.add(fut);
-            }
-
-            return res;
+            return new ArrayList<>(futs);
         }
     }
 
@@ -222,14 +197,6 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
     }
 
     /**
-     * @return {@code True} if this future was initialized. Initialization happens when
-     *      {@link #markInitialized()} method is called on future.
-     */
-    public boolean initialized() {
-        return flagSet(INITED);
-    }
-
-    /**
      * Adds a future to this compound future.
      *
      * @param fut Future to add.
@@ -254,36 +221,18 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
     }
 
     /**
-     * @param flag Flag to CAS.
-     * @return {@code True} if CAS succeeds.
+     * @return {@code True} if this future was initialized. Initialization happens when
+     *      {@link #markInitialized()} method is called on future.
      */
-    private boolean casFlag(int flag) {
-        for (;;) {
-            int flags0 = flags;
-
-            if ((flags0 & flag) != 0)
-                return false;
-
-            if (flagsUpd.compareAndSet(this, flags0, flags0 | flag))
-                return true;
-        }
-    }
-
-    /**
-     * @param flag Flag to check.
-     * @return {@code True} if set.
-     */
-    private boolean flagSet(int flag) {
-        return (flags & flag) != 0;
+    public boolean initialized() {
+        return flags == INIT_FLAG;
     }
 
     /**
      * Mark this future as initialized.
      */
     public void markInitialized() {
-        if (casFlag(INITED))
-            // Check complete to make sure that we take care
-            // of all the ignored callbacks.
+        if (flagsUpd.compareAndSet(this, 0, INIT_FLAG))
             checkComplete();
     }
 
@@ -291,7 +240,7 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
      * Check completeness of the future.
      */
     private void checkComplete() {
-        if (flagSet(INITED) && !isDone() && lsnrCalls == futuresSize()) {
+        if (initialized() && !isDone() && lsnrCalls == futuresSize()) {
             try {
                 onDone(rdc != null ? rdc.reduce() : null);
             }
