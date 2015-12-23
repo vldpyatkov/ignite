@@ -629,32 +629,37 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
     }
 
     /**
-     *
+     * Client remap future.
      */
     private class ClientRemapFuture extends GridCompoundFuture<GridNearTxPrepareResponse, Boolean> {
-        /** */
-        private boolean remap = true;
-
         /**
-         *
+         * Constructor.
          */
         public ClientRemapFuture() {
-            super();
+            super(new ClientRemapFutureReducer());
+        }
+    }
 
-            reducer(new IgniteReducer<GridNearTxPrepareResponse, Boolean>() {
-                @Override public boolean collect(GridNearTxPrepareResponse res) {
-                    assert res != null;
+    /**
+     * Client remap future reducer.
+     */
+    private class ClientRemapFutureReducer implements IgniteReducer<GridNearTxPrepareResponse, Boolean> {
+        /** Remap flag. */
+        private boolean remap = true;
 
-                    if (res.clientRemapVersion() == null)
-                        remap = false;
+        /** {@inheritDoc} */
+        @Override public boolean collect(@Nullable GridNearTxPrepareResponse res) {
+            assert res != null;
 
-                    return true;
-                }
+            if (res.clientRemapVersion() == null)
+                remap = false;
 
-                @Override public Boolean reduce() {
-                    return remap;
-                }
-            });
+            return true;
+        }
+
+        /** {@inheritDoc} */
+        @Override public Boolean reduce() {
+            return remap;
         }
     }
 

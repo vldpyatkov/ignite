@@ -62,7 +62,7 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
 
     /** Reducer. */
     @GridToStringInclude
-    private IgniteReducer<T, R> rdc;
+    private final IgniteReducer<T, R> rdc;
 
     /**
      * Updated via {@link #flagsUpd}.
@@ -77,10 +77,10 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
     private volatile int lsnrCalls;
 
     /**
-     *
+     * Default constructor.
      */
     public GridCompoundFuture() {
-        // No-op.
+        this(null);
     }
 
     /**
@@ -200,15 +200,6 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> {
                 onDone(e);
             }
         }
-    }
-
-    /**
-     * Sets optional reducer.
-     *
-     * @param rdc Optional reducer.
-     */
-    public void reducer(@Nullable IgniteReducer<T, R> rdc) {
-        this.rdc = rdc;
     }
 
     /**
