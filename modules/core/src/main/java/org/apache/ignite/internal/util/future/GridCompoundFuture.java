@@ -45,12 +45,12 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
     /** Initialization flag. */
     private static final int INIT_FLAG = 0x1;
 
-    /** */
-    private static final AtomicIntegerFieldUpdater<GridCompoundFuture> flagsUpd =
+    /** Flags updater. */
+    private static final AtomicIntegerFieldUpdater<GridCompoundFuture> FLAGS_UPD =
         AtomicIntegerFieldUpdater.newUpdater(GridCompoundFuture.class, "flags");
 
-    /** */
-    private static final AtomicIntegerFieldUpdater<GridCompoundFuture> lsnrCallsUpd =
+    /** Listener calls updater. */
+    private static final AtomicIntegerFieldUpdater<GridCompoundFuture> LSNR_CALLS_UPD =
         AtomicIntegerFieldUpdater.newUpdater(GridCompoundFuture.class, "lsnrCalls");
 
     /** Futures. */
@@ -60,15 +60,11 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
     @GridToStringInclude
     private final IgniteReducer<T, R> rdc;
 
-    /**
-     * Updated via {@link #flagsUpd}.
-     *
-     * @see #INIT_FLAG
-     */
+    /** Initialization flag. Updated via {@link #FLAGS_UPD}. */
     @SuppressWarnings("unused")
-    private volatile int flags;
+    private volatile int initFlag;
 
-    /** Updated via {@link #lsnrCallsUpd}. */
+    /** Listener calls. Updated via {@link #LSNR_CALLS_UPD}. */
     @SuppressWarnings("unused")
     private volatile int lsnrCalls;
 
@@ -136,7 +132,7 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
             throw e;
         }
 
-        lsnrCallsUpd.incrementAndGet(GridCompoundFuture.this);
+        LSNR_CALLS_UPD.incrementAndGet(GridCompoundFuture.this);
 
         checkComplete();
     }
@@ -225,14 +221,14 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
      *      {@link #markInitialized()} method is called on future.
      */
     public boolean initialized() {
-        return flags == INIT_FLAG;
+        return initFlag == INIT_FLAG;
     }
 
     /**
      * Mark this future as initialized.
      */
     public void markInitialized() {
-        if (flagsUpd.compareAndSet(this, 0, INIT_FLAG))
+        if (FLAGS_UPD.compareAndSet(this, 0, INIT_FLAG))
             checkComplete();
     }
 
