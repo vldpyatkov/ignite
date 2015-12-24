@@ -100,7 +100,7 @@ public final class GridNearTxFinishFuture<K, V> extends GridCompoundIdentityFutu
      * @param commit Commit flag.
      */
     public GridNearTxFinishFuture(GridCacheSharedContext<K, V> cctx, GridNearTxLocal tx, boolean commit) {
-        super(cctx.kernalContext(), F.<IgniteInternalTx>identityReducer(tx));
+        super(F.<IgniteInternalTx>identityReducer(tx));
 
         this.cctx = cctx;
         this.tx = tx;

@@ -92,7 +92,7 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCompoundIdentityFutur
      * @param commit Commit flag.
      */
     public GridDhtTxFinishFuture(GridCacheSharedContext<K, V> cctx, GridDhtTxLocalAdapter tx, boolean commit) {
-        super(cctx.kernalContext(), F.<IgniteInternalTx>identityReducer(tx));
+        super(F.<IgniteInternalTx>identityReducer(tx));
 
         this.cctx = cctx;
         this.tx = tx;
