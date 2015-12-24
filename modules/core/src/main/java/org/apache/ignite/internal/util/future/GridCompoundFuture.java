@@ -47,7 +47,7 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
 
     /** Flags updater. */
     private static final AtomicIntegerFieldUpdater<GridCompoundFuture> FLAGS_UPD =
-        AtomicIntegerFieldUpdater.newUpdater(GridCompoundFuture.class, "flags");
+        AtomicIntegerFieldUpdater.newUpdater(GridCompoundFuture.class, "initFlag");
 
     /** Listener calls updater. */
     private static final AtomicIntegerFieldUpdater<GridCompoundFuture> LSNR_CALLS_UPD =
