@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -863,7 +864,23 @@ public class VisorTaskUtils {
                 if (U.isMacOs()) {
                     StringBuilder envs = new StringBuilder();
 
-                    for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
+                    Map<String, String> macEnv = new HashMap<>(System.getenv());
+
+                    if (envVars != null) {
+                        for (Map.Entry<String, String> ent : envVars.entrySet())
+                            if (macEnv.containsKey(ent.getKey())) {
+                                String old = macEnv.get(ent.getKey());
+
+                                if (old == null || old.isEmpty())
+                                    macEnv.put(ent.getKey(), ent.getValue());
+                                else
+                                    macEnv.put(ent.getKey(), old + ':' + ent.getValue());
+                            }
+                            else
+                                macEnv.put(ent.getKey(), ent.getValue());
+                    }
+
+                    for (Map.Entry<String, String> entry : macEnv.entrySet()) {
                         String val = entry.getValue();
 
                         if (val.indexOf(';') < 0 && val.indexOf('\'') < 0)
@@ -871,7 +888,7 @@ public class VisorTaskUtils {
                                     entry.getKey(), val.replace('\n', ' ').replace("'", "\'")));
                     }
 
-                    run.add(openInConsole(null, envVars, envs.toString(), ignite, quitePar, nodeCfg));
+                    run.add(openInConsole(envs.toString(), ignite, quitePar, nodeCfg));
                 } else
                     run.add(openInConsole(null, envVars, ignite, quitePar, nodeCfg));
             }
