@@ -77,7 +77,12 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
     private static final int MAX_REMOVED_LOCKS = 10240;
 
     /** Pending locks per thread. */
-    private final ThreadLocal<ArrayList<GridCacheMvccCandidate>> pending = new MvccCandidateThreadLocal();
+    private final ThreadLocal<LinkedList<GridCacheMvccCandidate>> pending =
+        new ThreadLocal<LinkedList<GridCacheMvccCandidate>>() {
+            @Override protected LinkedList<GridCacheMvccCandidate> initialValue() {
+                return new LinkedList<>();
+            }
+        };
 
     /** Pending near local locks and topology version per thread. */
     private ConcurrentMap<Long, GridCacheExplicitLockSpan> pendingExplicit;
@@ -721,14 +726,14 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
         if (cacheCtx.isNear() || cand.singleImplicit())
             return true;
 
-        ArrayList<GridCacheMvccCandidate> pending0 = pending.get();
+        LinkedList<GridCacheMvccCandidate> queue = pending.get();
 
         GridCacheMvccCandidate prev = null;
 
-        if (!pending0.isEmpty())
-            prev = pending0.get(pending0.size() - 1);
+        if (!queue.isEmpty())
+            prev = queue.getLast();
 
-        pending0.add(cand);
+        queue.add(cand);
 
         if (prev != null) {
             prev.next(cand);
@@ -746,7 +751,7 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
      * Reset MVCC context.
      */
     public void contextReset() {
-        pending.get().clear();
+        pending.set(new LinkedList<GridCacheMvccCandidate>());
     }
 
     /**
@@ -1226,16 +1231,6 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
 
             return ClusterTopologyCheckedException.class.isAssignableFrom(cls) ||
                 CachePartialUpdateCheckedException.class.isAssignableFrom(cls);
-        }
-    }
-
-    /**
-     * Thread local for pending MVCC candidates.
-     */
-    private static class MvccCandidateThreadLocal extends ThreadLocal<ArrayList<GridCacheMvccCandidate>> {
-        /** {@inheritDoc} */
-        @Override protected ArrayList<GridCacheMvccCandidate> initialValue() {
-            return new ArrayList<>();
         }
     }
 }
