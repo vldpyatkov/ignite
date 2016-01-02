@@ -17,9 +17,6 @@
 
 package org.apache.ignite.internal.processors.query;
 
-import java.util.Collection;
-import java.util.List;
-import javax.cache.Cache;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
@@ -30,12 +27,16 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.query.GridCacheTwoStepQuery;
-import org.apache.ignite.internal.util.GridSpinBusyLock;
+import org.apache.ignite.internal.util.GridStripedSpinBusyLock;
 import org.apache.ignite.internal.util.lang.GridCloseableIterator;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.spi.indexing.IndexingQueryFilter;
 import org.jetbrains.annotations.Nullable;
+
+import javax.cache.Cache;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Abstraction for internal indexing implementation.
@@ -48,7 +49,7 @@ public interface GridQueryIndexing {
      * @param busyLock Busy lock.
      * @throws IgniteCheckedException If failed.
      */
-    public void start(GridKernalContext ctx, GridSpinBusyLock busyLock) throws IgniteCheckedException;
+    public void start(GridKernalContext ctx, GridStripedSpinBusyLock busyLock) throws IgniteCheckedException;
 
     /**
      * Stops indexing.

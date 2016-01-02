@@ -17,20 +17,6 @@
 
 package org.apache.ignite.internal.processors.query.h2.twostep;
 
-import java.lang.reflect.Field;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.AbstractCollection;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicReferenceArray;
-import javax.cache.CacheException;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
@@ -58,7 +44,7 @@ import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQuery
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryRequest;
-import org.apache.ignite.internal.util.GridSpinBusyLock;
+import org.apache.ignite.internal.util.GridStripedSpinBusyLock;
 import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T2;
@@ -70,6 +56,19 @@ import org.h2.result.ResultInterface;
 import org.h2.value.Value;
 import org.jetbrains.annotations.Nullable;
 import org.jsr166.ConcurrentHashMap8;
+
+import javax.cache.CacheException;
+import java.lang.reflect.Field;
+import java.sql.ResultSet;
+import java.util.AbstractCollection;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_EXECUTED;
 import static org.apache.ignite.events.EventType.EVT_CACHE_QUERY_OBJECT_READ;
@@ -112,7 +111,7 @@ public class GridMapQueryExecutor {
     private ConcurrentMap<UUID, ConcurrentMap<Long, QueryResults>> qryRess = new ConcurrentHashMap8<>();
 
     /** */
-    private final GridSpinBusyLock busyLock;
+    private final GridStripedSpinBusyLock busyLock;
 
     /** */
     private final ConcurrentMap<T2<String, AffinityTopologyVersion>, GridReservable> reservations =
@@ -121,7 +120,7 @@ public class GridMapQueryExecutor {
     /**
      * @param busyLock Busy lock.
      */
-    public GridMapQueryExecutor(GridSpinBusyLock busyLock) {
+    public GridMapQueryExecutor(GridStripedSpinBusyLock busyLock) {
         this.busyLock = busyLock;
     }
 

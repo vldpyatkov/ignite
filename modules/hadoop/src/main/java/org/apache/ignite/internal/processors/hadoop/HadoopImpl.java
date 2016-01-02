@@ -21,7 +21,7 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.configuration.HadoopConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.hadoop.counter.HadoopCounters;
-import org.apache.ignite.internal.util.GridSpinBusyLock;
+import org.apache.ignite.internal.util.GridStripedSpinBusyLock;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -32,7 +32,7 @@ public class HadoopImpl implements Hadoop {
     private final HadoopProcessor proc;
 
     /** Busy lock. */
-    private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
+    private final GridStripedSpinBusyLock busyLock = new GridStripedSpinBusyLock();
 
     /**
      * Constructor.

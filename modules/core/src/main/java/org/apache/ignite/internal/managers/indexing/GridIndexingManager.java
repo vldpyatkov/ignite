@@ -17,18 +17,19 @@
 
 package org.apache.ignite.internal.managers.indexing;
 
-import java.util.Collection;
-import java.util.Iterator;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.SkipDaemon;
 import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.util.GridEmptyCloseableIterator;
-import org.apache.ignite.internal.util.GridSpinBusyLock;
+import org.apache.ignite.internal.util.GridStripedSpinBusyLock;
 import org.apache.ignite.spi.IgniteSpiCloseableIterator;
 import org.apache.ignite.spi.IgniteSpiException;
 import org.apache.ignite.spi.indexing.IndexingQueryFilter;
 import org.apache.ignite.spi.indexing.IndexingSpi;
+
+import java.util.Collection;
+import java.util.Iterator;
 
 /**
  * Manages cache indexing.
@@ -36,7 +37,7 @@ import org.apache.ignite.spi.indexing.IndexingSpi;
 @SkipDaemon
 public class GridIndexingManager extends GridManagerAdapter<IndexingSpi> {
     /** */
-    private final GridSpinBusyLock busyLock = new GridSpinBusyLock();
+    private final GridStripedSpinBusyLock busyLock = new GridStripedSpinBusyLock();
 
     /**
      * @param ctx  Kernal context.

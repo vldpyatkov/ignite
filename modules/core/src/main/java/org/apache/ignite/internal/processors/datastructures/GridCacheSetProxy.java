@@ -17,6 +17,18 @@
 
 package org.apache.ignite.internal.processors.datastructures;
 
+import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteSet;
+import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.processors.cache.GridCacheContext;
+import org.apache.ignite.internal.processors.cache.GridCacheGateway;
+import org.apache.ignite.internal.util.GridStripedSpinBusyLock;
+import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.internal.CU;
+import org.apache.ignite.internal.util.typedef.internal.U;
+import org.apache.ignite.lang.IgniteBiTuple;
+import org.jetbrains.annotations.NotNull;
+
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.InvalidObjectException;
@@ -26,17 +38,6 @@ import java.io.ObjectStreamException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.Callable;
-import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.IgniteSet;
-import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.processors.cache.GridCacheContext;
-import org.apache.ignite.internal.processors.cache.GridCacheGateway;
-import org.apache.ignite.internal.util.GridSpinBusyLock;
-import org.apache.ignite.internal.util.typedef.F;
-import org.apache.ignite.internal.util.typedef.internal.CU;
-import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.lang.IgniteBiTuple;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Cache set proxy.
@@ -63,7 +64,7 @@ public class GridCacheSetProxy<T> implements IgniteSet<T>, Externalizable {
     private GridCacheGateway gate;
 
     /** Busy lock. */
-    private GridSpinBusyLock busyLock;
+    private GridStripedSpinBusyLock busyLock;
 
     /** Check removed flag. */
     private boolean rmvCheck;
@@ -85,7 +86,7 @@ public class GridCacheSetProxy<T> implements IgniteSet<T>, Externalizable {
 
         gate = cctx.gate();
 
-        busyLock = new GridSpinBusyLock();
+        busyLock = new GridStripedSpinBusyLock();
     }
 
     /**
