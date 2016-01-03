@@ -633,7 +633,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
     /**
      * Client remap future.
      */
-    private class ClientRemapFuture extends GridCompoundFuture<GridNearTxPrepareResponse, Boolean> {
+    private static class ClientRemapFuture extends GridCompoundFuture<GridNearTxPrepareResponse, Boolean> {
         /**
          * Constructor.
          */
@@ -645,7 +645,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
     /**
      * Client remap future reducer.
      */
-    private class ClientRemapFutureReducer implements IgniteReducer<GridNearTxPrepareResponse, Boolean> {
+    private static class ClientRemapFutureReducer implements IgniteReducer<GridNearTxPrepareResponse, Boolean> {
         /** Remap flag. */
         private boolean remap = true;
 
