@@ -17,34 +17,32 @@
 
 package org.apache.ignite.internal.processors.hadoop;
 
-import java.util.HashSet;
 import javax.security.auth.AuthPermission;
 import junit.framework.TestCase;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.ignite.internal.processors.hadoop.cls.CircularDependencyHadoop;
-import org.apache.ignite.internal.processors.hadoop.cls.CircularDependencyNoHadoop;
-import org.apache.ignite.internal.processors.hadoop.cls.DependencyNoHadoop;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopCasting;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopClassAnnotation;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopConstructorInvocation;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopDeclaredCheckedExceptionInMethod;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopDeclaredRuntimeExceptionInMethod;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopExtends;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopField;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopImplements;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopInitializer;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopInnerClass;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopLocalVariableType;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopMethodAnnotation;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopMethodInvocation;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopMethodParameter;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopMethodReturnType;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopOuterClass;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopParameterAnnotation;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopStaticField;
-import org.apache.ignite.internal.processors.hadoop.cls.HadoopStaticInitializer;
-import org.apache.ignite.internal.processors.hadoop.cls.NoHadoop;
+import org.apache.ignite.internal.processors.hadoop.deps.CircularDependencyHadoop;
+import org.apache.ignite.internal.processors.hadoop.deps.CircularDependencyNoHadoop;
+import org.apache.ignite.internal.processors.hadoop.deps.DependencyNoHadoop;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopCasting;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopClassAnnotation;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopConstructorInvocation;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopDeclaredCheckedExceptionInMethod;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopDeclaredRuntimeExceptionInMethod;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopExtends;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopField;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopImplements;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopInitializer;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopInnerClass;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopLocalVariableType;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodAnnotation;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodInvocation;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodParameter;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodReturnType;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopOuterClass;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopParameterAnnotation;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopStaticField;
+import org.apache.ignite.internal.processors.hadoop.deps.HadoopStaticInitializer;
+import org.apache.ignite.internal.processors.hadoop.deps.NoHadoop;
 
 /**
  *
