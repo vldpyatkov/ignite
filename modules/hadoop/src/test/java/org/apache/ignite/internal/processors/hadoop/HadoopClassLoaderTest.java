@@ -105,8 +105,7 @@ public class HadoopClassLoaderTest extends TestCase {
         };
 
         for (Class c: positiveClasses)
-            assertTrue(c.getName(),
-                ldr.hasExternalDependencies(c.getName(), new HashSet<String>()));
+            assertTrue(c.getName(), ldr.hasExternalDependencies(c.getName()));
 
         // Negative cases:
         final Class[] negativeClasses = {
@@ -119,6 +118,6 @@ public class HadoopClassLoaderTest extends TestCase {
 
         for (Class c: negativeClasses)
             assertFalse(c.getName(),
-                ldr.hasExternalDependencies(c.getName(), new HashSet<String>()));
+                ldr.hasExternalDependencies(c.getName()));
     }
 }

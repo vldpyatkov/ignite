@@ -30,7 +30,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.processors.hadoop.v2.HadoopDaemon;
 import org.apache.ignite.internal.processors.hadoop.v2.HadoopNativeCodeLoader;
@@ -166,7 +166,7 @@ public class HadoopClassLoader extends URLClassLoader {
                 Boolean hasDeps = cache.get(name);
 
                 if (hasDeps == null) {
-                    hasDeps = hasExternalDependencies(name, new HashSet<String>());
+                    hasDeps = hasExternalDependencies(name);
 
                     cache.put(name, hasDeps);
                 }
@@ -273,10 +273,30 @@ public class HadoopClassLoader extends URLClassLoader {
     }
 
     /**
+     * Check whether class has external dependencies on Hadoop.
+     *
      * @param clsName Class name.
+     * @return {@code True} if class has external dependencies.
+     */
+    boolean hasExternalDependencies(String clsName) {
+        CollectingContext ctx = new CollectingContext();
+
+        ctx.annVisitor = new CollectingAnnotationVisitor(ctx);
+        ctx.mthdVisitor = new CollectingMethodVisitor(ctx, ctx.annVisitor);
+        ctx.fldVisitor = new CollectingFieldVisitor(ctx, ctx.annVisitor);
+        ctx.clsVisitor = new CollectingClassVisitor(ctx, ctx.annVisitor, ctx.mthdVisitor, ctx.fldVisitor);
+
+        return hasExternalDependencies(clsName, ctx);
+    }
+
+    /**
+     * Check whether class has external dependencies on Hadoop.
+     *
+     * @param clsName Class name.
+     * @param ctx Context.
      * @return {@code true} If the class has external dependencies.
      */
-    boolean hasExternalDependencies(String clsName, Set<String> visited) {
+    boolean hasExternalDependencies(String clsName, CollectingContext ctx) {
         if (isHadoop(clsName)) // Hadoop must not be in classpath but Idea sucks, so filtering explicitly as external.
             return true;
 
@@ -298,20 +318,11 @@ public class HadoopClassLoader extends URLClassLoader {
             throw new RuntimeException("Failed to read class: " + clsName, e);
         }
 
-        visited.add(clsName);
+        ctx.visited.add(clsName);
 
-        final AtomicBoolean hasDeps = new AtomicBoolean();
+        rdr.accept(ctx.clsVisitor, 0);
 
-        Collector c = new Collector(hasDeps, visited);
-
-        AnnotationVisitor annVisitor = new CollectingAnnotationVisitor(c);
-        MethodVisitor mthdVisitor = new CollectingMethodVisitor(c, annVisitor);
-        FieldVisitor fldVisitor = new CollectingFieldVisitor(c, annVisitor);
-        ClassVisitor clsVisitor = new CollectingClassVisitor(c, annVisitor, mthdVisitor, fldVisitor);
-
-        rdr.accept(clsVisitor, 0);
-
-        if (hasDeps.get()) // We already know that we have dependencies, no need to check parent.
+        if (ctx.found()) // We already know that we have dependencies, no need to check parent.
             return true;
 
         // Here we are known to not have any dependencies but possibly we have a parent which has them.
@@ -322,13 +333,13 @@ public class HadoopClassLoader extends URLClassLoader {
 
         String parentCls = clsName.substring(0, idx);
 
-        if (visited.contains(parentCls))
+        if (ctx.visited.contains(parentCls))
             return false;
 
         Boolean res = cache.get(parentCls);
 
         if (res == null)
-            res = hasExternalDependencies(parentCls, visited);
+            res = hasExternalDependencies(parentCls, ctx);
 
         return res;
     }
@@ -423,7 +434,10 @@ public class HadoopClassLoader extends URLClassLoader {
      * @return HADOOP_HOME Variable.
      */
     @Nullable public static String hadoopHome() {
-        return getEnv("HADOOP_PREFIX", getEnv("HADOOP_HOME", null));
+        return "C:\\Personal\\programs\\hadoop-2.6.0";
+
+        // TODO: FIX!
+        //return getEnv("HADOOP_PREFIX", getEnv("HADOOP_HOME", null));
     }
 
     /**
@@ -491,38 +505,34 @@ public class HadoopClassLoader extends URLClassLoader {
     }
 
     /**
-     * Implement business logic of the dependency analysis.
-     * Keeps the necessary state.
+     * Context for dependencies collection.
      */
-    private class Collector {
-        /** Attribute gets 'true' if the positive answer is found. */
-        private final AtomicBoolean hasDeps;
+    private class CollectingContext {
+        /** Visited classes. */
+        private final Set<String> visited = new HashSet<>();
 
-        /** Collection of visited class names to prevent infinite loops in case of
-         * circular dependencies. */
-        private final Set<String> visited;
+        /** Whether dependency found. */
+        private boolean found;
 
-        /**
-         * Constructor.
-         *
-         * @param hasDeps has dependencies initial value.
-         * @param visited visited set initial value.
-         */
-        Collector(AtomicBoolean hasDeps, Set<String> visited) {
-            assert hasDeps != null;
-            assert visited != null;
+        /** Annotation visitor. */
+        private AnnotationVisitor annVisitor;
 
-            this.hasDeps = hasDeps;
-            this.visited = visited;
-        }
+        /** Method visitor. */
+        private MethodVisitor mthdVisitor;
+
+        /** Field visitor. */
+        private FieldVisitor fldVisitor;
+
+        /** Class visitor. */
+        private ClassVisitor clsVisitor;
 
         /**
          * Answers if the model travers should be finished.
          *
          * @return If it is done.
          */
-        boolean isDone() {
-            return hasDeps.get();
+        boolean found() {
+            return found;
         }
 
         /**
@@ -533,14 +543,14 @@ public class HadoopClassLoader extends URLClassLoader {
             // Process method return type:
             onType(Type.getReturnType(methDesc));
 
-            if (isDone())
+            if (found())
                 return;
 
             // Process method argument types:
             for (Type t: Type.getArgumentTypes(methDesc)) {
                 onType(t);
 
-                if (isDone())
+                if (found())
                     return;
             }
         }
@@ -563,8 +573,8 @@ public class HadoopClassLoader extends URLClassLoader {
 
             Boolean res = cache.get(depCls);
 
-            if (res == Boolean.TRUE || (res == null && hasExternalDependencies(depCls, visited)))
-                hasDeps.set(true);
+            if (res == Boolean.TRUE || (res == null && hasExternalDependencies(depCls, this)))
+                found = true;
         }
 
         /**
@@ -636,48 +646,49 @@ public class HadoopClassLoader extends URLClassLoader {
      */
     private static class CollectingAnnotationVisitor extends AnnotationVisitor {
         /** */
-        final Collector c;
+        final CollectingContext ctx;
 
         /**
+         * Annotation visitor.
          *
-         * @param c The collector.
+         * @param ctx The collector.
          */
-        CollectingAnnotationVisitor(Collector c) {
+        CollectingAnnotationVisitor(CollectingContext ctx) {
             super(Opcodes.ASM4);
 
-            this.c = c;
+            this.ctx = ctx;
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String name, String desc) {
-            if (c.isDone())
+            if (ctx.found())
                 return null;
 
-            c.onType(desc);
+            ctx.onType(desc);
 
             return this;
         }
 
         /** {@inheritDoc} */
         @Override public void visitEnum(String name, String desc, String val) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onType(desc);
+            ctx.onType(desc);
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitArray(String name) {
-            return c.isDone() ? null : this;
+            return ctx.found() ? null : this;
         }
 
         /** {@inheritDoc} */
         @Override public void visit(String name, Object val) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
             if (val instanceof Type)
-                c.onType((Type)val);
+                ctx.onType((Type)val);
         }
 
         /** {@inheritDoc} */
@@ -691,7 +702,7 @@ public class HadoopClassLoader extends URLClassLoader {
      */
     private static class CollectingFieldVisitor extends FieldVisitor {
         /** Collector. */
-        private final Collector c;
+        private final CollectingContext ctx;
 
         /** Annotation visitor. */
         private final AnnotationVisitor av;
@@ -699,21 +710,21 @@ public class HadoopClassLoader extends URLClassLoader {
         /**
          * Constructor.
          */
-        CollectingFieldVisitor(Collector c, AnnotationVisitor av) {
+        CollectingFieldVisitor(CollectingContext ctx, AnnotationVisitor av) {
             super(Opcodes.ASM4);
 
-            this.c = c;
+            this.ctx = ctx;
             this.av = av;
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (c.isDone())
+            if (ctx.found())
                 return null;
 
-            c.onType(desc);
+            ctx.onType(desc);
 
-            return c.isDone() ? null : av;
+            return ctx.found() ? null : av;
         }
 
         /** {@inheritDoc} */
@@ -732,7 +743,7 @@ public class HadoopClassLoader extends URLClassLoader {
      */
     private static class CollectingClassVisitor extends ClassVisitor {
         /** Collector. */
-        private final Collector c;
+        private final CollectingContext ctx;
 
         /** Annotation visitor. */
         private final AnnotationVisitor av;
@@ -746,15 +757,15 @@ public class HadoopClassLoader extends URLClassLoader {
         /**
          * Constructor.
          *
-         * @param c Collector.
+         * @param ctx Collector.
          * @param av Annotation visitor.
          * @param mv Method visitor.
          * @param fv Field visitor.
          */
-        CollectingClassVisitor(Collector c, AnnotationVisitor av, MethodVisitor mv, FieldVisitor fv) {
+        CollectingClassVisitor(CollectingContext ctx, AnnotationVisitor av, MethodVisitor mv, FieldVisitor fv) {
             super(Opcodes.ASM4);
 
-            this.c = c;
+            this.ctx = ctx;
             this.av = av;
             this.mv = mv;
             this.fv = fv;
@@ -762,19 +773,19 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public void visit(int i, int i2, String name, String signature, String superName, String[] ifaces) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onInternalTypeName(superName);
+            ctx.onInternalTypeName(superName);
 
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
             if (ifaces != null) {
                 for (String iface : ifaces) {
-                    c.onInternalTypeName(iface);
+                    ctx.onInternalTypeName(iface);
 
-                    if (c.isDone())
+                    if (ctx.found())
                         return;
                 }
             }
@@ -782,47 +793,47 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (c.isDone())
+            if (ctx.found())
                 return null;
 
-            c.onType(desc);
+            ctx.onType(desc);
 
-            return c.isDone() ? null : av;
+            return ctx.found() ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public void visitInnerClass(String name, String outerName, String innerName, int i) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onInternalTypeName(name);
+            ctx.onInternalTypeName(name);
         }
 
         /** {@inheritDoc} */
         @Override public FieldVisitor visitField(int i, String name, String desc, String signature, Object val) {
-            if (c.isDone())
+            if (ctx.found())
                 return null;
 
-            c.onType(desc);
+            ctx.onType(desc);
 
-            return c.isDone() ? null : fv;
+            return ctx.found() ? null : fv;
         }
 
         /** {@inheritDoc} */
         @Override public MethodVisitor visitMethod(int i, String name, String desc, String signature,
             String[] exceptions) {
-            if (c.isDone())
+            if (ctx.found())
                 return null;
 
-            c.onMethodsDesc(desc);
+            ctx.onMethodsDesc(desc);
 
             // Process declared method exceptions:
             if (exceptions != null) {
                 for (String e : exceptions)
-                    c.onInternalTypeName(e);
+                    ctx.onInternalTypeName(e);
             }
 
-            return c.isDone() ? null : mv;
+            return ctx.found() ? null : mv;
         }
     }
 
@@ -831,7 +842,7 @@ public class HadoopClassLoader extends URLClassLoader {
      */
     private static class CollectingMethodVisitor extends MethodVisitor {
         /** Collector. */
-        private final Collector c;
+        private final CollectingContext ctx;
 
         /** Annotation visitor. */
         private final AnnotationVisitor av;
@@ -839,52 +850,52 @@ public class HadoopClassLoader extends URLClassLoader {
         /**
          * Constructor.
          *
-         * @param c Collector.
+         * @param ctx Collector.
          * @param av Annotation visitor.
          */
-        private CollectingMethodVisitor(Collector c, AnnotationVisitor av) {
+        private CollectingMethodVisitor(CollectingContext ctx, AnnotationVisitor av) {
             super(Opcodes.ASM4);
 
-            this.c = c;
+            this.ctx = ctx;
             this.av = av;
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (c.isDone())
+            if (ctx.found())
                 return null;
 
-            c.onType(desc);
+            ctx.onType(desc);
 
-            return c.isDone() ? null : av;
+            return ctx.found() ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitParameterAnnotation(int i, String desc, boolean b) {
-            if (c.isDone())
+            if (ctx.found())
                 return null;
 
-            c.onType(desc);
+            ctx.onType(desc);
 
-            return c.isDone() ? null : av;
+            return ctx.found() ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotationDefault() {
-            return c.isDone() ? null : av;
+            return ctx.found() ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public void visitFieldInsn(int opcode, String owner, String name, String desc) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onInternalTypeName(owner);
+            ctx.onInternalTypeName(owner);
 
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onType(desc);
+            ctx.onType(desc);
         }
 
         /** {@inheritDoc} */
@@ -900,47 +911,47 @@ public class HadoopClassLoader extends URLClassLoader {
         /** {@inheritDoc} */
         @Override public void visitLocalVariable(String name, String desc, String signature, Label lb,
             Label lb2, int i) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onType(desc);
+            ctx.onType(desc);
         }
 
         /** {@inheritDoc} */
         @Override public void visitMethodInsn(int i, String owner, String name, String desc) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onInternalTypeName(owner);
+            ctx.onInternalTypeName(owner);
 
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onMethodsDesc(desc);
+            ctx.onMethodsDesc(desc);
         }
 
         /** {@inheritDoc} */
         @Override public void visitMultiANewArrayInsn(String desc, int dim) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onType(desc);
+            ctx.onType(desc);
         }
 
         /** {@inheritDoc} */
         @Override public void visitTryCatchBlock(Label start, Label end, Label hndl, String typeStr) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onInternalTypeName(typeStr);
+            ctx.onInternalTypeName(typeStr);
         }
 
         /** {@inheritDoc} */
         @Override public void visitTypeInsn(int opcode, String type) {
-            if (c.isDone())
+            if (ctx.found())
                 return;
 
-            c.onInternalTypeName(type);
+            ctx.onInternalTypeName(type);
         }
     }
 }
