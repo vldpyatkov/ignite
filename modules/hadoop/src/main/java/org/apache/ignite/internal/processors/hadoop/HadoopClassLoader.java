@@ -274,7 +274,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
     /**
      * Check whether class has external dependencies on Hadoop.
-     *
+     * 
      * @param clsName Class name.
      * @return {@code True} if class has external dependencies.
      */
@@ -285,15 +285,15 @@ public class HadoopClassLoader extends URLClassLoader {
         ctx.mthdVisitor = new CollectingMethodVisitor(ctx, ctx.annVisitor);
         ctx.fldVisitor = new CollectingFieldVisitor(ctx, ctx.annVisitor);
         ctx.clsVisitor = new CollectingClassVisitor(ctx, ctx.annVisitor, ctx.mthdVisitor, ctx.fldVisitor);
-
+        
         return hasExternalDependencies(clsName, ctx);
     }
-
+        
     /**
      * Check whether class has external dependencies on Hadoop.
-     *
+     * 
      * @param clsName Class name.
-     * @param ctx Context.
+     * @param ctx Context.                
      * @return {@code true} If the class has external dependencies.
      */
     boolean hasExternalDependencies(String clsName, CollectingContext ctx) {
@@ -322,7 +322,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
         rdr.accept(ctx.clsVisitor, 0);
 
-        if (ctx.found()) // We already know that we have dependencies, no need to check parent.
+        if (ctx.found) // We already know that we have dependencies, no need to check parent.
             return true;
 
         // Here we are known to not have any dependencies but possibly we have a parent which has them.
@@ -522,18 +522,9 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** Field visitor. */
         private FieldVisitor fldVisitor;
-
+        
         /** Class visitor. */
         private ClassVisitor clsVisitor;
-
-        /**
-         * Answers if the model travers should be finished.
-         *
-         * @return If it is done.
-         */
-        boolean found() {
-            return found;
-        }
 
         /**
          * Processes a method descriptor
@@ -543,14 +534,14 @@ public class HadoopClassLoader extends URLClassLoader {
             // Process method return type:
             onType(Type.getReturnType(methDesc));
 
-            if (found())
+            if (found)
                 return;
 
             // Process method argument types:
             for (Type t: Type.getArgumentTypes(methDesc)) {
                 onType(t);
 
-                if (found())
+                if (found)
                     return;
             }
         }
@@ -639,7 +630,7 @@ public class HadoopClassLoader extends URLClassLoader {
                 onType(t);
             }
         }
-    }
+    }    
 
     /**
      * Annotation visitor.
@@ -650,7 +641,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /**
          * Annotation visitor.
-         *
+         * 
          * @param ctx The collector.
          */
         CollectingAnnotationVisitor(CollectingContext ctx) {
@@ -661,7 +652,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String name, String desc) {
-            if (ctx.found())
+            if (ctx.found)
                 return null;
 
             ctx.onType(desc);
@@ -671,7 +662,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public void visitEnum(String name, String desc, String val) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onType(desc);
@@ -679,12 +670,12 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitArray(String name) {
-            return ctx.found() ? null : this;
+            return ctx.found ? null : this;
         }
 
         /** {@inheritDoc} */
         @Override public void visit(String name, Object val) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             if (val instanceof Type)
@@ -719,12 +710,12 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (ctx.found())
+            if (ctx.found)
                 return null;
 
             ctx.onType(desc);
 
-            return ctx.found() ? null : av;
+            return ctx.found ? null : av;
         }
 
         /** {@inheritDoc} */
@@ -773,19 +764,19 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public void visit(int i, int i2, String name, String signature, String superName, String[] ifaces) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onInternalTypeName(superName);
 
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             if (ifaces != null) {
                 for (String iface : ifaces) {
                     ctx.onInternalTypeName(iface);
 
-                    if (ctx.found())
+                    if (ctx.found)
                         return;
                 }
             }
@@ -793,17 +784,17 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (ctx.found())
+            if (ctx.found)
                 return null;
 
             ctx.onType(desc);
 
-            return ctx.found() ? null : av;
+            return ctx.found ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public void visitInnerClass(String name, String outerName, String innerName, int i) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onInternalTypeName(name);
@@ -811,18 +802,18 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public FieldVisitor visitField(int i, String name, String desc, String signature, Object val) {
-            if (ctx.found())
+            if (ctx.found)
                 return null;
 
             ctx.onType(desc);
 
-            return ctx.found() ? null : fv;
+            return ctx.found ? null : fv;
         }
 
         /** {@inheritDoc} */
         @Override public MethodVisitor visitMethod(int i, String name, String desc, String signature,
             String[] exceptions) {
-            if (ctx.found())
+            if (ctx.found)
                 return null;
 
             ctx.onMethodsDesc(desc);
@@ -833,7 +824,7 @@ public class HadoopClassLoader extends URLClassLoader {
                     ctx.onInternalTypeName(e);
             }
 
-            return ctx.found() ? null : mv;
+            return ctx.found ? null : mv;
         }
     }
 
@@ -862,37 +853,37 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (ctx.found())
+            if (ctx.found)
                 return null;
 
             ctx.onType(desc);
 
-            return ctx.found() ? null : av;
+            return ctx.found ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitParameterAnnotation(int i, String desc, boolean b) {
-            if (ctx.found())
+            if (ctx.found)
                 return null;
 
             ctx.onType(desc);
 
-            return ctx.found() ? null : av;
+            return ctx.found ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public AnnotationVisitor visitAnnotationDefault() {
-            return ctx.found() ? null : av;
+            return ctx.found ? null : av;
         }
 
         /** {@inheritDoc} */
         @Override public void visitFieldInsn(int opcode, String owner, String name, String desc) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onInternalTypeName(owner);
 
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onType(desc);
@@ -911,7 +902,7 @@ public class HadoopClassLoader extends URLClassLoader {
         /** {@inheritDoc} */
         @Override public void visitLocalVariable(String name, String desc, String signature, Label lb,
             Label lb2, int i) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onType(desc);
@@ -919,12 +910,12 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public void visitMethodInsn(int i, String owner, String name, String desc) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onInternalTypeName(owner);
 
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onMethodsDesc(desc);
@@ -932,7 +923,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public void visitMultiANewArrayInsn(String desc, int dim) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onType(desc);
@@ -940,7 +931,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public void visitTryCatchBlock(Label start, Label end, Label hndl, String typeStr) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onInternalTypeName(typeStr);
@@ -948,7 +939,7 @@ public class HadoopClassLoader extends URLClassLoader {
 
         /** {@inheritDoc} */
         @Override public void visitTypeInsn(int opcode, String type) {
-            if (ctx.found())
+            if (ctx.found)
                 return;
 
             ctx.onInternalTypeName(type);
