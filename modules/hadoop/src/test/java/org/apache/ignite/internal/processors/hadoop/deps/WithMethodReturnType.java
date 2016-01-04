@@ -17,12 +17,15 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
+import org.apache.hadoop.fs.FileSystem;
+
 /**
- * Has a paramater annotated with a Hadoop annotation.
+ * Contains a method return value of Hadoop type.
  */
-public class HadoopParameterAnnotation {
+@SuppressWarnings("unused")
+public class WithMethodReturnType {
     /** */
-    void foo(@org.apache.hadoop.classification.InterfaceStability.Stable Object annotatedParam) {
-        // noop
+    FileSystem fsMethod() {
+        return null;
     }
 }

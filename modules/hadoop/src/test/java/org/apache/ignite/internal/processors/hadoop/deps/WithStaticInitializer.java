@@ -17,21 +17,18 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.conf.Configuration;
+import java.util.List;
+import org.apache.hadoop.fs.FileSystem;
 
 /**
- * Has a local variable of Hadoop type.
+ * Uses Hadoop type in a static initializer.
  */
-public class HadoopLocalVariableType {
+@SuppressWarnings("unused")
+public class WithStaticInitializer {
     /** */
-    void foo() {
-        Configuration c = null;
+    static final List x;
 
-        moo(c);
-    }
-
-    /** */
-    void moo(Object x) {
-
+    static {
+        x = FileSystem.getAllStatistics();
     }
 }

@@ -17,21 +17,17 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.conf.Configuration;
-
 /**
- * Outer class depends on Hadoop, but Inner *static* one does not.
+ * Has a field initialized with an expression invoking Hadoop method.
  */
-public class HadoopOuterClass {
+
+@SuppressWarnings({"ConstantConditions", "unused"})
+public class WithInitializer {
     /** */
-    Configuration c;
+    private final Object x = org.apache.hadoop.fs.FileSystem.getDefaultUri(null);
 
     /** */
-    public static class InnerNoHadoop {
-        /** */
-        int x;
-
-        /** */
-        void foo() {}
+    WithInitializer() throws Exception {
+        // noop
     }
 }

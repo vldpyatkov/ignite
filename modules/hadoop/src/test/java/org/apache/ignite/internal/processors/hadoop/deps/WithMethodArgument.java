@@ -17,10 +17,15 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
+import org.apache.hadoop.conf.Configuration;
+
 /**
- * Has a unidirected dependency on Hadoop-dependent class.
+ * Contains a formal parameter of Hadoop type.
  */
-public class DependencyNoHadoop {
+@SuppressWarnings("unused")
+public class WithMethodArgument {
     /** */
-    HadoopField x;
+    protected void paramaterMethod(Configuration c) {
+        // No-op.
+    }
 }

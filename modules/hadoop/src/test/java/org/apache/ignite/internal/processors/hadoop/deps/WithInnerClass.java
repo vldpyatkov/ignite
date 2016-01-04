@@ -17,14 +17,15 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configurable;
 
 /**
- * Has a Hadoop field.
+ * Has a *static* inner class depending on Hadoop.
  */
-public class HadoopField {
-    /**
-     *
-     */
-    private Configuration conf;
+@SuppressWarnings("unused")
+public class WithInnerClass {
+    /** */
+    private static abstract class Foo implements Configurable {
+        // No-op.
+    }
 }

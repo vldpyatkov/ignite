@@ -17,14 +17,22 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.conf.Configuration;
 
 /**
- * Method contains a Hadoop type method invocation.
+ * Outer class depends on Hadoop, but Inner *static* one does not.
  */
-public class HadoopMethodInvocation {
+@SuppressWarnings("unused")
+public class WithOuterClass {
     /** */
-    void foo(FileSystem fs) {
-        fs.getChildFileSystems();
+    Configuration c;
+
+    /** */
+    public static class InnerNoHadoop {
+        /** */
+        int x;
+
+        /** */
+        void foo() {}
     }
 }

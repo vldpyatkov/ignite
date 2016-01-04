@@ -17,11 +17,13 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.conf.Configuration;
 
 /**
- * Class has Hadoop annotation.
+ * Has a Hadoop field.
  */
-@InterfaceAudience.Public
-public class HadoopClassAnnotation {
+@SuppressWarnings("unused")
+public class WithField {
+    /** */
+    private Configuration conf;
 }

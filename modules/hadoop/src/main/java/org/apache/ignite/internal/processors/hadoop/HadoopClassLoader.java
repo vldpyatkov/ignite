@@ -434,10 +434,7 @@ public class HadoopClassLoader extends URLClassLoader {
      * @return HADOOP_HOME Variable.
      */
     @Nullable public static String hadoopHome() {
-        return "C:\\Personal\\programs\\hadoop-2.6.0";
-
-        // TODO: FIX!
-        //return getEnv("HADOOP_PREFIX", getEnv("HADOOP_HOME", null));
+        return getEnv("HADOOP_PREFIX", getEnv("HADOOP_HOME", null));
     }
 
     /**

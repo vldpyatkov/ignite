@@ -17,15 +17,15 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-/**
- * Has a field initialized with an expression invoking Hadoop method.
- */
-public class HadoopInitializer {
-    /** */
-    private final Object x = org.apache.hadoop.fs.FileSystem.getDefaultUri(null);
+import org.apache.hadoop.classification.InterfaceStability;
 
+/**
+ * Has a paramater annotated with a Hadoop annotation.
+ */
+@SuppressWarnings("unused")
+public class WithParameterAnnotation {
     /** */
-    HadoopInitializer() throws Exception {
-        // noop
+    void foo(@InterfaceStability.Stable Object annotatedParam) {
+        // No-op.
     }
 }

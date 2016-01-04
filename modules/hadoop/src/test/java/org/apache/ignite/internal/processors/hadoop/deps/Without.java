@@ -18,12 +18,8 @@
 package org.apache.ignite.internal.processors.hadoop.deps;
 
 /**
- * Method has a Hadoop annotation.
+ * Class that does not anyhow depend on Hadoop.
  */
-public class HadoopMethodAnnotation {
-    /** */
-    @org.apache.hadoop.classification.InterfaceStability.Unstable
-    void foo() {
-        // noop
-    }
+public class Without {
+    // No-op.
 }

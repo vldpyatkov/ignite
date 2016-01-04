@@ -17,14 +17,15 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.fs.ChecksumException;
 
 /**
- * Has a *static* inner class depending on Hadoop.
+ * Method declares a checked Hadoop Exception.
  */
-public class HadoopInnerClass {
+@SuppressWarnings("unused")
+public class WithMethodCheckedException {
     /** */
-    private static abstract class Foo implements Configurable {
-        // nothing
+    void foo() throws ChecksumException {
+        // No-op.
     }
 }

@@ -17,11 +17,22 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.fs.LocalFileSystem;
+import org.apache.hadoop.conf.Configuration;
 
 /**
- * Class extends a Hadoop class.
+ * Has a local variable of Hadoop type.
  */
-public class HadoopExtends extends LocalFileSystem {
-    // noop
+@SuppressWarnings({"unused", "ConstantConditions"})
+public class WithLocalVariable {
+    /** */
+    void foo() {
+        Configuration c = null;
+
+        moo(c);
+    }
+
+    /** */
+    void moo(Object x) {
+
+    }
 }

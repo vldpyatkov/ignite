@@ -17,14 +17,16 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.mapreduce.Job;
 
 /**
- * Contains a method return value of Hadoop type.
+ * Class has a direct Hadoop dependency and a circular dependency on another class.
  */
-public class HadoopMethodReturnType {
+@SuppressWarnings("unused")
+public class CircularWIthHadoop {
     /** */
-    FileSystem fsMethod() {
-        return null;
-    }
+    private Job[][] jobs = new Job[4][4];
+
+    /** */
+    private CircularWithoutHadoop y;
 }

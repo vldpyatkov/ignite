@@ -17,12 +17,16 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.classification.InterfaceStability;
 
 /**
- * Has a static field of Hadoop type.
+ * Method has a Hadoop annotation.
  */
-public class HadoopStaticField {
+@SuppressWarnings("unused")
+public class WithMethodAnnotation {
     /** */
-    static FileSystem fs;
+    @InterfaceStability.Unstable
+    void foo() {
+        // No-op.
+    }
 }

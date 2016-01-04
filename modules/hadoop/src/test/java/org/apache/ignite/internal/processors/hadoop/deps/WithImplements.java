@@ -17,8 +17,20 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
+import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.conf.Configuration;
+
 /**
- * Class that does not anyhow depend on Hadoop.
+ * Implements a Hadoop interface.
  */
-public class NoHadoop {
+public class WithImplements implements Configurable {
+    /** {@inheritDoc} */
+    @Override public void setConf(Configuration conf) {
+        // noop
+    }
+
+    /** {@inheritDoc} */
+    @Override public Configuration getConf() {
+        return null;
+    }
 }

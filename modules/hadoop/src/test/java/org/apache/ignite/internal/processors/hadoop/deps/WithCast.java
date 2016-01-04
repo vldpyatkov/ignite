@@ -17,15 +17,25 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.fs.FileSystem;
 
 /**
- * Class has a direct Hadoop dependency and a circular dependency on another class.
+ * Class contains casting to a Hadoop type.
  */
-public class CircularDependencyHadoop {
+@SuppressWarnings("unused")
+public abstract class WithCast<T> {
     /** */
-    Job[][] jobs = new Job[4][4];
+    public abstract T create();
 
     /** */
-    private CircularDependencyNoHadoop y;
+    public void consume(T t) {
+        // noop
+    }
+
+    /** */
+    void test(WithCast<FileSystem> c) {
+        FileSystem fs = c.create();
+
+        c.consume(fs);
+    }
 }

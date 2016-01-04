@@ -17,14 +17,15 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.HadoopIllegalArgumentException;
 
 /**
- * Contains a formal parameter of Hadoop type.
+ * Method declares a runtime Hadoop Exception.
  */
-public class HadoopMethodParameter {
+@SuppressWarnings("unused")
+public class WithMethodRuntimeException {
     /** */
-    protected void paramaterMethod(Configuration c) {
-        // noop
+    void foo() throws HadoopIllegalArgumentException {
+        // No-op.
     }
 }

@@ -17,17 +17,13 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import java.util.List;
 import org.apache.hadoop.fs.FileSystem;
 
 /**
- * Uses Hadoop type in a static initializer.
+ * Has a static field of Hadoop type.
  */
-public class HadoopStaticInitializer {
+@SuppressWarnings("unused")
+public class WithStaticField {
     /** */
-    static final List x;
-
-    static {
-        x = FileSystem.getAllStatistics();
-    }
+    static FileSystem fs;
 }

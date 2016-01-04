@@ -17,24 +17,11 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocalFileSystem;
 
 /**
- * Class contains casting to a Hadoop type.
+ * Class extends a Hadoop class.
  */
-public abstract class HadoopCasting <T> {
-    /** */
-    public abstract T create();
-
-    /** */
-    public void consume(T t) {
-        // noop
-    }
-
-    /** */
-    void test(HadoopCasting<FileSystem> c) {
-        FileSystem fs = c.create();
-
-        c.consume(fs);
-    }
+public class WithExtends extends LocalFileSystem {
+    // noop
 }

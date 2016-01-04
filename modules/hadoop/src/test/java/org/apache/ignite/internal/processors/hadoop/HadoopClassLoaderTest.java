@@ -20,32 +20,32 @@ package org.apache.ignite.internal.processors.hadoop;
 import javax.security.auth.AuthPermission;
 import junit.framework.TestCase;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.ignite.internal.processors.hadoop.deps.CircularDependencyHadoop;
-import org.apache.ignite.internal.processors.hadoop.deps.CircularDependencyNoHadoop;
-import org.apache.ignite.internal.processors.hadoop.deps.DependencyNoHadoop;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopCasting;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopClassAnnotation;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopConstructorInvocation;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopDeclaredCheckedExceptionInMethod;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopDeclaredRuntimeExceptionInMethod;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopExtends;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopField;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopImplements;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopInitializer;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopInnerClass;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopLocalVariableType;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodAnnotation;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodInvocation;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodParameter;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopMethodReturnType;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopOuterClass;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopParameterAnnotation;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopStaticField;
-import org.apache.ignite.internal.processors.hadoop.deps.HadoopStaticInitializer;
-import org.apache.ignite.internal.processors.hadoop.deps.NoHadoop;
+import org.apache.ignite.internal.processors.hadoop.deps.CircularWIthHadoop;
+import org.apache.ignite.internal.processors.hadoop.deps.CircularWithoutHadoop;
+import org.apache.ignite.internal.processors.hadoop.deps.WithIndirectField;
+import org.apache.ignite.internal.processors.hadoop.deps.WithCast;
+import org.apache.ignite.internal.processors.hadoop.deps.WithClassAnnotation;
+import org.apache.ignite.internal.processors.hadoop.deps.WithConstructorInvocation;
+import org.apache.ignite.internal.processors.hadoop.deps.WithMethodCheckedException;
+import org.apache.ignite.internal.processors.hadoop.deps.WithMethodRuntimeException;
+import org.apache.ignite.internal.processors.hadoop.deps.WithExtends;
+import org.apache.ignite.internal.processors.hadoop.deps.WithField;
+import org.apache.ignite.internal.processors.hadoop.deps.WithImplements;
+import org.apache.ignite.internal.processors.hadoop.deps.WithInitializer;
+import org.apache.ignite.internal.processors.hadoop.deps.WithInnerClass;
+import org.apache.ignite.internal.processors.hadoop.deps.WithLocalVariable;
+import org.apache.ignite.internal.processors.hadoop.deps.WithMethodAnnotation;
+import org.apache.ignite.internal.processors.hadoop.deps.WithMethodInvocation;
+import org.apache.ignite.internal.processors.hadoop.deps.WithMethodArgument;
+import org.apache.ignite.internal.processors.hadoop.deps.WithMethodReturnType;
+import org.apache.ignite.internal.processors.hadoop.deps.WithOuterClass;
+import org.apache.ignite.internal.processors.hadoop.deps.WithParameterAnnotation;
+import org.apache.ignite.internal.processors.hadoop.deps.WithStaticField;
+import org.apache.ignite.internal.processors.hadoop.deps.WithStaticInitializer;
+import org.apache.ignite.internal.processors.hadoop.deps.Without;
 
 /**
- *
+ * Tests for Hadoop classloader.
  */
 public class HadoopClassLoaderTest extends TestCase {
     /** */
@@ -55,51 +55,43 @@ public class HadoopClassLoaderTest extends TestCase {
      * @throws Exception If failed.
      */
     public void testClassLoading() throws Exception {
-        assertNotSame(CircularDependencyHadoop.class, ldr.loadClass(CircularDependencyHadoop.class.getName()));
-        assertNotSame(CircularDependencyNoHadoop.class, ldr.loadClass(CircularDependencyNoHadoop.class.getName()));
+        assertNotSame(CircularWIthHadoop.class, ldr.loadClass(CircularWIthHadoop.class.getName()));
+        assertNotSame(CircularWithoutHadoop.class, ldr.loadClass(CircularWithoutHadoop.class.getName()));
 
-        assertSame(NoHadoop.class, ldr.loadClass(NoHadoop.class.getName()));
+        assertSame(Without.class, ldr.loadClass(Without.class.getName()));
     }
 
     /**
-     *
+     * Test dependency search.
      */
     public void testDependencySearch() {
-        // Various positive cases of Hadoop classes dependency:
+        // Positive cases:
         final Class[] positiveClasses = {
-            // Hadoop class itself:
             Configuration.class,
-            // Class for that org.apache.ignite.internal.processors.hadoop.HadoopClassLoader.isHadoopIgfs returns true:
             HadoopUtils.class,
-
-            HadoopStaticField.class,
-            HadoopCasting.class,
-            HadoopClassAnnotation.class,
-            HadoopConstructorInvocation.class,
-            HadoopDeclaredCheckedExceptionInMethod.class,
-            HadoopDeclaredRuntimeExceptionInMethod.class,
-            HadoopExtends.class,
-            HadoopField.class,
-            HadoopImplements.class,
-            HadoopInitializer.class,
-
-            // TODO: actually the 2 below classes do not depend on Hadoop, should not be detected as such.
-            // TODO: but for now they are, so this behavior is asserted in test:
-            HadoopInnerClass.class,
-            HadoopOuterClass.InnerNoHadoop.class,
-
-            HadoopLocalVariableType.class,
-            HadoopMethodAnnotation.class,
-            HadoopMethodInvocation.class,
-            HadoopMethodParameter.class,
-            HadoopMethodReturnType.class,
-            HadoopParameterAnnotation.class,
-            HadoopStaticField.class,
-            HadoopStaticInitializer.class,
-
-            DependencyNoHadoop.class,
-            CircularDependencyHadoop.class,
-            CircularDependencyNoHadoop.class,
+            WithStaticField.class,
+            WithCast.class,
+            WithClassAnnotation.class,
+            WithConstructorInvocation.class,
+            WithMethodCheckedException.class,
+            WithMethodRuntimeException.class,
+            WithExtends.class,
+            WithField.class,
+            WithImplements.class,
+            WithInitializer.class,
+            WithInnerClass.class,
+            WithOuterClass.InnerNoHadoop.class,
+            WithLocalVariable.class,
+            WithMethodAnnotation.class,
+            WithMethodInvocation.class,
+            WithMethodArgument.class,
+            WithMethodReturnType.class,
+            WithParameterAnnotation.class,
+            WithStaticField.class,
+            WithStaticInitializer.class,
+            WithIndirectField.class,
+            CircularWIthHadoop.class,
+            CircularWithoutHadoop.class,
         };
 
         for (Class c: positiveClasses)
@@ -107,15 +99,12 @@ public class HadoopClassLoaderTest extends TestCase {
 
         // Negative cases:
         final Class[] negativeClasses = {
-            // java.lang.*:
             Object.class,
-            // javax.*:
             AuthPermission.class,
-            NoHadoop.class,
+            Without.class,
         };
 
         for (Class c: negativeClasses)
-            assertFalse(c.getName(),
-                ldr.hasExternalDependencies(c.getName()));
+            assertFalse(c.getName(), ldr.hasExternalDependencies(c.getName()));
     }
 }

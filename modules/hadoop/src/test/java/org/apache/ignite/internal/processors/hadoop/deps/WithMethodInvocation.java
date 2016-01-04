@@ -17,20 +17,15 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 
 /**
- * Implements a Hadoop interface.
+ * Method contains a Hadoop type method invocation.
  */
-public class HadoopImplements implements Configurable {
-    /** {@inheritDoc} */
-    @Override public void setConf(Configuration conf) {
-        // noop
-    }
-
-    /** {@inheritDoc} */
-    @Override public Configuration getConf() {
-        return null;
+@SuppressWarnings("unused")
+public class WithMethodInvocation {
+    /** */
+    void foo(FileSystem fs) {
+        fs.getChildFileSystems();
     }
 }

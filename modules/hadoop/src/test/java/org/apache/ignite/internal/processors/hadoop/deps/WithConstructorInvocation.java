@@ -22,7 +22,8 @@ import org.apache.hadoop.conf.Configuration;
 /**
  * Invokes a Hadoop type constructor.
  */
-public class HadoopConstructorInvocation {
+@SuppressWarnings("unused")
+public class WithConstructorInvocation {
     /** */
     private void foo() {
         Object x = new Configuration();

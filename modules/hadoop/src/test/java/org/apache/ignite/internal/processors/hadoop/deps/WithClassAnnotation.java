@@ -17,14 +17,12 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.fs.ChecksumException;
+import org.apache.hadoop.classification.InterfaceAudience;
 
 /**
- * Method declares a checked Hadoop Exception.
+ * Class has Hadoop annotation.
  */
-public class HadoopDeclaredCheckedExceptionInMethod {
-    /** */
-    void foo() throws ChecksumException {
-        // noop
-    }
+@SuppressWarnings("unused")
+@InterfaceAudience.Public
+public class WithClassAnnotation {
 }

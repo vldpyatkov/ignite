@@ -17,14 +17,11 @@
 
 package org.apache.ignite.internal.processors.hadoop.deps;
 
-import org.apache.hadoop.HadoopIllegalArgumentException;
-
 /**
- * Method declares a runtime Hadoop Exception.
+ * Has a unidirected dependency on Hadoop-dependent class.
  */
-public class HadoopDeclaredRuntimeExceptionInMethod {
+@SuppressWarnings("unused")
+public class WithIndirectField {
     /** */
-    void foo() throws HadoopIllegalArgumentException {
-        // noop
-    }
+    WithField x;
 }
