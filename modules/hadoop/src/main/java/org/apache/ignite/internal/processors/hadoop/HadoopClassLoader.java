@@ -128,14 +128,14 @@ public class HadoopClassLoader extends URLClassLoader {
      * @return {@code true} if we need to check this class.
      */
     private static boolean isHadoopIgfs(String cls) {
-        String ignitePackPrefix = "org.apache.ignite";
+        String ignitePkgPrefix = "org.apache.ignite";
 
-        int len = ignitePackPrefix.length();
+        int len = ignitePkgPrefix.length();
 
-        return cls.startsWith(ignitePackPrefix)
-            && (cls.indexOf("igfs.", len) != -1
-                || cls.indexOf(".fs.", len) != -1
-                || cls.indexOf("hadoop.", len) != -1);
+        return cls.startsWith(ignitePkgPrefix) && (
+            cls.indexOf("igfs.", len) != -1 ||
+            cls.indexOf(".fs.", len) != -1 ||
+            cls.indexOf("hadoop.", len) != -1);
     }
 
     /**
@@ -276,7 +276,7 @@ public class HadoopClassLoader extends URLClassLoader {
      * @param clsName Class name.
      * @return {@code true} If the class has external dependencies.
      */
-    boolean hasExternalDependencies(final String clsName, final Set<String> visited) {
+    boolean hasExternalDependencies(String clsName, Set<String> visited) {
         if (isHadoop(clsName)) // Hadoop must not be in classpath but Idea sucks, so filtering explicitly as external.
             return true;
 
@@ -304,13 +304,10 @@ public class HadoopClassLoader extends URLClassLoader {
 
         Collector c = new Collector(hasDeps, visited);
 
-        AnnotationVisitor annotationVisitor = new CollectingAnnotationVisitor(c);
-
-        MethodVisitor methVisitor = new CollectingMethodVisitor(c, annotationVisitor);
-
-        FieldVisitor fieldVisitor = new CollectingFieldVisitor(c, annotationVisitor);
-
-        ClassVisitor clsVisitor = new CollectingClassVisitor(c, annotationVisitor, methVisitor, fieldVisitor);
+        AnnotationVisitor annVisitor = new CollectingAnnotationVisitor(c);
+        MethodVisitor mthdVisitor = new CollectingMethodVisitor(c, annVisitor);
+        FieldVisitor fldVisitor = new CollectingFieldVisitor(c, annVisitor);
+        ClassVisitor clsVisitor = new CollectingClassVisitor(c, annVisitor, mthdVisitor, fldVisitor);
 
         rdr.accept(clsVisitor, 0);
 
@@ -334,495 +331,6 @@ public class HadoopClassLoader extends URLClassLoader {
             res = hasExternalDependencies(parentCls, visited);
 
         return res;
-    }
-
-    /**
-     * Implement business logic of the dependency analysis.
-     * Keeps the necessary state.
-     */
-    private class Collector {
-        /** Attribute gets 'true' if the positive answer is found. */
-        final AtomicBoolean hasDeps;
-
-        /** Collection of visited class names to prevent infinite loops in case of
-         * circular dependencies. */
-        final Set<String> visited;
-
-        /**
-         * Constructor.
-         *
-         * @param hasDeps has dependencies initial value.
-         * @param visitedSet visited set initial value.
-         */
-        Collector(AtomicBoolean hasDeps, Set<String> visitedSet) {
-            this.hasDeps = hasDeps;
-
-            this.visited = visitedSet;
-        }
-
-        /**
-         * Answers if the model travers should be finished.
-         *
-         * @return If it is done.
-         */
-        boolean isDone() {
-            return hasDeps.get();
-        }
-
-        /**
-         * Processes a method descriptor
-         * @param methDesc The method desc String.
-         */
-        void onMethodsDesc(final String methDesc) {
-            // Process method return type:
-            onType(Type.getReturnType(methDesc));
-
-            if (isDone())
-                return;
-
-            // Process method argument types:
-            for (Type t: Type.getArgumentTypes(methDesc)) {
-                onType(t);
-
-                if (isDone())
-                    return;
-            }
-        }
-
-        /**
-         * Processes dependencies of a class.
-         *
-         * @param depCls The class name as dot-notated FQN.
-         */
-        void onClass(final String depCls) {
-            assert depCls.indexOf('/') == -1 : depCls; // class name should be fully converted to dot notation.
-            assert depCls.charAt(0) != 'L' : depCls;
-            assert validateClassName(depCls) : depCls;
-
-            if (depCls.startsWith("java.") || depCls.startsWith("javax.")) // Filter out platform classes.
-                return;
-
-            if (visited.contains(depCls))
-                return;
-
-            Boolean res = cache.get(depCls);
-
-            if (res == Boolean.TRUE
-                || (res == null && hasExternalDependencies(depCls, visited)))
-                hasDeps.set(true);
-        }
-
-        /**
-         * Analyses dependencies of given type.
-         *
-         * @param t The type to process.
-         */
-        void onType(Type t) {
-            if (t == null)
-                return;
-
-            int sort = t.getSort();
-
-            switch (sort) {
-                case Type.ARRAY:
-                    onType(t.getElementType());
-
-                    break;
-
-                case Type.OBJECT:
-                    onClass(t.getClassName());
-
-                    break;
-            }
-        }
-
-        /**
-         * Analyses dependencies of given object type.
-         *
-         * @param objType The object type to process.
-         */
-        void onInternalTypeName(String objType) {
-            if (objType == null)
-                return;
-
-            assert objType.length() > 1 : objType;
-
-            if (objType.charAt(0) == '[')
-                // handle array. In this case this is a type descriptor notation, like "[Ljava/lang/Object;"
-                onType(objType);
-            else {
-                assert objType.indexOf('.') == -1 : objType; // Must be slash-separated FQN.
-
-                String clsName = objType.replace('/', '.'); // Convert it to dot notation.
-
-                onClass(clsName); // Process.
-            }
-        }
-
-        /**
-         * Type description analyser.
-         *
-         * @param desc The description.
-         */
-        void onType(String desc) {
-            if (!F.isEmpty(desc)) {
-                if (desc.length() <= 1)
-                    return; // Optimization: filter out primitive types in early stage.
-
-                Type t = Type.getType(desc);
-
-                onType(t);
-            }
-        }
-    }
-
-    /**
-     * Annotation visitor.
-     */
-    static class CollectingAnnotationVisitor extends AnnotationVisitor {
-        /** */
-        final Collector c;
-
-        /**
-         *
-         * @param c The collector.
-         */
-        CollectingAnnotationVisitor(Collector c) {
-            super(Opcodes.ASM4);
-
-            this.c = c;
-        }
-
-        /** {@inheritDoc} */
-        @Override public AnnotationVisitor visitAnnotation(String name, String desc) {
-            if (c.isDone())
-                return null;
-
-            c.onType(desc);
-
-            return this;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitEnum(String name, String desc, String val) {
-            if (c.isDone())
-                return;
-
-            c.onType(desc);
-        }
-
-        /** {@inheritDoc} */
-        @Override public AnnotationVisitor visitArray(String name) {
-            return this;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visit(String name, Object val) {
-            if (val instanceof Type)
-                c.onType((Type)val);
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitEnd() {
-            // noop
-        }
-    }
-
-    /**
-     * Field visitor.
-     */
-    static class CollectingFieldVisitor extends FieldVisitor {
-        /** */
-        private final Collector c;
-
-        /** */
-        private final AnnotationVisitor av;
-
-        /**
-         * Constructor.
-         */
-        CollectingFieldVisitor(Collector c, AnnotationVisitor av) {
-            super(Opcodes.ASM4);
-
-            this.c = c;
-
-            this.av = av;
-        }
-
-        /** {@inheritDoc} */
-        @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (c.isDone())
-                return null;
-
-            c.onType(desc);
-
-            return av;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitAttribute(Attribute attr) {
-            // noop
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitEnd() {
-            // noop
-        }
-    }
-
-    /**
-     * Class visitor.
-     */
-    static class CollectingClassVisitor extends ClassVisitor {
-        /** */
-        private final Collector c;
-
-        /** */
-        private final AnnotationVisitor av;
-
-        /** */
-        private final MethodVisitor mv;
-
-        /** */
-        private final FieldVisitor fv;
-
-        /**
-         * Constructor.
-         */
-        CollectingClassVisitor(Collector c, AnnotationVisitor av, MethodVisitor mv, FieldVisitor fv) {
-            super(Opcodes.ASM4);
-
-            this.c = c;
-            this.av = av;
-            this.mv = mv;
-            this.fv = fv;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visit(int i, int i2, String name, String signature, String superName,
-            String[] ifaces) {
-            if (c.isDone())
-                return;
-
-            c.onInternalTypeName(superName);
-
-            if (c.isDone())
-                return;
-
-            if (ifaces != null) {
-                for (String iface : ifaces) {
-                    c.onInternalTypeName(iface);
-
-                    if (c.isDone())
-                        return;
-                }
-            }
-        }
-
-        /** {@inheritDoc} */
-        @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (c.isDone())
-                return null;
-
-            c.onType(desc);
-
-            return av;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitInnerClass(String name, String outerName, String innerName, int i) {
-            if (c.isDone())
-                return;
-
-            c.onInternalTypeName(name);
-        }
-
-        /** {@inheritDoc} */
-        @Override public FieldVisitor visitField(int i, String name, String desc, String signature, Object val) {
-            if (c.isDone())
-                return null;
-
-            c.onType(desc);
-
-            return fv;
-        }
-
-        /** {@inheritDoc} */
-        @Override public MethodVisitor visitMethod(int i, String name, String desc, String signature,
-            String[] exceptions) {
-            if (c.isDone())
-                return null;
-
-            c.onMethodsDesc(desc);
-
-            // Process declared method exceptions:
-            if (exceptions != null) {
-                for (String e : exceptions)
-                    c.onInternalTypeName(e);
-            }
-
-            return mv;
-        }
-    }
-
-    /**
-     * Method visitor.
-     */
-    static class CollectingMethodVisitor extends MethodVisitor {
-        /** */
-        private final Collector c;
-
-        /** */
-        private final AnnotationVisitor av;
-
-        /**
-         * Constructor.
-         *
-         * @param c The collector.
-         * @param av The annotation visitor.
-         */
-        CollectingMethodVisitor(Collector c, AnnotationVisitor av) {
-            super(Opcodes.ASM4);
-
-            this.c = c;
-            this.av = av;
-        }
-
-        /** {@inheritDoc} */
-        @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-            if (c.isDone())
-                return null;
-
-            c.onType(desc);
-
-            return av;
-        }
-
-        /** {@inheritDoc} */
-        @Override public AnnotationVisitor visitParameterAnnotation(int i, String desc, boolean b) {
-            if (c.isDone())
-                return null;
-
-            c.onType(desc);
-
-            return av;
-        }
-
-        /** {@inheritDoc} */
-        @Override public AnnotationVisitor visitAnnotationDefault() {
-            return av;
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitFieldInsn(int opcode, String owner, String name, String desc) {
-            if (c.isDone())
-                return;
-
-            c.onInternalTypeName(owner);
-
-            if (c.isDone())
-                return;
-
-            c.onType(desc);
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitInvokeDynamicInsn(String name, String desc, Handle bsm, Object... bsmArgs) {
-            if (c.isDone())
-                return;
-
-            c.onMethodsDesc(desc);
-
-            if (c.isDone())
-                return;
-
-            if (bsmArgs != null) {
-                for (Object b: bsmArgs) {
-                    if (b instanceof Type)
-                        c.onType((Type) b);
-
-                    if (c.isDone())
-                        return;
-                }
-            }
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitFrame(int type, int nLoc, Object[] locTypes, int nStack,
-        Object[] stackTypes) {
-            // TODO: not sure we need that to detect dependencies. This seems to be superfluous.
-            // Optimizations:
-            // 1) Do not consider frames that are exactly equal to the previous;
-            // 2) Return if local and stack arrays are empty ('nLock' and 'nStack' correspond to the number
-            // of non-null array elements).
-            if (type == Opcodes.F_SAME || (nLoc == 0 && nStack == 0))
-                return;
-
-            if (c.isDone())
-                return;
-
-            for (Object o : locTypes) {
-                if (o instanceof String)
-                    c.onInternalTypeName((String) o);
-
-                if (c.isDone())
-                    return;
-            }
-
-            for (Object o : stackTypes) {
-                if (o instanceof String)
-                    c.onInternalTypeName((String) o);
-
-                if (c.isDone())
-                    return;
-            }
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitLocalVariable(String name, String desc, String signature, Label lb,
-            Label lb2, int i) {
-            if (c.isDone())
-                return;
-
-            c.onType(desc);
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitMethodInsn(int i, String owner, String name, String desc) {
-            if (c.isDone())
-                return;
-
-            c.onInternalTypeName(owner);
-
-            if (c.isDone())
-                return;
-
-            c.onMethodsDesc(desc);
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitMultiANewArrayInsn(String desc, int dim) {
-            if (c.isDone())
-                return;
-
-            c.onType(desc);
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitTryCatchBlock(Label start, Label end, Label hndl, String typeStr) {
-            if (c.isDone())
-                return;
-
-            c.onInternalTypeName(typeStr);
-        }
-
-        /** {@inheritDoc} */
-        @Override public void visitTypeInsn(int opcode, String type) {
-            if (c.isDone())
-                return;
-
-            c.onInternalTypeName(type);
-        }
     }
 
     /**
@@ -980,5 +488,459 @@ public class HadoopClassLoader extends URLClassLoader {
      */
     public String name() {
         return name;
+    }
+
+    /**
+     * Implement business logic of the dependency analysis.
+     * Keeps the necessary state.
+     */
+    private class Collector {
+        /** Attribute gets 'true' if the positive answer is found. */
+        private final AtomicBoolean hasDeps;
+
+        /** Collection of visited class names to prevent infinite loops in case of
+         * circular dependencies. */
+        private final Set<String> visited;
+
+        /**
+         * Constructor.
+         *
+         * @param hasDeps has dependencies initial value.
+         * @param visited visited set initial value.
+         */
+        Collector(AtomicBoolean hasDeps, Set<String> visited) {
+            assert hasDeps != null;
+            assert visited != null;
+
+            this.hasDeps = hasDeps;
+            this.visited = visited;
+        }
+
+        /**
+         * Answers if the model travers should be finished.
+         *
+         * @return If it is done.
+         */
+        boolean isDone() {
+            return hasDeps.get();
+        }
+
+        /**
+         * Processes a method descriptor
+         * @param methDesc The method desc String.
+         */
+        void onMethodsDesc(final String methDesc) {
+            // Process method return type:
+            onType(Type.getReturnType(methDesc));
+
+            if (isDone())
+                return;
+
+            // Process method argument types:
+            for (Type t: Type.getArgumentTypes(methDesc)) {
+                onType(t);
+
+                if (isDone())
+                    return;
+            }
+        }
+
+        /**
+         * Processes dependencies of a class.
+         *
+         * @param depCls The class name as dot-notated FQN.
+         */
+        void onClass(final String depCls) {
+            assert depCls.indexOf('/') == -1 : depCls; // class name should be fully converted to dot notation.
+            assert depCls.charAt(0) != 'L' : depCls;
+            assert validateClassName(depCls) : depCls;
+
+            if (depCls.startsWith("java.") || depCls.startsWith("javax.")) // Filter out platform classes.
+                return;
+
+            if (visited.contains(depCls))
+                return;
+
+            Boolean res = cache.get(depCls);
+
+            if (res == Boolean.TRUE || (res == null && hasExternalDependencies(depCls, visited)))
+                hasDeps.set(true);
+        }
+
+        /**
+         * Analyses dependencies of given type.
+         *
+         * @param t The type to process.
+         */
+        void onType(Type t) {
+            if (t == null)
+                return;
+
+            int sort = t.getSort();
+
+            switch (sort) {
+                case Type.ARRAY:
+                    onType(t.getElementType());
+
+                    break;
+
+                case Type.OBJECT:
+                    onClass(t.getClassName());
+
+                    break;
+            }
+        }
+
+        /**
+         * Analyses dependencies of given object type.
+         *
+         * @param objType The object type to process.
+         */
+        void onInternalTypeName(String objType) {
+            if (objType == null)
+                return;
+
+            assert objType.length() > 1 : objType;
+
+            if (objType.charAt(0) == '[')
+                // handle array. In this case this is a type descriptor notation, like "[Ljava/lang/Object;"
+                onType(objType);
+            else {
+                assert objType.indexOf('.') == -1 : objType; // Must be slash-separated FQN.
+
+                String clsName = objType.replace('/', '.'); // Convert it to dot notation.
+
+                onClass(clsName); // Process.
+            }
+        }
+
+        /**
+         * Type description analyser.
+         *
+         * @param desc The description.
+         */
+        void onType(String desc) {
+            if (!F.isEmpty(desc)) {
+                if (desc.length() <= 1)
+                    return; // Optimization: filter out primitive types in early stage.
+
+                Type t = Type.getType(desc);
+
+                onType(t);
+            }
+        }
+    }
+
+    /**
+     * Annotation visitor.
+     */
+    private static class CollectingAnnotationVisitor extends AnnotationVisitor {
+        /** */
+        final Collector c;
+
+        /**
+         *
+         * @param c The collector.
+         */
+        CollectingAnnotationVisitor(Collector c) {
+            super(Opcodes.ASM4);
+
+            this.c = c;
+        }
+
+        /** {@inheritDoc} */
+        @Override public AnnotationVisitor visitAnnotation(String name, String desc) {
+            if (c.isDone())
+                return null;
+
+            c.onType(desc);
+
+            return this;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitEnum(String name, String desc, String val) {
+            if (c.isDone())
+                return;
+
+            c.onType(desc);
+        }
+
+        /** {@inheritDoc} */
+        @Override public AnnotationVisitor visitArray(String name) {
+            return c.isDone() ? null : this;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visit(String name, Object val) {
+            if (c.isDone())
+                return;
+
+            if (val instanceof Type)
+                c.onType((Type)val);
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitEnd() {
+            // No-op.
+        }
+    }
+
+    /**
+     * Field visitor.
+     */
+    private static class CollectingFieldVisitor extends FieldVisitor {
+        /** Collector. */
+        private final Collector c;
+
+        /** Annotation visitor. */
+        private final AnnotationVisitor av;
+
+        /**
+         * Constructor.
+         */
+        CollectingFieldVisitor(Collector c, AnnotationVisitor av) {
+            super(Opcodes.ASM4);
+
+            this.c = c;
+            this.av = av;
+        }
+
+        /** {@inheritDoc} */
+        @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+            if (c.isDone())
+                return null;
+
+            c.onType(desc);
+
+            return c.isDone() ? null : av;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitAttribute(Attribute attr) {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitEnd() {
+            // No-op.
+        }
+    }
+
+    /**
+     * Class visitor.
+     */
+    private static class CollectingClassVisitor extends ClassVisitor {
+        /** Collector. */
+        private final Collector c;
+
+        /** Annotation visitor. */
+        private final AnnotationVisitor av;
+
+        /** Method visitor. */
+        private final MethodVisitor mv;
+
+        /** Field visitor. */
+        private final FieldVisitor fv;
+
+        /**
+         * Constructor.
+         *
+         * @param c Collector.
+         * @param av Annotation visitor.
+         * @param mv Method visitor.
+         * @param fv Field visitor.
+         */
+        CollectingClassVisitor(Collector c, AnnotationVisitor av, MethodVisitor mv, FieldVisitor fv) {
+            super(Opcodes.ASM4);
+
+            this.c = c;
+            this.av = av;
+            this.mv = mv;
+            this.fv = fv;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visit(int i, int i2, String name, String signature, String superName, String[] ifaces) {
+            if (c.isDone())
+                return;
+
+            c.onInternalTypeName(superName);
+
+            if (c.isDone())
+                return;
+
+            if (ifaces != null) {
+                for (String iface : ifaces) {
+                    c.onInternalTypeName(iface);
+
+                    if (c.isDone())
+                        return;
+                }
+            }
+        }
+
+        /** {@inheritDoc} */
+        @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+            if (c.isDone())
+                return null;
+
+            c.onType(desc);
+
+            return c.isDone() ? null : av;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitInnerClass(String name, String outerName, String innerName, int i) {
+            if (c.isDone())
+                return;
+
+            c.onInternalTypeName(name);
+        }
+
+        /** {@inheritDoc} */
+        @Override public FieldVisitor visitField(int i, String name, String desc, String signature, Object val) {
+            if (c.isDone())
+                return null;
+
+            c.onType(desc);
+
+            return c.isDone() ? null : fv;
+        }
+
+        /** {@inheritDoc} */
+        @Override public MethodVisitor visitMethod(int i, String name, String desc, String signature,
+            String[] exceptions) {
+            if (c.isDone())
+                return null;
+
+            c.onMethodsDesc(desc);
+
+            // Process declared method exceptions:
+            if (exceptions != null) {
+                for (String e : exceptions)
+                    c.onInternalTypeName(e);
+            }
+
+            return c.isDone() ? null : mv;
+        }
+    }
+
+    /**
+     * Method visitor.
+     */
+    private static class CollectingMethodVisitor extends MethodVisitor {
+        /** Collector. */
+        private final Collector c;
+
+        /** Annotation visitor. */
+        private final AnnotationVisitor av;
+
+        /**
+         * Constructor.
+         *
+         * @param c Collector.
+         * @param av Annotation visitor.
+         */
+        private CollectingMethodVisitor(Collector c, AnnotationVisitor av) {
+            super(Opcodes.ASM4);
+
+            this.c = c;
+            this.av = av;
+        }
+
+        /** {@inheritDoc} */
+        @Override public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+            if (c.isDone())
+                return null;
+
+            c.onType(desc);
+
+            return c.isDone() ? null : av;
+        }
+
+        /** {@inheritDoc} */
+        @Override public AnnotationVisitor visitParameterAnnotation(int i, String desc, boolean b) {
+            if (c.isDone())
+                return null;
+
+            c.onType(desc);
+
+            return c.isDone() ? null : av;
+        }
+
+        /** {@inheritDoc} */
+        @Override public AnnotationVisitor visitAnnotationDefault() {
+            return c.isDone() ? null : av;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitFieldInsn(int opcode, String owner, String name, String desc) {
+            if (c.isDone())
+                return;
+
+            c.onInternalTypeName(owner);
+
+            if (c.isDone())
+                return;
+
+            c.onType(desc);
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitInvokeDynamicInsn(String name, String desc, Handle bsm, Object... bsmArgs) {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitFrame(int type, int nLoc, Object[] locTypes, int nStack, Object[] stackTypes) {
+            // No-op.
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitLocalVariable(String name, String desc, String signature, Label lb,
+            Label lb2, int i) {
+            if (c.isDone())
+                return;
+
+            c.onType(desc);
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitMethodInsn(int i, String owner, String name, String desc) {
+            if (c.isDone())
+                return;
+
+            c.onInternalTypeName(owner);
+
+            if (c.isDone())
+                return;
+
+            c.onMethodsDesc(desc);
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitMultiANewArrayInsn(String desc, int dim) {
+            if (c.isDone())
+                return;
+
+            c.onType(desc);
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitTryCatchBlock(Label start, Label end, Label hndl, String typeStr) {
+            if (c.isDone())
+                return;
+
+            c.onInternalTypeName(typeStr);
+        }
+
+        /** {@inheritDoc} */
+        @Override public void visitTypeInsn(int opcode, String type) {
+            if (c.isDone())
+                return;
+
+            c.onInternalTypeName(type);
+        }
     }
 }
