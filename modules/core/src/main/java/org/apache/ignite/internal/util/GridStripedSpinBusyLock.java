@@ -67,7 +67,7 @@ public class GridStripedSpinBusyLock {
         this.stripeCnt = stripeCnt;
 
         // Each state must be located 64 bytes from the other to avoid false sharing.
-        states = new AtomicIntegerArray(stripeCnt * 16);
+        states = new AtomicIntegerArray(adjusted(stripeCnt));
     }
 
     /**
@@ -100,7 +100,7 @@ public class GridStripedSpinBusyLock {
     public void block() {
         // 1. CAS-loop to set a writer bit.
         for (int i = 0; i < stripeCnt; i++) {
-            int idx = i << 2;
+            int idx = adjusted(i);
 
             while (true) {
                 int oldVal = states.get(idx);
@@ -114,7 +114,7 @@ public class GridStripedSpinBusyLock {
         boolean interrupt = false;
 
         for (int i = 0; i < stripeCnt; i++) {
-            int idx = i << 2;
+            int idx = adjusted(i);
 
             while (states.get(idx) != WRITER_MASK) {
                 try {
@@ -136,6 +136,16 @@ public class GridStripedSpinBusyLock {
      * @return Index for the given thread.
      */
     private int index() {
-        return (THREAD_IDX.get() % stripeCnt) << 2;
+        return adjusted(THREAD_IDX.get() % stripeCnt);
+    }
+
+    /**
+     * Gets value adjusted for striping.
+     *
+     * @param val Value.
+     * @return Value.
+     */
+    private static int adjusted(int val) {
+        return val << 4;
     }
 }
