@@ -1225,6 +1225,9 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
      * Finish atomic update future.
      */
     private static class FinishAtomicUpdateFuture extends GridCompoundFuture<Object, Object> {
+        /** */
+        private static final long serialVersionUID = 0L;
+
         /** {@inheritDoc} */
         @Override protected boolean ignoreFailure(Throwable err) {
             Class cls = err.getClass();
