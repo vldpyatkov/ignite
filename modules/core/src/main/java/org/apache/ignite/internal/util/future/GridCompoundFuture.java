@@ -54,17 +54,14 @@ public class GridCompoundFuture<T, R> extends GridFutureAdapter<R> implements Ig
         AtomicIntegerFieldUpdater.newUpdater(GridCompoundFuture.class, "lsnrCalls");
 
     /** Futures. */
-    // TODO: Size?
     protected final ArrayList<IgniteInternalFuture<T>> futs = new ArrayList<>();
 
     /** Reducer. */
     @GridToStringInclude
-    // TODO: To extension.
     private final IgniteReducer<T, R> rdc;
 
     /** Initialization flag. Updated via {@link #FLAGS_UPD}. */
     @SuppressWarnings("unused")
-    // TODO: Merge to "lsnrCalls"
     private volatile int initFlag;
 
     /** Listener calls. Updated via {@link #LSNR_CALLS_UPD}. */
