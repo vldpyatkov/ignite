@@ -643,16 +643,30 @@ public final class GridNearTxFinishFuture<K, V> extends GridCompoundIdentityFutu
                 if (f.getClass() == FinishMiniFuture.class) {
                     FinishMiniFuture fut = (FinishMiniFuture)f;
 
-                    return "FinishFuture[node=" + fut.node().id() +
-                        ", loc=" + fut.node().isLocal() +
-                        ", done=" + fut.isDone() + "]";
+                    ClusterNode node = fut.node();
+
+                    if (node != null) {
+                        return "FinishFuture[node=" + node.id() +
+                            ", loc=" + node.isLocal() +
+                            ", done=" + fut.isDone() + ']';
+                    }
+                    else {
+                        return "FinishFuture[node=null, done=" + fut.isDone() + ']';
+                    }
                 }
                 else if (f.getClass() == CheckBackupMiniFuture.class) {
                     CheckBackupMiniFuture fut = (CheckBackupMiniFuture)f;
 
-                    return "CheckBackupFuture[node=" + fut.node().id() +
-                        ", loc=" + fut.node().isLocal() +
-                        ", done=" + f.isDone() + "]";
+                    ClusterNode node = fut.node();
+
+                    if (node != null) {
+                        return "CheckBackupFuture[node=" + node.id() +
+                            ", loc=" + node.isLocal() +
+                            ", done=" + f.isDone() + "]";
+                    }
+                    else {
+                        return "CheckBackupFuture[node=null, done=" + f.isDone() + "]";
+                    }
                 }
                 else if (f.getClass() == CheckRemoteTxMiniFuture.class) {
                     CheckRemoteTxMiniFuture fut = (CheckRemoteTxMiniFuture)f;
