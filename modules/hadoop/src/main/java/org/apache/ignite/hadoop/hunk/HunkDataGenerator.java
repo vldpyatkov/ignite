@@ -29,7 +29,15 @@ import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Hunk data generator
+ */
 public class HunkDataGenerator {
+    /**
+     *
+     * @param args
+     * @throws Exception
+     */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     public static void main(String[] args) throws Exception {
         if (args.length < 5)
