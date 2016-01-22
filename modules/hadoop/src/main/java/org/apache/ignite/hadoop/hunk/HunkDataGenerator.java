@@ -41,14 +41,6 @@ public class HunkDataGenerator {
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     public static void main(String[] args) throws Exception {
-        args = new String[5];
-
-        args[0] = "C:\\Personal\\hunk_perf\\data\\wocorders.json.aa";
-        args[1] = "C:\\Personal\\hunk_perf\\data\\res";
-        args[2] = Integer.valueOf(1024 * 1024 * 1024).toString();
-        args[3] = Integer.valueOf(4 * 1024 * 1024).toString();
-        args[4] = Integer.valueOf(2).toString();
-
         if (args.length < 5)
             throw new Exception("Insufficient arguments!");
 
