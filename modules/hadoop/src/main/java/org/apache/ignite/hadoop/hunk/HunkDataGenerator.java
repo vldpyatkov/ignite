@@ -27,6 +27,7 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -40,6 +41,14 @@ public class HunkDataGenerator {
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     public static void main(String[] args) throws Exception {
+        args = new String[5];
+
+        args[0] = "C:\\Personal\\hunk_perf\\data\\wocorders.json.aa";
+        args[1] = "C:\\Personal\\hunk_perf\\data\\res";
+        args[2] = Integer.valueOf(1024 * 1024 * 1024).toString();
+        args[3] = Integer.valueOf(4 * 1024 * 1024).toString();
+        args[4] = Integer.valueOf(2).toString();
+
         if (args.length < 5)
             throw new Exception("Insufficient arguments!");
 
@@ -76,7 +85,7 @@ public class HunkDataGenerator {
 
                 dir.mkdirs();
 
-                System.out.println("CREATED DIR: " + dir);
+                print("CREATED DIR: " + dir);
 
                 folders++;
             }
@@ -86,37 +95,34 @@ public class HunkDataGenerator {
                 File file = file(argDstDir, curFolder, filesInFolder);
 
                 try (FileOutputStream fos = new FileOutputStream(file)) {
-                    try (OutputStreamWriter osw = new OutputStreamWriter(fos)) {
-                        try (BufferedWriter bw = new BufferedWriter(osw)) {
-                            int fileSize = 0;
+                    OutputStreamWriter osw = new OutputStreamWriter(fos);
+                    BufferedWriter bw = new BufferedWriter(osw);
 
-                            while (fileSize < argFileSize) {
-                                int lineIdx = srcFileLineIdx++;
+                    int fileSize = 0;
 
-                                if (srcFileLineIdx == srcFile.size())
-                                    srcFileLineIdx = 0;
+                    while (fileSize < argFileSize) {
+                        int lineIdx = srcFileLineIdx++;
 
-                                String line = srcFile.get(lineIdx);
+                        if (srcFileLineIdx == srcFile.size())
+                            srcFileLineIdx = 0;
 
-                                line = processLine(line);
+                        String line = srcFile.get(lineIdx);
 
-                                bw.write(line + "\n");
+                        line = processLine(line);
 
-                                fileSize += line.length();
-                            }
+                        bw.write(line + "\n");
 
-                            bw.flush();
-                        }
-
-                        osw.flush();
+                        fileSize += line.length();
                     }
 
+                    bw.flush();
+                    osw.flush();
                     fos.flush();
                 }
 
-                System.out.println("CREATED FILE: " + file);
+                print("CREATED FILE: " + file);
 
-                if (++files < argFiles)
+                if (++files > argFiles)
                     return;
 
                 filesInFolder++;
@@ -142,6 +148,8 @@ public class HunkDataGenerator {
     }
 
     private static List<String> loadSourceFile(String path) throws Exception {
+        print("LOADING SOURCE DATA ...");
+
         List<String> res = new ArrayList<>();
 
         try (FileInputStream fis = new FileInputStream(path)) {
@@ -153,9 +161,20 @@ public class HunkDataGenerator {
                 res.add(next);
 
                 next = br.readLine();
+
+                if (res.size() % 100_000 == 0)
+                    print("---> " + res.size());
             }
         }
 
+        print("---> FINISHED");
+
         return res;
+    }
+
+    private static void print(String data) {
+        String time = new Date().toString();
+
+        System.out.println(time + ": " + data);
     }
 }
