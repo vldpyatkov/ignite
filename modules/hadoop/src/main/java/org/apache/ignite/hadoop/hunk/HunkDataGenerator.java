@@ -136,7 +136,7 @@ public class HunkDataGenerator {
     }
 
     private static File file(String dstDir, int folderIdx, int fileIdx) {
-        return new File(dstDir + File.separatorChar + "folder-" + folderIdx + File.separatorChar + "file-" + fileIdx);
+        return new File(dstDir + File.separatorChar + "folder-" + folderIdx + File.separatorChar + "file-" + fileIdx + ".json");
     }
 
     private static List<String> loadSourceFile(String path) throws Exception {
