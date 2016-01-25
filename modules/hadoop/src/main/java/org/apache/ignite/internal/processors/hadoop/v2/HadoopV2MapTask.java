@@ -52,7 +52,8 @@ public class HadoopV2MapTask extends HadoopV2Task {
         try {
             InputSplit nativeSplit = hadoopContext().getInputSplit();
 
-            assert nativeSplit != null;
+            if (nativeSplit == null)
+                throw new IgniteCheckedException("...");
 
             InputFormat inFormat = ReflectionUtils.newInstance(jobCtx.getInputFormatClass(),
                 hadoopContext().getConfiguration());
@@ -87,11 +88,6 @@ public class HadoopV2MapTask extends HadoopV2Task {
         }
         catch (Exception e) {
             err = e;
-
-            // org.apache.ignite.internal.processors.hadoop.v2.HadoopV2Context.getInputSplit
-            // throws IgniteCheckedException wrapped into IllegalStateException, so we unwrap it back:
-            if (e.getCause() instanceof IgniteCheckedException)
-                throw (IgniteCheckedException)e.getCause();
 
             throw new IgniteCheckedException(e);
         }
