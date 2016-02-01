@@ -694,6 +694,7 @@ class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     /** {@inheritDoc} */
     @Override public Collection<ClusterNode> nodes(int p, AffinityTopologyVersion topVer) {
         Collection<ClusterNode> affNodes = cctx.affinity().nodes(p, topVer);
+        HashSet<UUID> affIds = cctx.affinity().nodesIds(p, topVer);
 
         lock.readLock().lock();
 
@@ -708,8 +709,6 @@ class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             Collection<UUID> nodeIds = part2node.get(p);
 
             if (!F.isEmpty(nodeIds)) {
-                Collection<UUID> affIds = new HashSet<>(F.viewReadOnly(affNodes, F.node2id()));
-
                 for (UUID nodeId : nodeIds) {
                     if (!affIds.contains(nodeId) && hasState(p, nodeId, OWNING, MOVING, RENTING)) {
                         ClusterNode n = cctx.discovery().node(nodeId);

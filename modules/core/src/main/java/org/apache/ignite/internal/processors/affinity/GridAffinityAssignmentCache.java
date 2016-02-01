@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.affinity;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -386,6 +387,18 @@ public class GridAffinityAssignmentCache {
     public List<ClusterNode> nodes(int part, AffinityTopologyVersion topVer) {
         // Resolve cached affinity nodes.
         return cachedAffinity(topVer).get(part);
+    }
+
+    /**
+     * Gets affinity nodes IDs for specified partition.
+     *
+     * @param part Partition.
+     * @param topVer Topology version.
+     * @return Affinity nodes.
+     */
+    public HashSet<UUID> nodesIds(int part, AffinityTopologyVersion topVer) {
+        // Resolve cached affinity nodes.
+        return cachedAffinity(topVer).getIds(part);
     }
 
     /**
