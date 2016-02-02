@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
@@ -71,6 +72,7 @@ import org.apache.ignite.lang.IgniteFutureCancelledException;
 import org.apache.ignite.transactions.TransactionState;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.*;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.SYSTEM_POOL;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.UTILITY_CACHE_POOL;
 import static org.apache.ignite.internal.processors.cache.GridCacheUtils.isNearEnabled;
@@ -387,7 +389,7 @@ public class IgniteTxHandler {
 
         if (tx != null) {
             if (req.explicitLock())
-                tx.explicitLock(req.explicitLock());
+                tx.explicitLock(true);
 
             tx.transactionNodes(req.transactionNodes());
 
@@ -675,6 +677,14 @@ public class IgniteTxHandler {
             assert tx != null : "Transaction is null for near finish request [nodeId=" +
                 nodeId + ", req=" + req + "]";
 
+            if (req.syncMode() == null) {
+                boolean sync = req.commit() ? req.syncCommit() : req.syncRollback();
+
+                tx.syncMode(sync ? FULL_SYNC : FULL_ASYNC);
+            }
+            else
+                tx.syncMode(req.syncMode());
+
             if (req.commit()) {
                 tx.storeEnabled(req.storeEnabled());
 
@@ -684,9 +694,6 @@ public class IgniteTxHandler {
 
                     return null;
                 }
-
-                if (!tx.syncCommit())
-                    tx.syncCommit(req.syncCommit());
 
                 tx.nearFinishFutureId(req.futureId());
                 tx.nearFinishMiniId(req.miniId());
@@ -699,8 +706,6 @@ public class IgniteTxHandler {
                 return commitFut;
             }
             else {
-                tx.syncRollback(req.syncRollback());
-
                 tx.nearFinishFutureId(req.futureId());
                 tx.nearFinishMiniId(req.miniId());
 
