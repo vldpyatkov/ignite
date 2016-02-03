@@ -156,24 +156,6 @@ public class GridCacheAffinityManager extends GridCacheManagerAdapter {
     }
 
     /**
-     * Get affinity assignment for the given topology version.
-     *
-     * @param topVer Toplogy version.
-     * @return Affinity affignment.
-     */
-    public GridAffinityAssignment assignment(AffinityTopologyVersion topVer) {
-        if (cctx.isLocal())
-            topVer = new AffinityTopologyVersion(1);
-
-        GridAffinityAssignmentCache aff0 = aff;
-
-        if (aff0 == null)
-            throw new IgniteException(FAILED_TO_FIND_CACHE_ERR_MSG + cctx.name());
-
-        return aff0.cachedAffinity(topVer);
-    }
-
-    /**
      * @param topVer Topology version.
      * @return Affinity assignments.
      */
@@ -263,6 +245,24 @@ public class GridCacheAffinityManager extends GridCacheManagerAdapter {
             throw new IgniteException(FAILED_TO_FIND_CACHE_ERR_MSG + cctx.name());
 
         return aff0.nodes(part, topVer);
+    }
+
+    /**
+     * Get affinity assignment for the given topology version.
+     *
+     * @param topVer Toplogy version.
+     * @return Affinity affignment.
+     */
+    public GridAffinityAssignment assignment(AffinityTopologyVersion topVer) {
+        if (cctx.isLocal())
+            topVer = new AffinityTopologyVersion(1);
+
+        GridAffinityAssignmentCache aff0 = aff;
+
+        if (aff0 == null)
+            throw new IgniteException(FAILED_TO_FIND_CACHE_ERR_MSG + cctx.name());
+
+        return aff0.cachedAffinity(topVer);
     }
 
     /**
