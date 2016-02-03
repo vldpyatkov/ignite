@@ -56,7 +56,8 @@ import org.apache.ignite.lang.IgniteProductVersion;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.transactions.TransactionRollbackException;
 
-import static org.apache.ignite.cache.CacheWriteSynchronizationMode.*;
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.PRIMARY_SYNC;
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.NOOP;
 import static org.apache.ignite.transactions.TransactionState.UNKNOWN;
 
@@ -125,6 +126,15 @@ public final class GridNearTxFinishFuture<K, V> extends GridCompoundIdentityFutu
 
         if (log == null)
             log = U.logger(cctx.kernalContext(), logRef, GridNearTxFinishFuture.class);
+
+        CacheWriteSynchronizationMode syncMode;
+
+        if (tx.explicitLock())
+            syncMode = FULL_SYNC;
+        else
+            syncMode = tx.syncMode();
+
+        tx.syncMode(syncMode);
     }
 
     /** {@inheritDoc} */
@@ -338,15 +348,6 @@ public final class GridNearTxFinishFuture<K, V> extends GridCompoundIdentityFutu
      */
     @SuppressWarnings("ForLoopReplaceableByForEach")
     void finish() {
-        CacheWriteSynchronizationMode syncMode;
-
-        if (tx.explicitLock())
-            syncMode = FULL_SYNC;
-        else
-            syncMode = tx.syncMode();
-
-        tx.syncMode(syncMode);
-
         if (tx.onNeedCheckBackup()) {
             assert tx.onePhaseCommit();
 
