@@ -30,6 +30,7 @@ import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.internal.IgniteClientDisconnectedCheckedException;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.affinity.GridAffinityAssignment;
 import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentCache;
 import org.apache.ignite.internal.util.GridLeanSet;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
@@ -152,6 +153,16 @@ public class GridCacheAffinityManager extends GridCacheManagerAdapter {
         assert !cctx.isLocal();
 
         aff.initialize(topVer, affAssignment);
+    }
+
+    /**
+     * Get affinity assignment for the given topology version.
+     *
+     * @param topVer Toplogy version.
+     * @return Affinity affignment.
+     */
+    public GridAffinityAssignment assignment(AffinityTopologyVersion topVer) {
+        return aff.cachedAffinity(topVer);
     }
 
     /**

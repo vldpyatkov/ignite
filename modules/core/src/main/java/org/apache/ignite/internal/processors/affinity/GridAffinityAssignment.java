@@ -32,7 +32,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  * Cached affinity calculations.
  */
-class GridAffinityAssignment implements Serializable {
+public class GridAffinityAssignment implements Serializable {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -122,24 +122,27 @@ class GridAffinityAssignment implements Serializable {
      * @return Affinity nodes IDs.
      */
     public HashSet<UUID> getIds(int part) {
-        List<HashSet<UUID>> ids = assignmentIds;
+        assert part >= 0 && part < assignment.size() : "Affinity partition is out of range" +
+            " [part=" + part + ", partitions=" + assignment.size() + ']';
 
-        if (ids == null) {
-            ids = new ArrayList<>();
+        List<HashSet<UUID>> assignmentIds0 = assignmentIds;
 
-            for (List<ClusterNode> a : assignment) {
+        if (assignmentIds0 == null) {
+            assignmentIds0 = new ArrayList<>();
+
+            for (List<ClusterNode> assignmentPart : assignment) {
                 HashSet<UUID> partIds = new HashSet<>();
 
-                for (ClusterNode n : a)
-                    partIds.add(n.id());
+                for (ClusterNode node : assignmentPart)
+                    partIds.add(node.id());
 
-                ids.add(partIds);
+                assignmentIds0.add(partIds);
             }
 
-            assignmentIds = ids;
+            assignmentIds = assignmentIds0;
         }
 
-        return ids.get(part);
+        return assignmentIds0.get(part);
     }
 
     /**

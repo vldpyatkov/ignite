@@ -397,7 +397,6 @@ public class GridAffinityAssignmentCache {
      * @return Affinity nodes.
      */
     public HashSet<UUID> nodesIds(int part, AffinityTopologyVersion topVer) {
-        // Resolve cached affinity nodes.
         return cachedAffinity(topVer).getIds(part);
     }
 
@@ -441,7 +440,7 @@ public class GridAffinityAssignmentCache {
      * @param topVer Topology version.
      * @return Cached affinity.
      */
-    private GridAffinityAssignment cachedAffinity(AffinityTopologyVersion topVer) {
+    public GridAffinityAssignment cachedAffinity(AffinityTopologyVersion topVer) {
         if (topVer.equals(AffinityTopologyVersion.NONE))
             topVer = lastVersion();
         else
