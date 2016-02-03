@@ -17,12 +17,6 @@
 
 package org.apache.ignite.internal.processors.cache;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cluster.ClusterNode;
@@ -37,6 +31,12 @@ import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.lang.IgniteFuture;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Cache affinity manager.
@@ -162,7 +162,15 @@ public class GridCacheAffinityManager extends GridCacheManagerAdapter {
      * @return Affinity affignment.
      */
     public GridAffinityAssignment assignment(AffinityTopologyVersion topVer) {
-        return aff.cachedAffinity(topVer);
+        if (cctx.isLocal())
+            topVer = new AffinityTopologyVersion(1);
+
+        GridAffinityAssignmentCache aff0 = aff;
+
+        if (aff0 == null)
+            throw new IgniteException(FAILED_TO_FIND_CACHE_ERR_MSG + cctx.name());
+
+        return aff0.cachedAffinity(topVer);
     }
 
     /**
@@ -255,23 +263,6 @@ public class GridCacheAffinityManager extends GridCacheManagerAdapter {
             throw new IgniteException(FAILED_TO_FIND_CACHE_ERR_MSG + cctx.name());
 
         return aff0.nodes(part, topVer);
-    }
-
-    /**
-     * @param part Partition.
-     * @param topVer Topology version.
-     * @return Affinity node IDs.
-     */
-    public HashSet<UUID> nodesIds(int part, AffinityTopologyVersion topVer) {
-        if (cctx.isLocal())
-            topVer = new AffinityTopologyVersion(1);
-
-        GridAffinityAssignmentCache aff0 = aff;
-
-        if (aff0 == null)
-            throw new IgniteException(FAILED_TO_FIND_CACHE_ERR_MSG + cctx.name());
-
-        return aff0.nodesIds(part, topVer);
     }
 
     /**

@@ -390,17 +390,6 @@ public class GridAffinityAssignmentCache {
     }
 
     /**
-     * Gets affinity nodes IDs for specified partition.
-     *
-     * @param part Partition.
-     * @param topVer Topology version.
-     * @return Affinity nodes.
-     */
-    public HashSet<UUID> nodesIds(int part, AffinityTopologyVersion topVer) {
-        return cachedAffinity(topVer).getIds(part);
-    }
-
-    /**
      * Get primary partitions for specified node ID.
      *
      * @param nodeId Node ID to get primary partitions for.
