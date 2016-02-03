@@ -328,14 +328,15 @@ public class IgniteTxCacheWriteSynchronizationModesMultithreadedTest extends Gri
             }
         }, NODES * 3, "tx-thread");
 
-        IgniteCache<Integer, Integer> cache = ignite(0).cache(null);
+        final IgniteCache<Integer, Integer> cache = ignite(0).cache(null);
 
         for (int key = 0; key < MULTITHREADED_TEST_KEYS; key++) {
             final Integer key0 = key;
-            final Integer val = cache.get(key0);
 
             boolean wait = GridTestUtils.waitForCondition(new GridAbsPredicate() {
                 @Override public boolean apply() {
+                    final Integer val = cache.get(key0);
+
                     for (int i = 1; i < NODES; i++) {
                         IgniteCache<Integer, Integer> cache = ignite(i).cache(null);
 
