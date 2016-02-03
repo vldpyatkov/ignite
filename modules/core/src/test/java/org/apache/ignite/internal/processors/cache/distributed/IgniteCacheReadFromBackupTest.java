@@ -234,7 +234,7 @@ public class IgniteCacheReadFromBackupTest extends GridCommonAbstractTest {
                         TestRecordingCommunicationSpi spi =
                             (TestRecordingCommunicationSpi)ignite.configuration().getCommunicationSpi();
 
-                        spi.stopBlock();
+                        spi.stopBlock(true);
                     }
 
                     awaitPartitionMapExchange();

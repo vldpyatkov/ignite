@@ -98,6 +98,8 @@ public class TestRecordingCommunicationSpi extends TcpCommunicationSpi {
     public void record(@Nullable Class<?> recordCls) {
         synchronized (this) {
             this.recordCls = recordCls;
+
+            recordedMsgs = new ArrayList<>();
         }
     }
 
@@ -111,6 +113,15 @@ public class TestRecordingCommunicationSpi extends TcpCommunicationSpi {
             recordedMsgs = new ArrayList<>();
 
             return msgs;
+        }
+    }
+
+    /**
+     * @return {@code True} if there are blocked messages.
+     */
+    public boolean hasBlockedMessages() {
+        synchronized (this) {
+            return !blockedMsgs.isEmpty();
         }
     }
 
@@ -142,14 +153,20 @@ public class TestRecordingCommunicationSpi extends TcpCommunicationSpi {
     }
 
     /**
-     * Stops block messages and sends all already blocked messages.
+     * Stops block messages and can sends all already blocked messages.
+     *
+     * @param sndMsgs If {@code true} sends blocked messages.
      */
-    public void stopBlock() {
+    public void stopBlock(boolean sndMsgs) {
         synchronized (this) {
+            blockP = null;
+
             blockCls.clear();
 
-            for (T2<ClusterNode, GridIoMessage> msg : blockedMsgs)
-                super.sendMessage(msg.get1(), msg.get2());
+            if (sndMsgs) {
+                for (T2<ClusterNode, GridIoMessage> msg : blockedMsgs)
+                    super.sendMessage(msg.get1(), msg.get2());
+            }
 
             blockedMsgs.clear();
         }
