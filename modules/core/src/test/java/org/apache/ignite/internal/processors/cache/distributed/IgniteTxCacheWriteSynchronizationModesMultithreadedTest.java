@@ -94,7 +94,7 @@ public class IgniteTxCacheWriteSynchronizationModesMultithreadedTest extends Gri
 
     /** {@inheritDoc} */
     @Override protected long getTestTimeout() {
-        return 3 * 60_000;
+        return 5 * 60_000;
     }
 
     /** {@inheritDoc} */
