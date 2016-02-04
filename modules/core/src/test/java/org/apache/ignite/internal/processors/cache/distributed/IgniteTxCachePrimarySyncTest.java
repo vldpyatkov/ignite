@@ -92,6 +92,8 @@ public class IgniteTxCachePrimarySyncTest extends GridCommonAbstractTest {
 
         TestRecordingCommunicationSpi commSpi = new TestRecordingCommunicationSpi();
 
+        commSpi.setSharedMemoryPort(-1);
+
         cfg.setCommunicationSpi(commSpi);
 
         return cfg;
