@@ -67,8 +67,11 @@ public interface CacheContinuousQueryListener<K, V> {
     /**
      * @param evt Event
      * @param topVer Topology version.
+     * @param primary Primary
+     * @param recordIgniteEvt Whether to record event.
      */
-    public void skipUpdateEvent(CacheContinuousQueryEvent<K, V> evt, AffinityTopologyVersion topVer);
+    public void skipUpdateEvent(CacheContinuousQueryEvent<K, V> evt, AffinityTopologyVersion topVer,
+        boolean primary, boolean recordIgniteEvt);
 
     /**
      * @param part Partition.

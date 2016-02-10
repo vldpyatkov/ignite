@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.io.Serializable;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -31,10 +32,12 @@ import javax.cache.integration.CacheLoaderException;
 import javax.cache.integration.CacheWriterException;
 import javax.cache.processor.EntryProcessor;
 import javax.cache.processor.MutableEntry;
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.store.CacheStore;
@@ -46,6 +49,7 @@ import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.apache.ignite.transactions.Transaction;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -74,6 +78,9 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
 
     /** */
     private static final int VALS = 10;
+
+    /** */
+    public static final int ITERATION_CNT = 1000;
 
     /** */
     private boolean client;
@@ -110,6 +117,19 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
     /**
      * @throws Exception If failed.
      */
+    public void testAtomicClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            ATOMIC,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testAtomic() throws Exception {
         CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
             1,
@@ -117,7 +137,7 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             ONHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
     }
 
     /**
@@ -130,7 +150,20 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             ONHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicReplicatedClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED,
+            0,
+            ATOMIC,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
@@ -143,7 +176,20 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             OFFHEAP_VALUES,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicOffheapValuesClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            ATOMIC,
+            OFFHEAP_VALUES,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
@@ -156,7 +202,20 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             OFFHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicOffheapTieredClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            ATOMIC,
+            OFFHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
@@ -169,7 +228,20 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             ONHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicNoBackupsClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            0,
+            ATOMIC,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
@@ -182,7 +254,46 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             ONHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxExplicit() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, false, true);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxClientExplicit() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
@@ -195,7 +306,20 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             ONHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxReplicatedClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED,
+            0,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
@@ -208,7 +332,33 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             OFFHEAP_VALUES,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxOffheapValuesExplicit() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            OFFHEAP_VALUES,
+            false);
+
+        testContinuousQuery(ccfg, false, true);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxOffheapValuesClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            OFFHEAP_VALUES,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
@@ -221,7 +371,33 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             OFFHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxOffheapTieredClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            OFFHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxOffheapTieredClientExplicit() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            OFFHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, true);
     }
 
     /**
@@ -234,18 +410,52 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             ONHEAP_TIERED,
             false);
 
-        testContinuousQuery(ccfg);
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxNoBackupsExplicit() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            0,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxNoBackupsClient() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            0,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            false);
+
+        testContinuousQuery(ccfg, true, false);
     }
 
     /**
      * @param ccfg Cache configuration.
+     * @param client Client.
+     * @param expTx Explicit tx.
      * @throws Exception If failed.
      */
-    private void testContinuousQuery(CacheConfiguration<Object, Object> ccfg) throws Exception {
+    private void testContinuousQuery(CacheConfiguration<Object, Object> ccfg, boolean client, boolean expTx)
+        throws Exception {
         ignite(0).createCache(ccfg);
 
         try {
-            IgniteCache<Object, Object> cache = ignite(NODES - 1).cache(ccfg.getName());
+            IgniteCache<Object, Object> cache;
+
+            if (client)
+                cache = ignite(NODES - 1).cache(ccfg.getName());
+            else
+                cache = ignite(0).cache(ccfg.getName());
 
             long seed = System.currentTimeMillis();
 
@@ -256,15 +466,12 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             ContinuousQuery<Object, Object> qry = new ContinuousQuery<>();
 
             final BlockingQueue<CacheEntryEvent<?, ?>> evtsQueue =
-                new ArrayBlockingQueue<>(10_000);
+                new ArrayBlockingQueue<>(50_000);
 
             qry.setLocalListener(new CacheEntryUpdatedListener<Object, Object>() {
                 @Override public void onUpdated(Iterable<CacheEntryEvent<?, ?>> evts) {
-                    for (CacheEntryEvent<?, ?> evt : evts) {
-                        // System.out.println("Event: " + evt);
-
+                    for (CacheEntryEvent<?, ?> evt : evts)
                         evtsQueue.add(evt);
-                    }
                 }
             });
 
@@ -272,12 +479,14 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
 
             ConcurrentMap<Object, Object> expData = new ConcurrentHashMap<>();
 
+            Map<Integer, Long> partCntr = new ConcurrentHashMap<>();
+
             try {
-                for (int i = 0; i < 1000; i++) {
+                for (int i = 0; i < ITERATION_CNT; i++) {
                     if (i % 100 == 0)
                         log.info("Iteration: " + i);
 
-                    randomUpdate(rnd, evtsQueue, expData, cache);
+                    randomUpdate(rnd, evtsQueue, expData, partCntr, cache, expTx);
                 }
             }
             finally {
@@ -293,14 +502,18 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
      * @param rnd Random generator.
      * @param evtsQueue Events queue.
      * @param expData Expected cache data.
+     * @param partCntr Partition counter.
      * @param cache Cache.
+     * @param expTx Explicit TX.
      * @throws Exception If failed.
      */
     private void randomUpdate(
         Random rnd,
         BlockingQueue<CacheEntryEvent<?, ?>> evtsQueue,
         ConcurrentMap<Object, Object> expData,
-        IgniteCache<Object, Object> cache)
+        Map<Integer, Long> partCntr,
+        IgniteCache<Object, Object> cache,
+        boolean expTx)
         throws Exception {
         Object key = new QueryTestKey(rnd.nextInt(KEYS));
         Object newVal = value(rnd);
@@ -308,156 +521,247 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
 
         int op = rnd.nextInt(11);
 
-        // log.info("Random operation [key=" + key + ", op=" + op + ']');
+        Ignite ignite = cache.unwrap(Ignite.class);
 
-        switch (op) {
-            case 0: {
-                cache.put(key, newVal);
+        Transaction tx = null;
 
-                waitEvent(evtsQueue, key, newVal, oldVal);
+        if (expTx && cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL)
+            tx = ignite.transactions().txStart();
 
-                expData.put(key, newVal);
+        try {
+            // log.info("Random operation [key=" + key + ", op=" + op + ']');
 
-                break;
-            }
+            switch (op) {
+                case 0: {
+                    cache.put(key, newVal);
 
-            case 1: {
-                cache.getAndPut(key, newVal);
+                    if (tx != null)
+                        tx.commit();
 
-                waitEvent(evtsQueue, key, newVal, oldVal);
+                    updatePartitionCounter(cache, key, partCntr);
 
-                expData.put(key, newVal);
-
-                break;
-            }
-
-            case 2: {
-                cache.remove(key);
-
-                waitEvent(evtsQueue, key, null, oldVal);
-
-                expData.remove(key);
-
-                break;
-            }
-
-            case 3: {
-                cache.getAndRemove(key);
-
-                waitEvent(evtsQueue, key, null, oldVal);
-
-                expData.remove(key);
-
-                break;
-            }
-
-            case 4: {
-                cache.invoke(key, new EntrySetValueProcessor(newVal, rnd.nextBoolean()));
-
-                waitEvent(evtsQueue, key, newVal, oldVal);
-
-                expData.put(key, newVal);
-
-                break;
-            }
-
-            case 5: {
-                cache.invoke(key, new EntrySetValueProcessor(null, rnd.nextBoolean()));
-
-                waitEvent(evtsQueue, key, null, oldVal);
-
-                expData.remove(key);
-
-                break;
-            }
-
-            case 6: {
-                cache.putIfAbsent(key, newVal);
-
-                if (oldVal == null) {
-                    waitEvent(evtsQueue, key, newVal, null);
+                    waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, oldVal);
 
                     expData.put(key, newVal);
+
+                    break;
                 }
-                else
-                    checkNoEvent(evtsQueue);
 
-                break;
-            }
+                case 1: {
+                    cache.getAndPut(key, newVal);
 
-            case 7: {
-                cache.getAndPutIfAbsent(key, newVal);
+                    if (tx != null)
+                        tx.commit();
 
-                if (oldVal == null) {
-                    waitEvent(evtsQueue, key, newVal, null);
+                    updatePartitionCounter(cache, key, partCntr);
+
+                    waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, oldVal);
 
                     expData.put(key, newVal);
+
+                    break;
                 }
-                else
-                    checkNoEvent(evtsQueue);
 
-                break;
-            }
+                case 2: {
+                    cache.remove(key);
 
-            case 8: {
-                cache.replace(key, newVal);
+                    if (tx != null)
+                        tx.commit();
 
-                if (oldVal != null) {
-                    waitEvent(evtsQueue, key, newVal, oldVal);
+                    updatePartitionCounter(cache, key, partCntr);
+
+                    waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, null, oldVal);
+
+                    expData.remove(key);
+
+                    break;
+                }
+
+                case 3: {
+                    cache.getAndRemove(key);
+
+                    if (tx != null)
+                        tx.commit();
+
+                    updatePartitionCounter(cache, key, partCntr);
+
+                    waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, null, oldVal);
+
+                    expData.remove(key);
+
+                    break;
+                }
+
+                case 4: {
+                    cache.invoke(key, new EntrySetValueProcessor(newVal, rnd.nextBoolean()));
+
+                    if (tx != null)
+                        tx.commit();
+
+                    updatePartitionCounter(cache, key, partCntr);
+
+                    waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, oldVal);
 
                     expData.put(key, newVal);
+
+                    break;
                 }
-                else
-                    checkNoEvent(evtsQueue);
 
-                break;
-            }
+                case 5: {
+                    cache.invoke(key, new EntrySetValueProcessor(null, rnd.nextBoolean()));
 
-            case 9: {
-                cache.getAndReplace(key, newVal);
+                    if (tx != null)
+                        tx.commit();
 
-                if (oldVal != null) {
-                    waitEvent(evtsQueue, key, newVal, oldVal);
+                    updatePartitionCounter(cache, key, partCntr);
 
-                    expData.put(key, newVal);
+                    waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, null, oldVal);
+
+                    expData.remove(key);
+
+                    break;
                 }
-                else
-                    checkNoEvent(evtsQueue);
 
-                break;
-            }
+                case 6: {
+                    cache.putIfAbsent(key, newVal);
 
-            case 10: {
-                if (oldVal != null) {
-                    Object replaceVal = value(rnd);
+                    if (tx != null)
+                        tx.commit();
 
-                    boolean success = replaceVal.equals(oldVal);
+                    if (oldVal == null) {
+                        updatePartitionCounter(cache, key, partCntr);
 
-                    if (success) {
-                        cache.replace(key, replaceVal, newVal);
-
-                        waitEvent(evtsQueue, key, newVal, oldVal);
+                        waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, null);
 
                         expData.put(key, newVal);
                     }
+                    else
+                        checkNoEvent(evtsQueue);
+
+                    break;
+                }
+
+                case 7: {
+                    cache.getAndPutIfAbsent(key, newVal);
+
+                    if (tx != null)
+                        tx.commit();
+
+                    if (oldVal == null) {
+                        updatePartitionCounter(cache, key, partCntr);
+
+                        waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, null);
+
+                        expData.put(key, newVal);
+                    }
+                    else
+                        checkNoEvent(evtsQueue);
+
+                    break;
+                }
+
+                case 8: {
+                    cache.replace(key, newVal);
+
+                    if (tx != null)
+                        tx.commit();
+
+                    if (oldVal != null) {
+                        updatePartitionCounter(cache, key, partCntr);
+
+                        waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, oldVal);
+
+                        expData.put(key, newVal);
+                    }
+                    else
+                        checkNoEvent(evtsQueue);
+
+                    break;
+                }
+
+                case 9: {
+                    cache.getAndReplace(key, newVal);
+
+                    if (tx != null)
+                        tx.commit();
+
+                    if (oldVal != null) {
+                        updatePartitionCounter(cache, key, partCntr);
+
+                        waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, oldVal);
+
+                        expData.put(key, newVal);
+                    }
+                    else
+                        checkNoEvent(evtsQueue);
+
+                    break;
+                }
+
+                case 10: {
+                    if (oldVal != null) {
+                        Object replaceVal = value(rnd);
+
+                        boolean success = replaceVal.equals(oldVal);
+
+                        if (success) {
+                            cache.replace(key, replaceVal, newVal);
+
+                            if (tx != null)
+                                tx.commit();
+
+                            updatePartitionCounter(cache, key, partCntr);
+
+                            waitAndCheckEvent(evtsQueue, partCntr, affinity(cache), key, newVal, oldVal);
+
+                            expData.put(key, newVal);
+                        }
+                        else {
+                            cache.replace(key, replaceVal, newVal);
+
+                            if (tx != null)
+                                tx.commit();
+
+                            checkNoEvent(evtsQueue);
+                        }
+                    }
                     else {
-                        cache.replace(key, replaceVal, newVal);
+                        cache.replace(key, value(rnd), newVal);
+
+                        if (tx != null)
+                            tx.commit();
 
                         checkNoEvent(evtsQueue);
                     }
-                }
-                else {
-                    cache.replace(key, value(rnd), newVal);
 
-                    checkNoEvent(evtsQueue);
+                    break;
                 }
 
-                break;
+                default:
+                    fail();
             }
-
-            default:
-                fail();
+        } finally {
+            if (tx != null)
+                tx.close();
         }
+    }
+
+    /**
+     * @param cache Cache.
+     * @param key Key
+     * @param cntrs Partition counters.
+     */
+    private void updatePartitionCounter(IgniteCache<Object, Object> cache, Object key, Map<Integer, Long> cntrs) {
+        Affinity<Object> aff = cache.unwrap(Ignite.class).affinity(cache.getName());
+
+        int part = aff.partition(key);
+
+        Long partCntr = cntrs.get(part);
+
+        if (partCntr == null)
+            partCntr = 0L;
+
+        cntrs.put(part, ++partCntr);
     }
 
     /**
@@ -470,13 +774,19 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
 
     /**
      * @param evtsQueue Event queue.
+     * @param partCntrs Partition counters.
+     * @param aff Affinity function.
      * @param key Key.
      * @param val Value.
      * @param oldVal Old value.
      * @throws Exception If failed.
      */
-    private void waitEvent(BlockingQueue<CacheEntryEvent<?, ?>> evtsQueue,
-        Object key, Object val, Object oldVal) throws Exception {
+    private void waitAndCheckEvent(BlockingQueue<CacheEntryEvent<?, ?>> evtsQueue,
+        Map<Integer, Long> partCntrs,
+        Affinity<Object> aff,
+        Object key,
+        Object val,
+        Object oldVal) throws Exception {
         if (val == null && oldVal == null) {
             checkNoEvent(evtsQueue);
 
@@ -485,12 +795,15 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
 
         CacheEntryEvent<?, ?> evt = evtsQueue.poll(5, SECONDS);
 
-        assertNotNull("Failed to wait for event [key=" + key +
-            ", val=" + val +
-            ", oldVal=" + oldVal + ']', evt);
+        assertNotNull("Failed to wait for event [key=" + key + ", val=" + val + ", oldVal=" + oldVal + ']', evt);
         assertEquals(key, evt.getKey());
         assertEquals(val, evt.getValue());
         assertEquals(oldVal, evt.getOldValue());
+
+        Long cntr = partCntrs.get(aff.partition(key));
+
+        assertNotNull(cntr);
+        assertEquals(cntr, evt.unwrap(Long.class));
     }
 
     /**
@@ -644,6 +957,7 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             return S.toString(QueryTestValue.class, this);
         }
     }
+
     /**
      *
      */
@@ -680,5 +994,4 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
             return S.toString(EntrySetValueProcessor.class, this);
         }
     }
-
 }
