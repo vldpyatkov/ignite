@@ -167,25 +167,10 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         int partId,
         long updCntr,
         AffinityTopologyVersion topVer) {
-        assert lsnrs != null;
+        boolean recordIgniteEvt = !(key.internal() || !cctx.userCache())
+            && cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
 
-        for (CacheContinuousQueryListener lsnr : lsnrs.values()) {
-            CacheContinuousQueryEntry e0 = new CacheContinuousQueryEntry(
-                cctx.cacheId(),
-                UPDATED,
-                key,
-                null,
-                null,
-                lsnr.keepBinary(),
-                partId,
-                updCntr,
-                topVer);
-
-            CacheContinuousQueryEvent evt = new CacheContinuousQueryEvent<>(
-                cctx.kernalContext().cache().jcache(cctx.name()), cctx, e0);
-
-            lsnr.skipUpdateEvent(evt, topVer, true, false);
-        }
+        skipUpdateEvent(lsnrs, key, partId, updCntr, true, recordIgniteEvt, topVer);
     }
 
     /**
