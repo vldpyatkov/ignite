@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.io.Serializable;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.cache.event.CacheEntryListenerException;
@@ -28,9 +29,11 @@ import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
+import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.managers.communication.GridIoMessage;
+import org.apache.ignite.internal.util.typedef.P1;
 import org.apache.ignite.internal.util.typedef.PA;
 import org.apache.ignite.lang.IgniteRunnable;
 import org.apache.ignite.plugin.extensions.communication.Message;
@@ -52,7 +55,7 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 /**
  * Continuous queries tests.
  */
-public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implements Serializable {
+public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTest implements Serializable {
     /** IP finder. */
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 
@@ -78,6 +81,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
 
             cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(true));
         }
+        else if (gridName.endsWith(SERVER2))
+            cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(true));
         else
             cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(false));
 
@@ -484,6 +489,12 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
         ccfg.setCacheMode(cacheMode);
         ccfg.setMemoryMode(memoryMode);
         ccfg.setWriteSynchronizationMode(FULL_SYNC);
+
+        ccfg.setNodeFilter(new P1<ClusterNode>() {
+            @Override public boolean apply(ClusterNode node) {
+                return !node.attributes().get("org.apache.ignite.ignite.name").equals(SERVER2);
+            }
+        });
 
         if (cacheMode == PARTITIONED)
             ccfg.setBackups(backups);
