@@ -19,7 +19,9 @@ package org.apache.ignite.internal.processors.cache.distributed;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import javax.cache.Cache;
 import javax.cache.configuration.Factory;
@@ -43,6 +45,9 @@ import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.processors.cache.IgniteCacheProxy;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxFinishRequest;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxFinishRequest;
+import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxFinishResponse;
+import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxPrepareRequest;
+import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxPrepareResponse;
 import org.apache.ignite.internal.processors.cache.transactions.TransactionProxyImpl;
 import org.apache.ignite.internal.util.lang.GridAbsPredicate;
 import org.apache.ignite.internal.util.lang.IgnitePredicateX;
@@ -226,7 +231,7 @@ public class IgniteTxCachePrimarySyncTest extends GridCommonAbstractTest {
 
         waitKeyUpdated(ignite, ccfg.getBackups() + 1, ccfg.getName(), key);
 
-        List<Object> msgs = commSpi0.recordedMessages();
+        List<Object> msgs = commSpi0.recordedMessages(true);
 
         assertEquals(ccfg.getBackups(), msgs.size());
 
@@ -478,7 +483,7 @@ public class IgniteTxCachePrimarySyncTest extends GridCommonAbstractTest {
 
         waitKeyUpdated(ignite, ccfg.getBackups() + 1, ccfg.getName(), key);
 
-        List<Object> msgs = commSpiClient.recordedMessages();
+        List<Object> msgs = commSpiClient.recordedMessages(true);
 
         assertEquals(1, msgs.size());
 
@@ -486,7 +491,7 @@ public class IgniteTxCachePrimarySyncTest extends GridCommonAbstractTest {
 
         assertEquals(PRIMARY_SYNC, req.syncMode());
 
-        msgs = commSpi0.recordedMessages();
+        msgs = commSpi0.recordedMessages(true);
 
         assertEquals(ccfg.getBackups(), msgs.size());
 
@@ -497,6 +502,247 @@ public class IgniteTxCachePrimarySyncTest extends GridCommonAbstractTest {
         c.apply(key, clientCache);
 
         waitKeyUpdated(ignite, ccfg.getBackups() + 1, ccfg.getName(), key);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testWaitPrimaryResponse() throws Exception {
+        checkWaitPrimaryResponse(cacheConfiguration(null, PRIMARY_SYNC, 1, true, false));
+
+        checkWaitPrimaryResponse(cacheConfiguration(null, PRIMARY_SYNC, 2, false, false));
+
+        checkWaitPrimaryResponse(cacheConfiguration(null, PRIMARY_SYNC, 2, false, true));
+
+        checkWaitPrimaryResponse(cacheConfiguration(null, PRIMARY_SYNC, 3, false, false));
+    }
+
+    /**
+     * @param ccfg Cache configuration.
+     * @throws Exception If failed.
+     */
+    private void checkWaitPrimaryResponse(CacheConfiguration<Object, Object> ccfg) throws Exception {
+        Ignite ignite = ignite(0);
+
+        IgniteCache<Object, Object> cache = ignite.createCache(ccfg);
+
+        try {
+            ignite(NODES - 1).createNearCache(ccfg.getName(), new NearCacheConfiguration<>());
+
+            for (int i = 1; i < NODES; i++) {
+                Ignite node = ignite(i);
+
+                log.info("Test node: " + node.name());
+
+                checkWaitPrimaryResponse(node, ccfg, new IgniteBiInClosure<Integer, IgniteCache<Object, Object>>() {
+                    @Override public void apply(Integer key, IgniteCache<Object, Object> cache) {
+                        cache.put(key, key);
+                    }
+                });
+
+                checkWaitPrimaryResponse(node, ccfg, new IgniteBiInClosure<Integer, IgniteCache<Object, Object>>() {
+                    @Override public void apply(Integer key, IgniteCache<Object, Object> cache) {
+                        Map<Integer, Integer> map = new HashMap<>();
+
+                        for (int i = 0; i < 50; i++)
+                            map.put(i, i);
+
+                        map.put(key, key);
+
+                        cache.putAll(map);
+                    }
+                });
+
+                for (final TransactionConcurrency concurrency : TransactionConcurrency.values()) {
+                    for (final TransactionIsolation isolation : TransactionIsolation.values()) {
+                        checkWaitPrimaryResponse(node, ccfg, new IgniteBiInClosure<Integer, IgniteCache<Object, Object>>() {
+                            @Override public void apply(Integer key, IgniteCache<Object, Object> cache) {
+                                Ignite ignite = cache.unwrap(Ignite.class);
+
+                                try (Transaction tx = ignite.transactions().txStart(concurrency, isolation)) {
+                                    cache.put(key, key);
+
+                                    tx.commit();
+                                }
+                            }
+                        });
+
+                        checkWaitPrimaryResponse(node, ccfg, new IgniteBiInClosure<Integer, IgniteCache<Object, Object>>() {
+                            @Override public void apply(Integer key, IgniteCache<Object, Object> cache) {
+                                Map<Integer, Integer> map = new HashMap<>();
+
+                                for (int i = 0; i < 50; i++)
+                                    map.put(i, i);
+
+                                map.put(key, key);
+
+                                Ignite ignite = cache.unwrap(Ignite.class);
+
+                                try (Transaction tx = ignite.transactions().txStart(concurrency, isolation)) {
+                                    cache.putAll(map);
+
+                                    tx.commit();
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        finally {
+            ignite.destroyCache(cache.getName());
+        }
+    }
+
+    /**
+     * @param client Node executing cache operation.
+     * @param ccfg Cache configuration.
+     * @param c Cache update closure.
+     * @throws Exception If failed.
+     */
+    private void checkWaitPrimaryResponse(
+        Ignite client,
+        final CacheConfiguration<Object, Object> ccfg,
+        final IgniteBiInClosure<Integer, IgniteCache<Object, Object>> c) throws Exception {
+        Ignite ignite = ignite(0);
+
+        assertNotSame(ignite, client);
+
+        TestRecordingCommunicationSpi commSpi0 =
+            (TestRecordingCommunicationSpi)ignite.configuration().getCommunicationSpi();
+
+        IgniteCache<Object, Object> cache = ignite.cache(ccfg.getName());
+
+        final Integer key = primaryKey(cache);
+
+        cache.remove(key);
+
+        waitKeyRemoved(ccfg.getName(), key);
+
+        final IgniteCache<Object, Object> clientCache = client.cache(ccfg.getName());
+
+        commSpi0.blockMessages(GridNearTxFinishResponse.class, client.name());
+
+        IgniteInternalFuture<?> fut = GridTestUtils.runAsync(new Callable<Void>() {
+            @Override public Void call() throws Exception {
+                c.apply(key, clientCache);
+
+                return null;
+            }
+        }, "tx-thread");
+
+        U.sleep(100);
+
+        assertFalse(fut.isDone());
+
+        commSpi0.stopBlock(true);
+
+        fut.get();
+
+        waitKeyUpdated(ignite, ccfg.getBackups() + 1, ccfg.getName(), key);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testOnePhaseMessages() throws Exception {
+        checkOnePhaseMessages(cacheConfiguration(null, PRIMARY_SYNC, 1, false, false));
+    }
+
+    /**
+     * @param ccfg Cache configuration.
+     * @throws Exception If failed.
+     */
+    private void checkOnePhaseMessages(CacheConfiguration<Object, Object> ccfg) throws Exception {
+        Ignite ignite = ignite(0);
+
+        IgniteCache<Object, Object> cache = ignite.createCache(ccfg);
+
+        try {
+            for (int i = 1; i < NODES; i++) {
+                Ignite node = ignite(i);
+
+                log.info("Test node: " + node.name());
+
+                checkOnePhaseMessages(node, ccfg, new IgniteBiInClosure<Integer, IgniteCache<Object, Object>>() {
+                    @Override public void apply(Integer key, IgniteCache<Object, Object> cache) {
+                        cache.put(key, key);
+                    }
+                });
+
+                for (final TransactionConcurrency concurrency : TransactionConcurrency.values()) {
+                    for (final TransactionIsolation isolation : TransactionIsolation.values()) {
+                        checkOnePhaseMessages(node, ccfg, new IgniteBiInClosure<Integer, IgniteCache<Object, Object>>() {
+                            @Override public void apply(Integer key, IgniteCache<Object, Object> cache) {
+                                Ignite ignite = cache.unwrap(Ignite.class);
+
+                                try (Transaction tx = ignite.transactions().txStart(concurrency, isolation)) {
+                                    cache.put(key, key);
+
+                                    tx.commit();
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        finally {
+            ignite.destroyCache(cache.getName());
+        }
+    }
+
+    /**
+     * @param client Node executing cache operation.
+     * @param ccfg Cache configuration.
+     * @param c Cache update closure.
+     * @throws Exception If failed.
+     */
+    private void checkOnePhaseMessages(
+        Ignite client,
+        final CacheConfiguration<Object, Object> ccfg,
+        final IgniteBiInClosure<Integer, IgniteCache<Object, Object>> c) throws Exception {
+        Ignite ignite = ignite(0);
+
+        assertNotSame(ignite, client);
+
+        TestRecordingCommunicationSpi commSpiClient =
+            (TestRecordingCommunicationSpi)client.configuration().getCommunicationSpi();
+
+        TestRecordingCommunicationSpi commSpi0 =
+            (TestRecordingCommunicationSpi)ignite.configuration().getCommunicationSpi();
+
+        IgniteCache<Object, Object> cache = ignite.cache(ccfg.getName());
+
+        final Integer key = primaryKey(cache);
+
+        cache.remove(key);
+
+        waitKeyRemoved(ccfg.getName(), key);
+
+        final IgniteCache<Object, Object> clientCache = client.cache(ccfg.getName());
+
+        commSpi0.record(GridNearTxFinishResponse.class, GridNearTxPrepareResponse.class);
+        commSpiClient.record(GridNearTxPrepareRequest.class, GridNearTxFinishRequest.class);
+
+        c.apply(key, clientCache);
+
+        List<Object> srvMsgs = commSpi0.recordedMessages(true);
+
+        assertEquals("Unexpected messages: " + srvMsgs, 1, srvMsgs.size());
+        assertTrue("Unexpected message: " + srvMsgs.get(0), srvMsgs.get(0) instanceof GridNearTxPrepareResponse);
+
+        List<Object> clientMsgs = commSpiClient.recordedMessages(true);
+
+        assertEquals("Unexpected messages: " + clientMsgs, 1, clientMsgs.size());
+        assertTrue("Unexpected message: " + clientMsgs.get(0), clientMsgs.get(0) instanceof GridNearTxPrepareRequest);
+
+        GridNearTxPrepareRequest req = (GridNearTxPrepareRequest)clientMsgs.get(0);
+
+        assertTrue(req.onePhaseCommit());
+
+        for (Ignite ignite0 : G.allGrids())
+            assertEquals(key, ignite0.cache(cache.getName()).get(key));
     }
 
     /**
@@ -811,6 +1057,7 @@ public class IgniteTxCachePrimarySyncTest extends GridCommonAbstractTest {
      * @param syncMode Write synchronization mode.
      * @param backups Number of backups.
      * @param store If {@code true} configures cache store.
+     * @param nearCache If {@code true} configures near cache.
      * @return Cache configuration.
      */
     private CacheConfiguration<Object, Object> cacheConfiguration(String name,

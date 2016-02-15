@@ -337,13 +337,6 @@ public final class GridNearTxFinishFuture<K, V> extends GridCompoundIdentityFutu
     }
 
     /**
-     * Completeness callback.
-     */
-    private void onComplete() {
-        onDone(tx);
-    }
-
-    /**
      * Initializes future.
      */
     @SuppressWarnings("ForLoopReplaceableByForEach")
@@ -374,26 +367,6 @@ public final class GridNearTxFinishFuture<K, V> extends GridCompoundIdentityFutu
                 }
 
                 markInitialized();
-
-                if (tx.syncMode() != FULL_SYNC && !isDone()) {
-                    boolean complete = true;
-
-                    synchronized (futs) {
-                        // Avoid collection copy and iterator creation.
-                        for (int i = 0; i < futs.size(); i++) {
-                            IgniteInternalFuture<IgniteInternalTx> f = futs.get(i);
-
-                            if (isMini(f) && !f.isDone()) {
-                                complete = false;
-
-                                break;
-                            }
-                        }
-                    }
-
-                    if (complete)
-                        onComplete();
-                }
             }
             else
                 onDone(new IgniteCheckedException("Failed to commit transaction: " + CU.txString(tx)));
