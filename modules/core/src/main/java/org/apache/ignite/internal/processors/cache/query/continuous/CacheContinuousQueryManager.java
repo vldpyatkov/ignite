@@ -117,7 +117,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         // Append cache name to the topic.
         topicPrefix = "CONTINUOUS_QUERY" + (cctx.name() == null ? "" : "_" + cctx.name());
 
-        if (!CU.clientNode(cctx.localNode())) {
+        if (cctx.affinityNode()) {
             cctx.io().addHandler(cctx.cacheId(), CacheContinuousQueryBatchAck.class,
                 new CI2<UUID, CacheContinuousQueryBatchAck>() {
                     @Override public void apply(UUID uuid, CacheContinuousQueryBatchAck msg) {

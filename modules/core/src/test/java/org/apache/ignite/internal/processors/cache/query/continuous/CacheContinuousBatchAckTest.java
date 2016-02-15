@@ -118,7 +118,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testPartition() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -132,7 +132,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -144,8 +144,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -153,7 +153,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testPartitionNoBackups() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -167,7 +167,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 0, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -179,8 +179,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -188,7 +188,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testPartitionTx() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -202,7 +202,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -214,8 +214,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -223,7 +223,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testPartitionTxNoBackup() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -237,7 +237,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 0, TRANSACTIONAL, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -249,8 +249,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -258,7 +258,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testPartitionOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -272,7 +272,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, ATOMIC, OFFHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -285,8 +285,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
         }
         finally {
 
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -294,7 +294,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testPartitionTxOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -308,7 +308,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, OFFHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -320,8 +320,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -329,7 +329,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testReplicated() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -343,7 +343,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -355,8 +355,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -364,7 +364,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testReplicatedTx() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -378,7 +378,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -390,8 +390,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -399,7 +399,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testReplicatedOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -413,7 +413,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, OFFHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -425,8 +425,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -434,7 +434,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @throws Exception If failed.
      */
     public void testReplicatedTxOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -448,7 +448,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -460,8 +460,8 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -505,6 +505,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
             this.check = check;
         }
 
+        /** {@inheritDoc} */
         @Override protected void notifyListener(UUID sndId, Message msg, IgniteRunnable msgC) {
             if (check) {
                 if (msg instanceof GridIoMessage &&

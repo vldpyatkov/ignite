@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.io.Serializable;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.cache.event.CacheEntryListenerException;
@@ -32,6 +31,7 @@ import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.IgniteNodeAttributes;
 import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.util.typedef.P1;
 import org.apache.ignite.internal.util.typedef.PA;
@@ -51,6 +51,7 @@ import static org.apache.ignite.cache.CacheMemoryMode.ONHEAP_TIERED;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
+import static org.apache.ignite.internal.IgniteNodeAttributes.*;
 
 /**
  * Continuous queries tests.
@@ -123,7 +124,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testPartition() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -137,7 +138,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -149,8 +150,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -158,7 +159,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testPartitionNoBackups() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -172,7 +173,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 0, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -184,8 +185,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -193,7 +194,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testPartitionTx() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -207,7 +208,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -219,8 +220,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -228,7 +229,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testPartitionTxNoBackup() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -242,7 +243,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 0, TRANSACTIONAL, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -254,8 +255,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -263,7 +264,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testPartitionOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -277,7 +278,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, ATOMIC, OFFHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -290,8 +291,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
         }
         finally {
 
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -299,7 +300,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testPartitionTxOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -313,7 +314,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, OFFHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -325,8 +326,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -334,7 +335,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testReplicated() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -348,7 +349,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -360,8 +361,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -369,7 +370,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testReplicatedTx() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -383,7 +384,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -395,8 +396,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -404,7 +405,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testReplicatedOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -418,7 +419,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, OFFHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -430,8 +431,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -439,7 +440,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
      * @throws Exception If failed.
      */
     public void testReplicatedTxOffheap() throws Exception {
-        QueryCursor query = null;
+        QueryCursor qry = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -453,7 +454,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             IgniteCache<Object, Object> cache =
                 grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
 
-            query = cache.query(q);
+            qry = cache.query(q);
 
             for (int i = 0; i < 10000; i++)
                 cache.put(i, i);
@@ -465,8 +466,8 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             }, 2000L);
         }
         finally {
-            if (query != null)
-                query.close();
+            if (qry != null)
+                qry.close();
         }
     }
 
@@ -492,7 +493,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
 
         ccfg.setNodeFilter(new P1<ClusterNode>() {
             @Override public boolean apply(ClusterNode node) {
-                return !node.attributes().get("org.apache.ignite.ignite.name").equals(SERVER2);
+                return !node.attributes().get(ATTR_GRID_NAME).equals(SERVER2);
             }
         });
 
@@ -516,6 +517,7 @@ public class CacheContinuousCacheFilterBatchAckTest extends GridCommonAbstractTe
             this.check = check;
         }
 
+        /** {@inheritDoc} */
         @Override protected void notifyListener(UUID sndId, Message msg, IgniteRunnable msgC) {
             if (check) {
                 if (msg instanceof GridIoMessage &&
