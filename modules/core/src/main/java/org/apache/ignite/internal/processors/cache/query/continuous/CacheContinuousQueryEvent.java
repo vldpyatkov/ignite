@@ -18,7 +18,7 @@
 package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import javax.cache.Cache;
-import javax.cache.event.CacheEntryEvent;
+import org.apache.ignite.cache.query.CacheQueryEntryEvent;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -26,7 +26,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 /**
  * Continuous query event.
  */
-class CacheContinuousQueryEvent<K, V> extends CacheEntryEvent<K, V> {
+class CacheContinuousQueryEvent<K, V> extends CacheQueryEntryEvent<K, V> {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -77,11 +77,14 @@ class CacheContinuousQueryEvent<K, V> extends CacheEntryEvent<K, V> {
     }
 
     /** {@inheritDoc} */
+    @Override public long getPartitionUpdateCounter() {
+        return e.updateCounter();
+    }
+
+    /** {@inheritDoc} */
     @Override public <T> T unwrap(Class<T> cls) {
         if (cls.isAssignableFrom(getClass()))
             return cls.cast(this);
-        else if (cls == Long.class)
-            return cls.cast(e.updateCounter());
 
         throw new IllegalArgumentException("Unwrapping to class is not supported: " + cls);
     }
