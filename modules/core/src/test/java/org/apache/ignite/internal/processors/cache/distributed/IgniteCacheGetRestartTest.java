@@ -162,6 +162,8 @@ public class IgniteCacheGetRestartTest extends GridCommonAbstractTest {
                 ignite(SRVS).createNearCache(ccfg.getName(), new NearCacheConfiguration<>());
 
             try (IgniteDataStreamer<Object, Object> streamer = ignite(0).dataStreamer(ccfg.getName())) {
+                streamer.allowOverwrite(true);
+
                 for (int i = 0; i < KEYS; i++)
                     streamer.addData(i, i);
             }
