@@ -28,9 +28,11 @@ import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
+import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.managers.communication.GridIoMessage;
+import org.apache.ignite.internal.util.typedef.P1;
 import org.apache.ignite.internal.util.typedef.PA;
 import org.apache.ignite.lang.IgniteRunnable;
 import org.apache.ignite.plugin.extensions.communication.Message;
@@ -48,6 +50,7 @@ import static org.apache.ignite.cache.CacheMemoryMode.ONHEAP_TIERED;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
+import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_GRID_NAME;
 
 /**
  * Continuous queries tests.
@@ -57,16 +60,19 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 
     /** */
-    private static final String CLIENT = "_client";
+    protected static final String CLIENT = "_client";
 
     /** */
-    private static final String SERVER = "server";
+    protected static final String SERVER = "server";
 
     /** */
-    private static final String SERVER2 = "server2";
+    protected static final String SERVER2 = "server2";
 
     /** */
-    private static final AtomicBoolean fail = new AtomicBoolean(false);
+    protected static final AtomicBoolean fail = new AtomicBoolean(false);
+
+    /** */
+    protected static final AtomicBoolean filterOn = new AtomicBoolean(false);
 
     /** {@inheritDoc} */
     @SuppressWarnings("unchecked")
@@ -76,10 +82,12 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
         if (gridName.endsWith(CLIENT)) {
             cfg.setClientMode(true);
 
-            cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(true));
+            cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(true, false));
         }
+        else if (gridName.endsWith(SERVER2))
+            cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(false, true));
         else
-            cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(false));
+            cfg.setCommunicationSpi(new FailedTcpCommunicationSpi(false, false));
 
         TcpDiscoverySpi disco = new TcpDiscoverySpi();
 
@@ -112,329 +120,142 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
         super.beforeTest();
 
         fail.set(false);
+
+        filterOn.set(false);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testPartition() throws Exception {
-        QueryCursor qry = null;
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 1, ATOMIC, ONHEAP_TIERED, false));
+    }
 
-        try {
-            ContinuousQuery q = new ContinuousQuery();
+    /**
+     * @throws Exception If failed.
+     */
+    public void testPartitionWithFilter() throws Exception {
+        filterOn.set(true);
 
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, ATOMIC, ONHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 1, ATOMIC, ONHEAP_TIERED, true));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testPartitionNoBackups() throws Exception {
-        QueryCursor qry = null;
-
-        try {
-            ContinuousQuery q = new ContinuousQuery();
-
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 0, ATOMIC, ONHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 0, ATOMIC, ONHEAP_TIERED, false));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testPartitionTx() throws Exception {
-        QueryCursor qry = null;
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, ONHEAP_TIERED, false));
+    }
 
-        try {
-            ContinuousQuery q = new ContinuousQuery();
+    /**
+     * @throws Exception If failed.
+     */
+    public void testPartitionTxWithFilter() throws Exception {
+        filterOn.set(true);
 
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, ONHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, ONHEAP_TIERED, true));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testPartitionTxNoBackup() throws Exception {
-        QueryCursor qry = null;
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 0, TRANSACTIONAL, ONHEAP_TIERED, false));
+    }
 
-        try {
-            ContinuousQuery q = new ContinuousQuery();
+    /**
+     * @throws Exception If failed.
+     */
+    public void testPartitionTxNoBackupWithFilter() throws Exception {
+        filterOn.set(true);
 
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 0, TRANSACTIONAL, ONHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 0, TRANSACTIONAL, ONHEAP_TIERED, true));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testPartitionOffheap() throws Exception {
-        QueryCursor qry = null;
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 1, ATOMIC, OFFHEAP_TIERED, false));
+    }
 
-        try {
-            ContinuousQuery q = new ContinuousQuery();
+    /**
+     * @throws Exception If failed.
+     */
+    public void testPartitionOffheapWithFilter() throws Exception {
+        filterOn.set(true);
 
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, ATOMIC, OFFHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 1, ATOMIC, OFFHEAP_TIERED, true));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testPartitionTxOffheap() throws Exception {
-        QueryCursor qry = null;
-
-        try {
-            ContinuousQuery q = new ContinuousQuery();
-
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, OFFHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(PARTITIONED, 1, TRANSACTIONAL, OFFHEAP_TIERED, false));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testReplicated() throws Exception {
-        QueryCursor qry = null;
-
-        try {
-            ContinuousQuery q = new ContinuousQuery();
-
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED, false));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testReplicatedTx() throws Exception {
-        QueryCursor qry = null;
+        checkBackupAcknowledgeMessage(cacheConfiguration(REPLICATED, 1, TRANSACTIONAL, ONHEAP_TIERED, false));
+    }
 
-        try {
-            ContinuousQuery q = new ContinuousQuery();
+    /**
+     * @throws Exception If failed.
+     */
+    public void testReplicatedTxWithFilter() throws Exception {
+        filterOn.set(true);
 
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(REPLICATED, 1, TRANSACTIONAL, ONHEAP_TIERED, true));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testReplicatedOffheap() throws Exception {
-        QueryCursor qry = null;
-
-        try {
-            ContinuousQuery q = new ContinuousQuery();
-
-            q.setLocalListener(new CacheEntryUpdatedListener() {
-                @Override public void onUpdated(Iterable iterable) throws CacheEntryListenerException {
-                    // No-op.
-                }
-            });
-
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, OFFHEAP_TIERED));
-
-            qry = cache.query(q);
-
-            for (int i = 0; i < 10000; i++)
-                cache.put(i, i);
-
-            assert !GridTestUtils.waitForCondition(new PA() {
-                @Override public boolean apply() {
-                    return fail.get();
-                }
-            }, 2000L);
-        }
-        finally {
-            if (qry != null)
-                qry.close();
-        }
+        checkBackupAcknowledgeMessage(cacheConfiguration(REPLICATED, 1, ATOMIC, OFFHEAP_TIERED, false));
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testReplicatedTxOffheap() throws Exception {
+        checkBackupAcknowledgeMessage(cacheConfiguration(REPLICATED, 1, TRANSACTIONAL, OFFHEAP_TIERED, false));
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testReplicatedTxOffheapWithFilter() throws Exception {
+        filterOn.set(true);
+
+        checkBackupAcknowledgeMessage(cacheConfiguration(REPLICATED, 1, TRANSACTIONAL, OFFHEAP_TIERED, true));
+    }
+
+    /**
+     * @param ccfg Cache configuration.
+     * @throws Exception If failed.
+     */
+    private void checkBackupAcknowledgeMessage(CacheConfiguration<Object, Object> ccfg) throws Exception {
         QueryCursor qry = null;
+
+        IgniteCache<Object, Object> cache = null;
 
         try {
             ContinuousQuery q = new ContinuousQuery();
@@ -445,8 +266,7 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
                 }
             });
 
-            IgniteCache<Object, Object> cache =
-                grid(SERVER).getOrCreateCache(cacheConfiguration(REPLICATED, 1, ATOMIC, ONHEAP_TIERED));
+            cache = grid(SERVER).getOrCreateCache(ccfg);
 
             qry = cache.query(q);
 
@@ -457,11 +277,14 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
                 @Override public boolean apply() {
                     return fail.get();
                 }
-            }, 2000L);
+            }, 1300L);
         }
         finally {
             if (qry != null)
                 qry.close();
+
+            if (cache != null)
+                grid(SERVER).destroyCache(cache.getName());
         }
     }
 
@@ -471,13 +294,14 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
      * @param backups Number of backups.
      * @param atomicityMode Cache atomicity mode.
      * @param memoryMode Cache memory mode.
+     * @param filter Filter enabled.
      * @return Cache configuration.
      */
     private CacheConfiguration<Object, Object> cacheConfiguration(
         CacheMode cacheMode,
         int backups,
         CacheAtomicityMode atomicityMode,
-        CacheMemoryMode memoryMode) {
+        CacheMemoryMode memoryMode, boolean filter) {
         CacheConfiguration<Object, Object> ccfg = new CacheConfiguration<>();
 
         ccfg.setAtomicityMode(atomicityMode);
@@ -487,6 +311,13 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
 
         if (cacheMode == PARTITIONED)
             ccfg.setBackups(backups);
+
+        if (filter)
+            ccfg.setNodeFilter(new P1<ClusterNode>() {
+                @Override public boolean apply(ClusterNode node) {
+                    return !node.attributes().get(ATTR_GRID_NAME).equals(SERVER2);
+                }
+            });
 
         return ccfg;
     }
@@ -498,16 +329,21 @@ public class CacheContinuousBatchAckTest extends GridCommonAbstractTest implemen
         /** */
         private boolean check;
 
+        /** */
+        private boolean periodicCheck;
+
         /**
-         * @param check Check inbound message.
+         * @param alwaysCheck Always check inbound message.
+         * @param periodicCheck Check when {@code filterOn} enabled.
          */
-        public FailedTcpCommunicationSpi(boolean check) {
-            this.check = check;
+        public FailedTcpCommunicationSpi(boolean alwaysCheck, boolean periodicCheck) {
+            this.check = alwaysCheck;
+            this.periodicCheck = periodicCheck;
         }
 
         /** {@inheritDoc} */
         @Override protected void notifyListener(UUID sndId, Message msg, IgniteRunnable msgC) {
-            if (check) {
+            if (check || (periodicCheck && filterOn.get())) {
                 if (msg instanceof GridIoMessage &&
                     ((GridIoMessage)msg).message() instanceof CacheContinuousQueryBatchAck)
                     fail.set(true);
