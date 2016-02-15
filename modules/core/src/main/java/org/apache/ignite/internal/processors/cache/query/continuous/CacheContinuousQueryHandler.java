@@ -325,9 +325,9 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 // skipPrimaryCheck is set only when listen locally for replicated cache events.
                 assert !skipPrimaryCheck || (cctx.isReplicated() && ctx.localNodeId().equals(nodeId));
 
-                boolean notify = true;
+                boolean notify = !evt.entry().isFiltered();
 
-                if (!evt.entry().isFiltered() && rmtFilter != null) {
+                if (notify && rmtFilter != null) {
                     try {
                         notify = rmtFilter.evaluate(evt);
                     }
