@@ -710,11 +710,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
          * @param initCntr Update counters.
          */
         public PartitionRecovery(IgniteLogger log, AffinityTopologyVersion topVer, @Nullable Long initCntr) {
-            assert topVer.topologyVersion() > 0 : topVer;
-
             this.log = log;
 
             if (initCntr != null) {
+                assert topVer.topologyVersion() > 0 : topVer;
+
                 this.lastFiredEvt = initCntr;
 
                 curTop = topVer;
