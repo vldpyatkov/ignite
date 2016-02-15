@@ -32,6 +32,8 @@ import javax.cache.CacheException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Cursor;
+import org.apache.ignite.internal.GridKernalContext;
+import org.h2.engine.Constants;
 import org.h2.engine.Session;
 import org.h2.index.BaseIndex;
 import org.h2.index.Cursor;
@@ -71,21 +73,31 @@ public abstract class GridMergeIndex extends BaseIndex {
     /** */
     private int fetchedCnt;
 
+    /** */
+    private final GridKernalContext ctx;
+
     /**
+     * @param ctx Context.
      * @param tbl Table.
      * @param name Index name.
      * @param type Type.
      * @param cols Columns.
      */
-    public GridMergeIndex(GridMergeTable tbl, String name, IndexType type, IndexColumn[] cols) {
+    public GridMergeIndex(GridKernalContext ctx,
+        GridMergeTable tbl,
+        String name,
+        IndexType type,
+        IndexColumn[] cols) {
+        this.ctx = ctx;
+
         initBaseIndex(tbl, 0, name, cols, type);
     }
 
     /**
-     *
+     * @param ctx Context.
      */
-    protected GridMergeIndex() {
-        // No-op.
+    protected GridMergeIndex(GridKernalContext ctx) {
+        this.ctx = ctx;
     }
 
     /**
@@ -93,6 +105,19 @@ public abstract class GridMergeIndex extends BaseIndex {
      */
     public Set<UUID> sources() {
         return remainingRows.keySet();
+    }
+
+    /**
+     * Fails index if any source node is left.
+     */
+    protected final void checkSourceNodesAlive() {
+        for (UUID nodeId : sources()) {
+            if (!ctx.discovery().alive(nodeId)) {
+                fail(nodeId);
+
+                return;
+            }
+        }
     }
 
     /**
