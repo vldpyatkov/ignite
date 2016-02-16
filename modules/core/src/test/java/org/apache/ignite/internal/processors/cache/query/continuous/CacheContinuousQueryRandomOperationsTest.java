@@ -74,6 +74,9 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 import static org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryRandomOperationsTest.ContinuousDeploy.ALL;
 import static org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryRandomOperationsTest.ContinuousDeploy.CLIENT;
 import static org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryRandomOperationsTest.ContinuousDeploy.SERVER;
+import static org.apache.ignite.transactions.TransactionIsolation.READ_COMMITTED;
+import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_READ;
+import static org.apache.ignite.transactions.TransactionIsolation.SERIALIZABLE;
 
 /**
  *
@@ -989,7 +992,7 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
                 if (val == null && oldVal == null) {
                     checkNoEvent(evtsQueues);
 
-                    return;
+                    continue;
                 }
 
                 CacheEntryEvent evt = rcvEvts.get(key);
@@ -1016,14 +1019,14 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
      * @return {@link TransactionIsolation}.
      */
     private TransactionIsolation txRandomIsolation(Random rnd) {
-        double val = rnd.nextDouble();
+        int val = rnd.nextInt(3);
 
-        if (val < 1/3)
-            return TransactionIsolation.READ_COMMITTED;
-        else if (val < 2/3)
-            return TransactionIsolation.REPEATABLE_READ;
+        if (val == 0)
+            return READ_COMMITTED;
+        else if (val == 1)
+            return REPEATABLE_READ;
         else
-            return TransactionIsolation.SERIALIZABLE;
+            return SERIALIZABLE;
     }
 
     /**
