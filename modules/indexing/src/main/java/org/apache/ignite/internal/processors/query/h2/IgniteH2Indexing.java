@@ -1772,14 +1772,14 @@ public class IgniteH2Indexing implements GridQueryIndexing {
             space2schema.remove(emptyIfNull(rmv.spaceName));
             mapQryExec.onCacheStop(ccfg.getName());
 
+            rmv.onDrop();
+
             try {
                 dropSchema(schema);
             }
             catch (IgniteCheckedException e) {
                 U.error(log, "Failed to drop schema on cache stop (will ignore): " + U.maskName(ccfg.getName()), e);
             }
-
-            rmv.onDrop();
         }
     }
 
