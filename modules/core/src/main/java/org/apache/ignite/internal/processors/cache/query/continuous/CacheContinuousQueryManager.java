@@ -167,10 +167,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         int partId,
         long updCntr,
         AffinityTopologyVersion topVer) {
-        boolean recordIgniteEvt = !(key.internal() || !cctx.userCache())
-            && cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
-
-        skipUpdateEvent(lsnrs, key, partId, updCntr, true, recordIgniteEvt, topVer);
+        skipUpdateEvent(lsnrs, key, partId, updCntr, true, topVer);
     }
 
     /**
@@ -180,14 +177,12 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
      * @param updCntr Updated counter.
      * @param topVer Topology version.
      * @param primary Primary.
-     * @param recordIgniteEvt Whether to record event.
      */
     public void skipUpdateEvent(Map<UUID, CacheContinuousQueryListener> lsnrs,
         KeyCacheObject key,
         int partId,
         long updCntr,
         boolean primary,
-        boolean recordIgniteEvt,
         AffinityTopologyVersion topVer) {
         assert lsnrs != null;
 
@@ -206,7 +201,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
             CacheContinuousQueryEvent evt = new CacheContinuousQueryEvent<>(
                 cctx.kernalContext().cache().jcache(cctx.name()), cctx, e0);
 
-            lsnr.skipUpdateEvent(evt, topVer, primary, recordIgniteEvt);
+            lsnr.skipUpdateEvent(evt, topVer, primary);
         }
     }
 
@@ -302,13 +297,13 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean hasNewVal = newVal != null;
         boolean hasOldVal = oldVal != null;
 
-        boolean recordIgniteEvt = primary && !internal && cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
-
         if (!hasNewVal && !hasOldVal) {
-            skipUpdateEvent(lsnrCol, key, partId, updateCntr, primary, recordIgniteEvt, topVer);
+            skipUpdateEvent(lsnrCol, key, partId, updateCntr, primary, topVer);
 
             return;
         }
+
+        boolean recordIgniteEvt = primary && !internal && cctx.gridEvents().isRecordable(EVT_CACHE_QUERY_OBJECT_READ);
 
         EventType evtType = !hasNewVal ? REMOVED : !hasOldVal ? CREATED : UPDATED;
 

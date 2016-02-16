@@ -368,55 +368,11 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
                                     if (!internal && !skipPrimaryCheck)
                                         sendBackupAcknowledge(ackBuf.onAcknowledged(entry), routineId, ctx);
-
-                                    if (recordIgniteEvt) {
-                                        for (CacheEntryEvent<? extends K, ? extends V> e : evts) {
-                                            ctx.event().record(new CacheQueryReadEvent<>(
-                                                ctx.discovery().localNode(),
-                                                "Continuous query executed.",
-                                                EVT_CACHE_QUERY_OBJECT_READ,
-                                                CacheQueryType.CONTINUOUS.name(),
-                                                cacheName,
-                                                null,
-                                                null,
-                                                null,
-                                                rmtFilter,
-                                                null,
-                                                nodeId,
-                                                taskName(),
-                                                e.getKey(),
-                                                e.getValue(),
-                                                e.getOldValue(),
-                                                null
-                                            ));
-                                        }
-                                    }
                                 }
                             }
                             else {
-                                if (!entry.isFiltered()) {
+                                if (!entry.isFiltered())
                                     locLsnr.onUpdated(F.<CacheEntryEvent<? extends K, ? extends V>>asList(evt));
-
-                                    if (recordIgniteEvt)
-                                        ctx.event().record(new CacheQueryReadEvent<>(
-                                            ctx.discovery().localNode(),
-                                            "Continuous query executed.",
-                                            EVT_CACHE_QUERY_OBJECT_READ,
-                                            CacheQueryType.CONTINUOUS.name(),
-                                            cacheName,
-                                            null,
-                                            null,
-                                            null,
-                                            rmtFilter,
-                                            null,
-                                            nodeId,
-                                            taskName(),
-                                            evt.getKey(),
-                                            evt.getValue(),
-                                            evt.getOldValue(),
-                                            null
-                                        ));
-                                }
                             }
                         }
                         else {
@@ -449,6 +405,27 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                 }
                 catch (IgniteCheckedException ex) {
                     U.error(ctx.log(getClass()), "Failed to send event notification to node: " + nodeId, ex);
+                }
+
+                if (recordIgniteEvt && notify) {
+                    ctx.event().record(new CacheQueryReadEvent<>(
+                        ctx.discovery().localNode(),
+                        "Continuous query executed.",
+                        EVT_CACHE_QUERY_OBJECT_READ,
+                        CacheQueryType.CONTINUOUS.name(),
+                        cacheName,
+                        null,
+                        null,
+                        null,
+                        rmtFilter,
+                        null,
+                        nodeId,
+                        taskName(),
+                        evt.getKey(),
+                        evt.getValue(),
+                        evt.getOldValue(),
+                        null
+                    ));
                 }
             }
 
@@ -496,14 +473,14 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
 
             @Override public void skipUpdateEvent(CacheContinuousQueryEvent<K, V> evt, AffinityTopologyVersion topVer,
-                boolean primary, boolean recordIgniteEvt) {
+                boolean primary) {
                 assert evt != null;
 
                 CacheContinuousQueryEntry e = evt.entry();
 
                 e.markFiltered();
 
-                onEntryUpdated(evt, primary, recordIgniteEvt);
+                onEntryUpdated(evt, primary, false);
             }
 
             @Override public void onPartitionEvicted(int part) {
