@@ -990,7 +990,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
                         nodes.addAll(ctx.discovery().cacheNodes(topVer));
 
                     for (ClusterNode node : nodes) {
-                        if (!node.id().equals(ctx.localNodeId()) && !node.isClient()) {
+                        if (!node.id().equals(ctx.localNodeId())) {
                             try {
                                 cctx.io().send(node, msg, GridIoPolicy.SYSTEM_POOL);
                             }

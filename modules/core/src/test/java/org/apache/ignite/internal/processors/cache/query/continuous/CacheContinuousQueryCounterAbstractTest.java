@@ -19,8 +19,6 @@ package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,17 +33,14 @@ import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.cache.query.CacheQueryEntryEvent;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
-import org.apache.ignite.cache.query.ScanQuery;
 import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.cache.store.CacheStoreAdapter;
-import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.NearCacheConfiguration;
-import org.apache.ignite.internal.processors.datastructures.GridCacheInternalKeyImpl;
-import org.apache.ignite.internal.util.typedef.P2;
 import org.apache.ignite.internal.util.typedef.PA;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.lang.IgniteBiInClosure;
@@ -60,10 +55,8 @@ import org.jetbrains.annotations.Nullable;
 import org.jsr166.ConcurrentHashMap8;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.LOCAL;
-import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheRebalanceMode.ASYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 
@@ -209,7 +202,8 @@ public abstract class CacheContinuousQueryCounterAbstractTest extends GridCommon
                             map.put(e.getKey(), vals);
                         }
 
-                        vals.add(new T2<>(e.getValue(), e.unwrap(Long.class)));
+                        vals.add(new T2<>(e.getValue(), e
+                            .unwrap(CacheQueryEntryEvent.class).getPartitionUpdateCounter()));
                     }
 
                     latch.countDown();
@@ -289,7 +283,8 @@ public abstract class CacheContinuousQueryCounterAbstractTest extends GridCommon
                             map1.put(e.getKey(), vals);
                         }
 
-                        vals.add(new T2<>(e.getValue(), e.unwrap(Long.class)));
+                        vals.add(new T2<>(e.getValue(),
+                            e.unwrap(CacheQueryEntryEvent.class).getPartitionUpdateCounter()));
                     }
                 }
             }
@@ -309,7 +304,8 @@ public abstract class CacheContinuousQueryCounterAbstractTest extends GridCommon
                             map2.put(e.getKey(), vals);
                         }
 
-                        vals.add(new T2<>(e.getValue(), e.unwrap(Long.class)));
+                        vals.add(new T2<>(e.getValue(),
+                            e.unwrap(CacheQueryEntryEvent.class).getPartitionUpdateCounter()));
                     }
                 }
             }
@@ -418,7 +414,8 @@ public abstract class CacheContinuousQueryCounterAbstractTest extends GridCommon
                             cntr.incrementAndGet();
 
                             synchronized (vals) {
-                                vals.add(new T2<>(e.getValue(), e.unwrap(Long.class)));
+                                vals.add(new T2<>(e.getValue(),
+                                    e.unwrap(CacheQueryEntryEvent.class).getPartitionUpdateCounter()));
                             }
                         }
                     }
@@ -471,7 +468,8 @@ public abstract class CacheContinuousQueryCounterAbstractTest extends GridCommon
                             map.put(e.getKey(), vals);
                         }
 
-                        vals.add(new T2<>(e.getValue(), e.unwrap(Long.class)));
+                        vals.add(new T2<>(e.getValue(),
+                            e.unwrap(CacheQueryEntryEvent.class).getPartitionUpdateCounter()));
                     }
 
                     latch.countDown();
@@ -556,7 +554,8 @@ public abstract class CacheContinuousQueryCounterAbstractTest extends GridCommon
         qry.setLocalListener(new CacheEntryUpdatedListener<Integer, Integer>() {
             @Override public void onUpdated(Iterable<CacheEntryEvent<? extends Integer, ? extends Integer>> evts) {
                 for (CacheEntryEvent<? extends Integer, ? extends Integer> e : evts) {
-                    map.put(e.getKey(), new T2<>(e.getValue(), e.unwrap(Long.class)));
+                    map.put(e.getKey(), new T2<>(e.getValue(),
+                        e.unwrap(CacheQueryEntryEvent.class).getPartitionUpdateCounter()));
 
                     latch.countDown();
                 }

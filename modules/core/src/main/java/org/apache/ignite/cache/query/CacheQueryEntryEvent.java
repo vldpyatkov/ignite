@@ -39,7 +39,8 @@ public abstract class CacheQueryEntryEvent<K, V> extends CacheEntryEvent<K, V> {
     }
 
     /**
-     * On each update occurred to increment counter. For
+     * Each cache update increases partition counter. The same cache updates have on the same value of counter
+     * on primary and backup nodes. This value can be useful to communicate with external applications.
      *
      * @return Value of counter for this event.
      */
