@@ -64,11 +64,13 @@ import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQuery
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryNextPageResponse;
 import org.apache.ignite.internal.processors.query.h2.twostep.messages.GridQueryRequest;
 import org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2QueryRequest;
+import org.apache.ignite.internal.util.GridBoundedConcurrentLinkedHashMap;
 import org.apache.ignite.internal.util.GridSpinBusyLock;
 import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.X;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.h2.jdbc.JdbcResultSet;
@@ -85,6 +87,7 @@ import static org.apache.ignite.internal.processors.query.h2.opt.GridH2QueryType
 import static org.apache.ignite.internal.processors.query.h2.opt.GridH2QueryType.REPLICATED;
 import static org.apache.ignite.internal.processors.query.h2.twostep.GridReduceQueryExecutor.QUERY_POOL;
 import static org.apache.ignite.internal.processors.query.h2.twostep.msg.GridH2ValueMessageFactory.toMessages;
+import static org.jsr166.ConcurrentLinkedHashMap.QueuePolicy.PER_SEGMENT_Q;
 
 /**
  * Map query executor.
@@ -125,6 +128,10 @@ public class GridMapQueryExecutor {
     /** */
     private final ConcurrentMap<T2<String, AffinityTopologyVersion>, GridReservable> reservations =
         new ConcurrentHashMap8<>();
+
+    /** */
+    private final GridBoundedConcurrentLinkedHashMap<QueryKey, Boolean> qryHist =
+        new GridBoundedConcurrentLinkedHashMap<>(1024, 1024, 0.75f, 64, PER_SEGMENT_Q);
 
     /**
      * @param busyLock Busy lock.
@@ -219,9 +226,14 @@ public class GridMapQueryExecutor {
      * @param msg Message.
      */
     private void onCancel(ClusterNode node, GridQueryCancelRequest msg) {
-        ConcurrentMap<Long,QueryResults> nodeRess = resultsForNode(node.id());
-
         long qryReqId = msg.queryRequestId();
+
+        Boolean old = qryHist.putIfAbsent(new QueryKey(node.id(), qryReqId), Boolean.FALSE);
+
+        if (old == null || !old)
+            return;
+
+        ConcurrentMap<Long, QueryResults> nodeRess = resultsForNode(node.id());
 
         GridH2QueryContext.clear(ctx.localNodeId(), node.id(), qryReqId, MAP);
 
@@ -457,7 +469,7 @@ public class GridMapQueryExecutor {
         int pageSize,
         boolean distributedJoins
     ) {
-        ConcurrentMap<Long,QueryResults> nodeRess = resultsForNode(node.id());
+        ConcurrentMap<Long, QueryResults> nodeRess = resultsForNode(node.id());
 
         QueryResults qr = null;
 
@@ -523,6 +535,18 @@ public class GridMapQueryExecutor {
             reserved = null;
 
             try {
+                Boolean old = qryHist.putIfAbsent(new QueryKey(node.id(), reqId), Boolean.TRUE);
+
+                if (old != null) {
+                    assert !old;
+
+                    GridH2QueryContext.clear(ctx.localNodeId(), node.id(), reqId, MAP);
+
+                    nodeRess.remove(reqId);
+
+                    return;
+                }
+
                 // Run queries.
                 int i = 0;
 
@@ -780,6 +804,9 @@ public class GridMapQueryExecutor {
             return true;
         }
 
+        /**
+         *
+         */
         void cancel() {
             if (canceled)
                 return;
@@ -935,6 +962,53 @@ public class GridMapQueryExecutor {
         /** {@inheritDoc} */
         @Override public void release() {
             throw new IllegalStateException();
+        }
+    }
+
+    /**
+     *
+     */
+    private static class QueryKey {
+        /** */
+        private final UUID nodeId;
+
+        /** */
+        private final long qryId;
+
+        /**
+         * @param nodeId Node ID.
+         * @param qryId Query ID.
+         */
+        public QueryKey(UUID nodeId, long qryId) {
+            this.nodeId = nodeId;
+            this.qryId = qryId;
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean equals(Object o) {
+            if (this == o)
+                return true;
+
+            if (o == null || getClass() != o.getClass())
+                return false;
+
+            QueryKey key = (QueryKey)o;
+
+            return qryId == key.qryId && nodeId.equals(key.nodeId);
+        }
+
+        /** {@inheritDoc} */
+        @Override public int hashCode() {
+            int res = nodeId.hashCode();
+
+            res = 31 * res + (int) (qryId ^ (qryId >>> 32));
+
+            return res;
+        }
+
+        /** {@inheritDoc} */
+        public String toString() {
+            return S.toString(QueryKey.class, this);
         }
     }
 }
