@@ -289,6 +289,12 @@ public class GridQueryProcessor extends GridProcessorAdapter {
                         altTypeId = new TypeId(ccfg.getName(), ctx.cacheObjects().typeId(qryEntity.getValueType()));
                     }
 
+                    if (desc.affinityKey() != null) {
+                        // TODO: IGNITE-1232
+                        if (!desc.fields().containsKey(desc.affinityKey()))
+                            desc.affinityKey(null);
+                    }
+
                     addTypeByName(ccfg, desc);
                     types.put(typeId, desc);
 
