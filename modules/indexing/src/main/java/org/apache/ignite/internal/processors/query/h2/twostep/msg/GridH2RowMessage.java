@@ -105,6 +105,11 @@ public class GridH2RowMessage implements Message {
     }
 
     /** {@inheritDoc} */
+    @Override public void onAckReceived() {
+        // No-op.
+    }
+
+    /** {@inheritDoc} */
     @Override public String toString() {
         return S.toString(GridH2RowMessage.class, this);
     }

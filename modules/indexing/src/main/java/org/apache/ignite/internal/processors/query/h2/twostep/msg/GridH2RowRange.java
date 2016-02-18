@@ -165,4 +165,9 @@ public class GridH2RowRange implements Message {
     @Override public byte fieldsCount() {
         return 3;
     }
+
+    /** {@inheritDoc} */
+    @Override public void onAckReceived() {
+        // No-op.
+    }
 }

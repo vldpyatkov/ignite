@@ -226,11 +226,11 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         assertFalse(spi.queryLocalSql(typeAB.space(), "select * from A.B", Collections.emptySet(), typeAB, null).hasNext());
         assertFalse(spi.queryLocalSql(typeBA.space(), "select * from B.A", Collections.emptySet(), typeBA, null).hasNext());
 
-        assertFalse(spi.query(typeBA.space(), "select * from B.A, A.B, A.A",
+        assertFalse(spi.queryLocalSql(typeBA.space(), "select * from B.A, A.B, A.A",
             Collections.emptySet(), typeBA, null).hasNext());
 
         try {
-            spi.query(typeBA.space(), "select aa.*, ab.*, ba.* from A.A aa, A.B ab, B.A ba",
+            spi.queryLocalSql(typeBA.space(), "select aa.*, ab.*, ba.* from A.A aa, A.B ab, B.A ba",
                 Collections.emptySet(), typeBA, null).hasNext();
 
             fail("Enumerations of aliases in select block must be prohibited");
@@ -239,10 +239,10 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
             // all fine
         }
 
-        assertFalse(spi.query(typeAB.space(), "select ab.* from A.B ab",
+        assertFalse(spi.queryLocalSql(typeAB.space(), "select ab.* from A.B ab",
             Collections.emptySet(), typeAB, null).hasNext());
 
-        assertFalse(spi.query(typeBA.space(), "select   ba.*   from B.A  as ba",
+        assertFalse(spi.queryLocalSql(typeBA.space(), "select   ba.*   from B.A  as ba",
             Collections.emptySet(), typeBA, null).hasNext());
 
         // Nothing to remove.
