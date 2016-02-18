@@ -226,6 +226,25 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         assertFalse(spi.queryLocalSql(typeAB.space(), "select * from A.B", Collections.emptySet(), typeAB, null).hasNext());
         assertFalse(spi.queryLocalSql(typeBA.space(), "select * from B.A", Collections.emptySet(), typeBA, null).hasNext());
 
+        assertFalse(spi.query(typeBA.space(), "select * from B.A, A.B, A.A",
+            Collections.emptySet(), typeBA, null).hasNext());
+
+        try {
+            spi.query(typeBA.space(), "select aa.*, ab.*, ba.* from A.A aa, A.B ab, B.A ba",
+                Collections.emptySet(), typeBA, null).hasNext();
+
+            fail("Enumerations of aliases in select block must be prohibited");
+        }
+        catch (IgniteCheckedException e) {
+            // all fine
+        }
+
+        assertFalse(spi.query(typeAB.space(), "select ab.* from A.B ab",
+            Collections.emptySet(), typeAB, null).hasNext());
+
+        assertFalse(spi.query(typeBA.space(), "select   ba.*   from B.A  as ba",
+            Collections.emptySet(), typeBA, null).hasNext());
+
         // Nothing to remove.
         spi.remove("A", key(1), aa(1, "", 10));
         spi.remove("B", key(1), ba(1, "", 10, true));
@@ -286,6 +305,15 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         assertEquals(aa(2, "Valera", 19).value(null, false), value(res.next()));
         assertFalse(res.hasNext());
 
+        res = spi.queryLocalSql(typeAA.space(), "select aa.* from a aa order by aa.age",
+            Collections.emptySet(), typeAA, null);
+
+        assertTrue(res.hasNext());
+        assertEquals(aa(3, "Borya", 18).value(null, false), value(res.next()));
+        assertTrue(res.hasNext());
+        assertEquals(aa(2, "Valera", 19).value(null, false), value(res.next()));
+        assertFalse(res.hasNext());
+
         res = spi.queryLocalSql(typeAB.space(), "from b order by name", Collections.emptySet(), typeAB, null);
 
         assertTrue(res.hasNext());
@@ -293,6 +321,16 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
         assertTrue(res.hasNext());
         assertEquals(ab(4, "Vitalya", 20, "Very Good guy").value(null, false), value(res.next()));
         assertFalse(res.hasNext());
+
+        res = spi.queryLocalSql(typeAB.space(), "select bb.* from b as bb order by bb.name",
+            Collections.emptySet(), typeAB, null);
+
+        assertTrue(res.hasNext());
+        assertEquals(ab(1, "Vasya", 20, "Some text about Vasya goes here.").value(null, false), value(res.next()));
+        assertTrue(res.hasNext());
+        assertEquals(ab(4, "Vitalya", 20, "Very Good guy").value(null, false), value(res.next()));
+        assertFalse(res.hasNext());
+
 
         res = spi.queryLocalSql(typeBA.space(), "from a", Collections.emptySet(), typeBA, null);
 
@@ -576,6 +614,11 @@ public abstract class GridIndexingSpiAbstractSelfTest extends GridCommonAbstract
          */
         private TestCacheObject(Object val) {
             this.val = val;
+        }
+
+        /** {@inheritDoc} */
+        @Override public void onAckReceived() {
+            // No-op.
         }
 
         /** {@inheritDoc} */
