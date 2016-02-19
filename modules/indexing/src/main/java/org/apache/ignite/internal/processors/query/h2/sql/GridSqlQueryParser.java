@@ -93,11 +93,12 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlType.fro
 @SuppressWarnings("TypeMayBeWeakened")
 public class GridSqlQueryParser {
     /** */
-    private static final GridSqlOperationType[] OPERATION_OP_TYPES = new GridSqlOperationType[] {CONCAT, PLUS, MINUS, MULTIPLY, DIVIDE, null, MODULUS};
+    private static final GridSqlOperationType[] OPERATION_OP_TYPES =
+        {CONCAT, PLUS, MINUS, MULTIPLY, DIVIDE, null, MODULUS};
 
     /** */
-    private static final GridSqlOperationType[] COMPARISON_TYPES = new GridSqlOperationType[] {
-        EQUAL, BIGGER_EQUAL, BIGGER, SMALLER_EQUAL,
+    private static final GridSqlOperationType[] COMPARISON_TYPES =
+        {EQUAL, BIGGER_EQUAL, BIGGER, SMALLER_EQUAL,
         SMALLER, NOT_EQUAL, IS_NULL, IS_NOT_NULL,
         null, null, null, SPATIAL_INTERSECTS /* 11 */,
         null, null, null, null, EQUAL_NULL_SAFE /* 16 */,
