@@ -573,7 +573,7 @@ public class GridH2Table extends TableBase {
                 while (++i < len) {
                     GridH2IndexBase idx = index(i);
 
-                    assert !idx.getIndexType().isUnique() : "Unique indexes are not supported.";
+                    assert !idx.getIndexType().isUnique() : "Unique indexes are not supported: " + idx;
 
                     GridH2Row old2 = idx.put(row);
 
