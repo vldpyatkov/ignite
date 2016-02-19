@@ -93,12 +93,11 @@ import static org.apache.ignite.internal.processors.query.h2.sql.GridSqlType.fro
 @SuppressWarnings("TypeMayBeWeakened")
 public class GridSqlQueryParser {
     /** */
-    private static final GridSqlOperationType[] OPERATION_OP_TYPES =
-        {CONCAT, PLUS, MINUS, MULTIPLY, DIVIDE, null, MODULUS};
+    private static final GridSqlOperationType[] OPERATION_OP_TYPES = new GridSqlOperationType[] {CONCAT, PLUS, MINUS, MULTIPLY, DIVIDE, null, MODULUS};
 
     /** */
-    private static final GridSqlOperationType[] COMPARISON_TYPES =
-        {EQUAL, BIGGER_EQUAL, BIGGER, SMALLER_EQUAL,
+    private static final GridSqlOperationType[] COMPARISON_TYPES = new GridSqlOperationType[] {
+        EQUAL, BIGGER_EQUAL, BIGGER, SMALLER_EQUAL,
         SMALLER, NOT_EQUAL, IS_NULL, IS_NOT_NULL,
         null, null, null, SPATIAL_INTERSECTS /* 11 */,
         null, null, null, null, EQUAL_NULL_SAFE /* 16 */,
@@ -213,7 +212,7 @@ public class GridSqlQueryParser {
     private static final Getter<JavaFunction, FunctionAlias> FUNC_ALIAS = getter(JavaFunction.class, "functionAlias");
 
     /** */
-    private static final Getter<JdbcPreparedStatement,Command> COMMAND = getter(JdbcPreparedStatement.class, "command");
+    private static final Getter<JdbcPreparedStatement, Command> COMMAND = getter(JdbcPreparedStatement.class, "command");
 
     /** */
     private static final Getter<SelectUnion, SortOrder> UNION_SORT = getter(SelectUnion.class, "sort");
@@ -222,8 +221,8 @@ public class GridSqlQueryParser {
     private static final Getter<Explain, Prepared> EXPLAIN_COMMAND = getter(Explain.class, "command");
 
     /** */
-    private static final Getter<Command,Prepared> PREPARED =
-        GridSqlQueryParser.<Command,Prepared>getter(CommandContainer.class, "prepared");
+    private static final Getter<Command, Prepared> PREPARED =
+        GridSqlQueryParser.<Command, Prepared>getter(CommandContainer.class, "prepared");
 
     /** */
     private final IdentityHashMap<Object, Object> h2ObjToGridObj = new IdentityHashMap<>();
@@ -554,13 +553,13 @@ public class GridSqlQueryParser {
             assert0(!all, expression);
             assert0(compareType == Comparison.EQUAL, expression);
 
-            res.addChild(parseExpression(LEFT_CIS.get((ConditionInSelect) expression), calcTypes));
+            res.addChild(parseExpression(LEFT_CIS.get((ConditionInSelect)expression), calcTypes));
 
             Query qry = QUERY.get((ConditionInSelect)expression);
 
             assert0(qry instanceof Select, qry);
 
-            res.addChild(new GridSqlSubquery(parse((Select) qry)));
+            res.addChild(new GridSqlSubquery(parse((Select)qry)));
 
             return res;
         }
@@ -636,15 +635,18 @@ public class GridSqlQueryParser {
             return new GridSqlParameter(((Parameter)expression).getIndex());
 
         if (expression instanceof Aggregate) {
-            GridSqlAggregateFunction res = new GridSqlAggregateFunction(DISTINCT.get((Aggregate)expression),
-                TYPE.get((Aggregate)expression));
+            int typeId = TYPE.get((Aggregate)expression);
 
-            Expression on = ON.get((Aggregate)expression);
+            if (GridSqlAggregateFunction.isValidType(typeId)) {
+                GridSqlAggregateFunction res = new GridSqlAggregateFunction(DISTINCT.get((Aggregate)expression), typeId);
 
-            if (on != null)
-                res.addChild(parseExpression(on, calcTypes));
+                Expression on = ON.get((Aggregate)expression);
 
-            return res;
+                if (on != null)
+                    res.addChild(parseExpression(on, calcTypes));
+
+                return res;
+            }
         }
 
         if (expression instanceof ExpressionList) {
