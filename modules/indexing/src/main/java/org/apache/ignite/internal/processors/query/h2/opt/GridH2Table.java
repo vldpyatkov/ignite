@@ -96,6 +96,9 @@ public class GridH2Table extends TableBase {
     /** */
     private final boolean snapshotEnabled;
 
+    /** */
+    private final boolean affinityColExists;
+
     /**
      * Creates table.
      *
@@ -113,16 +116,32 @@ public class GridH2Table extends TableBase {
         this.desc = desc;
         this.spaceName = spaceName;
 
+        boolean affinityColExists0 = true;
+
         if (desc != null && desc.context() != null) {
             String affKey = desc.type().affinityKey();
 
-            int affKeyColId = affKey == null ? KEY_COL : getColumn(desc.context().config().isSqlEscapeAll() ?
-                affKey : affKey.toUpperCase()).getColumnId();
+            int affKeyColId = -1;
 
-            affKeyCol = indexColumn(affKeyColId, SortOrder.ASCENDING);
+            if (affKey != null) {
+                String colName = desc.context().config().isSqlEscapeAll() ? affKey : affKey.toUpperCase();
 
-            assert affKeyCol != null;
+                if (doesColumnExist(colName))
+                    affKeyColId = getColumn(colName).getColumnId();
+                else
+                    affinityColExists0 = false;
+            }
+            else
+                affKeyColId = KEY_COL;
+
+            if (affinityColExists0) {
+                affKeyCol = indexColumn(affKeyColId, SortOrder.ASCENDING);
+
+                assert affKeyCol != null;
+            }
         }
+
+        affinityColExists = affinityColExists0;
 
         // Indexes must be created in the end when everything is ready.
         idxs = idxsFactory.createIndexes(this);
@@ -136,6 +155,13 @@ public class GridH2Table extends TableBase {
         snapshotEnabled = desc == null || desc.snapshotableIndex();
 
         lock = snapshotEnabled ? new ReentrantReadWriteLock() : null;
+    }
+
+    /**
+     * @return {@code True} if affinity key exists in this table.
+     */
+    public boolean affinityColumnExists() {
+        return affinityColExists;
     }
 
     /**

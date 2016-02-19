@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.query.h2;
 
+import java.util.Objects;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
@@ -1128,6 +1129,18 @@ public class IgniteH2Indexing implements GridQueryIndexing {
                         spaces.add(space(schema));
 
                     twoStepQry.spaces(spaces);
+                }
+
+                if (twoStepQry.distributedJoins()) {
+                    for (String table : twoStepQry.tables()) {
+                        GridH2Table tbl = dataTable(table);
+
+                        Objects.requireNonNull(tbl, table);
+
+                        if (!tbl.affinityColumnExists())
+                            throw new CacheException("Failed to run distributed join query, " +
+                                "affinity key is not included in table: " + table);
+                    }
                 }
 
                 meta = meta(stmt.getMetaData());
