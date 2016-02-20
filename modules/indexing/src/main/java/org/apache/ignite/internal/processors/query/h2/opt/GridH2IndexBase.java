@@ -154,14 +154,6 @@ public abstract class GridH2IndexBase extends BaseIndex {
         return c.calculateMultiplier();
     }
 
-    /**
-     * @param tbl Table.
-     * @return Affinity column.
-     */
-    protected static int affinityColumn(GridH2Table tbl) {
-        return tbl.getAffinityKeyColumn().column.getColumnId();
-    }
-
     /** {@inheritDoc} */
     @Override public GridH2Table getTable() {
         return (GridH2Table)super.getTable();

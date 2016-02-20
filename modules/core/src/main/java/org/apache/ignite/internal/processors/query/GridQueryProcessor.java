@@ -28,6 +28,7 @@ import org.apache.ignite.cache.CacheTypeMetadata;
 import org.apache.ignite.cache.QueryEntity;
 import org.apache.ignite.cache.QueryIndex;
 import org.apache.ignite.cache.QueryIndexType;
+import org.apache.ignite.cache.affinity.AffinityKeyMapper;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cache.query.SqlQuery;
@@ -41,6 +42,7 @@ import org.apache.ignite.internal.processors.cache.CacheEntryImpl;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.CacheObjectContext;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
+import org.apache.ignite.internal.processors.cache.GridCacheDefaultAffinityKeyMapper;
 import org.apache.ignite.internal.processors.cache.QueryCursorImpl;
 import org.apache.ignite.internal.processors.cache.binary.CacheObjectBinaryProcessorImpl;
 import org.apache.ignite.internal.processors.cache.query.CacheQueryFuture;
@@ -285,6 +287,16 @@ public class GridQueryProcessor extends GridProcessorAdapter {
                     else {
                         processClassMeta(qryEntity, desc, coCtx);
 
+                        AffinityKeyMapper keyMapper = cctx.config().getAffinityMapper();
+
+                        if (keyMapper instanceof GridCacheDefaultAffinityKeyMapper) {
+                            String affField =
+                                ((GridCacheDefaultAffinityKeyMapper)keyMapper).affinityKeyPropertyName(desc.keyCls);
+
+                            if (affField != null)
+                                desc.affinityKey(affField);
+                        }
+
                         typeId = new TypeId(ccfg.getName(), valCls);
                         altTypeId = new TypeId(ccfg.getName(), ctx.cacheObjects().typeId(qryEntity.getValueType()));
                     }
@@ -296,7 +308,6 @@ public class GridQueryProcessor extends GridProcessorAdapter {
                         types.put(altTypeId, desc);
 
                     desc.registered(idx.registerType(ccfg.getName(), desc));
-
                 }
             }
 
@@ -1404,7 +1415,6 @@ public class GridQueryProcessor extends GridProcessorAdapter {
                 U.classForName(entry.getValue(), Object.class),
                 aliases,
                 coCtx);
-
 
             d.addProperty(prop, false);
         }

@@ -29,6 +29,7 @@ import org.h2.expression.ExpressionColumn;
 import org.h2.index.IndexCondition;
 import org.h2.index.ViewIndex;
 import org.h2.table.Column;
+import org.h2.table.IndexColumn;
 import org.h2.table.SubQueryInfo;
 import org.h2.table.Table;
 import org.h2.table.TableFilter;
@@ -277,44 +278,48 @@ public final class GridH2CollocationModel {
     private Affinity joinedWithCollocated(int f) {
         TableFilter tf = childFilters[f];
 
-        ArrayList<IndexCondition> idxConditions = tf.getIndexConditions();
+        IndexColumn affCol = ((GridH2Table)tf.getTable()).getAffinityKeyColumn();
 
-        int affColId = ((GridH2Table)tf.getTable()).getAffinityKeyColumnId();
+        boolean affKeyCondFound = false;
 
-        boolean affKeyConditionFound = false;
+        if (affCol != null) {
+            ArrayList<IndexCondition> idxConditions = tf.getIndexConditions();
 
-        for (int i = 0; i < idxConditions.size(); i++) {
-            IndexCondition c = idxConditions.get(i);
+            int affColId = affCol.column.getColumnId();
 
-            if (c.getCompareType() == Comparison.EQUAL &&
-                c.getColumn().getColumnId() == affColId && c.isEvaluatable()) {
-                affKeyConditionFound = true;
+            for (int i = 0; i < idxConditions.size(); i++) {
+                IndexCondition c = idxConditions.get(i);
 
-                Expression exp = c.getExpression();
+                if (c.getCompareType() == Comparison.EQUAL &&
+                    c.getColumn().getColumnId() == affColId && c.isEvaluatable()) {
+                    affKeyCondFound = true;
 
-                exp = exp.getNonAliasExpression();
+                    Expression exp = c.getExpression();
 
-                if (exp instanceof ExpressionColumn) {
-                    ExpressionColumn expCol = (ExpressionColumn)exp;
+                    exp = exp.getNonAliasExpression();
 
-                    // This is one of our previous joins.
-                    TableFilter prevJoin = expCol.getTableFilter();
+                    if (exp instanceof ExpressionColumn) {
+                        ExpressionColumn expCol = (ExpressionColumn)exp;
 
-                    if (prevJoin != null) {
-                        GridH2CollocationModel cm = child(indexOf(prevJoin), true);
+                        // This is one of our previous joins.
+                        TableFilter prevJoin = expCol.getTableFilter();
 
-                        if (cm != null) {
-                            Type t = cm.type(true);
+                        if (prevJoin != null) {
+                            GridH2CollocationModel cm = child(indexOf(prevJoin), true);
 
-                            if (t.isPartitioned() && t.isCollocated() && isAffinityColumn(prevJoin, expCol))
-                                return Affinity.JOINED_WITH_COLLOCATED;
+                            if (cm != null) {
+                                Type t = cm.type(true);
+
+                                if (t.isPartitioned() && t.isCollocated() && isAffinityColumn(prevJoin, expCol))
+                                    return Affinity.JOINED_WITH_COLLOCATED;
+                            }
                         }
                     }
                 }
             }
         }
 
-        return affKeyConditionFound ? Affinity.HAS_AFFINITY_CONDITION : Affinity.NONE;
+        return affKeyCondFound ? Affinity.HAS_AFFINITY_CONDITION : Affinity.NONE;
     }
 
     /**
@@ -349,8 +354,13 @@ public final class GridH2CollocationModel {
             return isAffinityColumn(qry, expCol);
         }
 
-        return t instanceof GridH2Table &&
-            col.getColumnId() == ((GridH2Table)t).getAffinityKeyColumnId();
+        if (t instanceof GridH2Table) {
+            IndexColumn affCol = ((GridH2Table)t).getAffinityKeyColumn();
+
+            return affCol != null && col.getColumnId() == affCol.column.getColumnId();
+        }
+
+        return false;
     }
 
     /**

@@ -96,9 +96,6 @@ public class GridH2Table extends TableBase {
     /** */
     private final boolean snapshotEnabled;
 
-    /** */
-    private final boolean affinityColExists;
-
     /**
      * Creates table.
      *
@@ -116,7 +113,7 @@ public class GridH2Table extends TableBase {
         this.desc = desc;
         this.spaceName = spaceName;
 
-        boolean affinityColExists0 = true;
+        boolean affinityColExists = true;
 
         if (desc != null && desc.context() != null) {
             String affKey = desc.type().affinityKey();
@@ -129,19 +126,17 @@ public class GridH2Table extends TableBase {
                 if (doesColumnExist(colName))
                     affKeyColId = getColumn(colName).getColumnId();
                 else
-                    affinityColExists0 = false;
+                    affinityColExists = false;
             }
             else
                 affKeyColId = KEY_COL;
 
-            if (affinityColExists0) {
+            if (affinityColExists) {
                 affKeyCol = indexColumn(affKeyColId, SortOrder.ASCENDING);
 
                 assert affKeyCol != null;
             }
         }
-
-        affinityColExists = affinityColExists0;
 
         // Indexes must be created in the end when everything is ready.
         idxs = idxsFactory.createIndexes(this);
@@ -158,13 +153,6 @@ public class GridH2Table extends TableBase {
     }
 
     /**
-     * @return {@code True} if affinity key exists in this table.
-     */
-    public boolean affinityColumnExists() {
-        return affinityColExists;
-    }
-
-    /**
      * @return {@code true} If this is a partitioned table.
      */
     public boolean isPartitioned() {
@@ -174,15 +162,8 @@ public class GridH2Table extends TableBase {
     /**
      * @return Affinity key column or {@code null} if not available.
      */
-    public IndexColumn getAffinityKeyColumn() {
+    @Nullable public IndexColumn getAffinityKeyColumn() {
         return affKeyCol;
-    }
-
-    /**
-     * @return Affinity key column ID.
-     */
-    public int getAffinityKeyColumnId() {
-        return affKeyCol.column.getColumnId();
     }
 
     /** {@inheritDoc} */

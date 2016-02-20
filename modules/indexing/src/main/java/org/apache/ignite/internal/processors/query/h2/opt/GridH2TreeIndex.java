@@ -735,13 +735,24 @@ public class GridH2TreeIndex extends GridH2IndexBase implements Comparator<GridS
         if (qctx == null || !qctx.distributedJoins())
             return null;
 
-        int affColId = affinityColumn(getTable());
-        int[] masks = filter.getMasks();
-        boolean unicast = masks != null && masks[affColId] == IndexCondition.EQUALITY;
+        IndexColumn affCol = getTable().getAffinityKeyColumn();
+
+        int affColId;
+        boolean ucast;
+
+        if (affCol != null) {
+            affColId = affCol.column.getColumnId();
+            int[] masks = filter.getMasks();
+            ucast = masks != null && masks[affColId] == IndexCondition.EQUALITY;
+        }
+        else {
+            affColId = -1;
+            ucast = false;
+        }
 
         GridCacheContext<?,?> cctx = getTable().rowDescriptor().context();
 
-        return new DistributedLookupBatch(cctx, unicast, affColId);
+        return new DistributedLookupBatch(cctx, ucast, affColId);
     }
 
     /**
@@ -1230,7 +1241,7 @@ public class GridH2TreeIndex extends GridH2IndexBase implements Comparator<GridS
                 res.clear();
             }
 
-            Object affKey = getAffinityKey(firstRow, lastRow);
+            Object affKey = affColId == -1 ? null : getAffinityKey(firstRow, lastRow);
 
             List<ClusterNode> nodes;
             Future<Cursor> fut;

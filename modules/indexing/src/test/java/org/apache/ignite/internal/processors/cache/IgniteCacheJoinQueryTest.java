@@ -57,7 +57,7 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 
     /** */
-    private static final int NODES = 4;
+    private static final int NODES = 5;
 
     /** */
     private boolean client;
@@ -101,74 +101,44 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
-    public void testAffinityKeyNotQueryField() throws Exception {
-        CacheConfiguration ccfg = cacheConfiguration(PARTITIONED, 1, true, false);
-
-        IgniteCache cache = ignite(0).createCache(ccfg);
-
-        try {
-            putData(cache, true);
-
-            for (int i = 0; i < NODES; i++) {
-                final IgniteCache cache0 = ignite(i).cache(ccfg.getName());
-
-                final String QRY = "select o.name, p.name " +
-                    "from Organization o, Person p " +
-                    "where p.orgId = o._key";
-
-                SqlFieldsQuery qry = new SqlFieldsQuery(QRY);
-
-                cache0.query(qry).getAll();
-
-                GridTestUtils.assertThrows(log, new Callable<Object>() {
-                    @Override public Object call() throws Exception {
-                        SqlFieldsQuery qry = new SqlFieldsQuery(QRY);
-
-                        qry.setDistributedJoins(true);
-
-                        cache0.query(qry).getAll();
-
-                        return null;
-                    }
-                }, CacheException.class, null);
-
-                cache0.query(qry).getAll();
-            }
-        }
-        finally {
-            ignite(0).destroyCache(ccfg.getName());
-        }
-    }
-
-    /**
-     * @throws Exception If failed.
-     */
     public void testJoinQuery() throws Exception {
-        testJoinQuery(PARTITIONED, 0, false);
+        testJoinQuery(PARTITIONED, 0, false, true);
 
-        testJoinQuery(PARTITIONED, 1, false);
+        testJoinQuery(PARTITIONED, 1, false, true);
 
-        testJoinQuery(REPLICATED, 0, false);
+        testJoinQuery(REPLICATED, 0, false, true);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testJoinQueryWithAffinityKey() throws Exception {
-        testJoinQuery(PARTITIONED, 0, true);
+        testJoinQuery(PARTITIONED, 0, true, true);
 
-        testJoinQuery(PARTITIONED, 1, true);
+        testJoinQuery(PARTITIONED, 1, true, true);
 
-        testJoinQuery(REPLICATED, 0, true);
+        testJoinQuery(REPLICATED, 0, true, true);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testJoinQueryWithAffinityKeyNotQueryField() throws Exception {
+        testJoinQuery(PARTITIONED, 0, true, false);
+
+        testJoinQuery(PARTITIONED, 1, true, false);
+
+        testJoinQuery(REPLICATED, 0, true, false);
     }
 
     /**
      * @param cacheMode Cache mode.
      * @param backups Number of backups.
      * @param affKey If {@code true} uses key with affinity key field.
+     * @param includeAffKey If {@code true} includes affinity key field in query fields.
      */
-    public void testJoinQuery(CacheMode cacheMode, int backups, boolean affKey) {
-        CacheConfiguration ccfg = cacheConfiguration(cacheMode, backups, affKey, affKey);
+    public void testJoinQuery(CacheMode cacheMode, int backups, boolean affKey, boolean includeAffKey) {
+        CacheConfiguration ccfg = cacheConfiguration(cacheMode, backups, affKey, includeAffKey);
 
         log.info("Test cache [mode=" + cacheMode + ", backups=" + backups + ']');
 
@@ -203,13 +173,27 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
 
         qry.setDistributedJoins(true);
 
+        long total = 0;
+
         for (int i = 0; i < cnts.size(); i++) {
             qry.setArgs(i);
 
             List<List<Object>> res = cache.query(qry).getAll();
 
             assertEquals((int)cnts.get(i), res.size());
+
+            total += res.size();
         }
+
+        SqlFieldsQuery qry2 = new SqlFieldsQuery("select count(*) " +
+            "from Organization o, Person p where p.orgId = o._key");
+
+        qry2.setDistributedJoins(true);
+
+        List<List<Object>> res = cache.query(qry2).getAll();
+
+        assertEquals(1, res.size());
+        assertEquals(total, res.get(0).get(0));
     }
 
     /**
@@ -218,24 +202,59 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
      * @param affKey If {@code true} uses key with affinity key field.
      */
     private void checkPersonAccountsJoin(IgniteCache cache, Map<Object, Integer> cnts, boolean affKey) {
-        SqlFieldsQuery qry = new SqlFieldsQuery("select p.name " +
+        SqlFieldsQuery qry1 = new SqlFieldsQuery("select p.name " +
             "from Person p, " + (affKey ? "AccountKeyWithAffinity" : "Account") + " a " +
-            "where p._key = a.personId and p._key=?");
+            "where p._key = a.personKey and p._key=?");
 
-        qry.setDistributedJoins(true);
+        qry1.setDistributedJoins(true);
+
+        SqlFieldsQuery qry2 = new SqlFieldsQuery("select p.name " +
+            "from Person p, " + (affKey ? "AccountKeyWithAffinity" : "Account") + " a " +
+            "where p.id = a.personId and p.id=?");
+
+        qry2.setDistributedJoins(true);
 
         Ignite ignite = (Ignite)cache.unwrap(Ignite.class);
 
         boolean binary = ignite.configuration().getMarshaller() instanceof BinaryMarshaller;
 
+        long total = 0;
+
         for (Map.Entry<Object, Integer> e : cnts.entrySet()) {
             Object arg = binary ? ignite.binary().toBinary(e.getKey()) : e.getKey();
 
-            qry.setArgs(arg);
+            qry1.setArgs(arg);
+
+            List<List<Object>> res = cache.query(qry1).getAll();
+
+            assertEquals((int)e.getValue(), res.size());
+
+            total += res.size();
+
+            qry2.setArgs((Id)e.getKey());
+
+            res = cache.query(qry1).getAll();
+
+            assertEquals((int)e.getValue(), res.size());
+        }
+
+        SqlFieldsQuery[] qrys = new SqlFieldsQuery[2];
+
+        qrys[0] = new SqlFieldsQuery("select count(*) " +
+            "from Person p, " + (affKey ? "AccountKeyWithAffinity" : "Account") + " a " +
+            "where p.id = a.personId");
+
+        qrys[1] = new SqlFieldsQuery("select count(*) " +
+            "from Person p, " + (affKey ? "AccountKeyWithAffinity" : "Account") + " a " +
+            "where p._key = a.personKey");
+
+        for (SqlFieldsQuery qry : qrys) {
+            qry.setDistributedJoins(true);
 
             List<List<Object>> res = cache.query(qry).getAll();
 
-            assertEquals((int)e.getValue(), res.size());
+            assertEquals(1, res.size());
+            assertEquals(total, res.get(0).get(0));
         }
     }
 
@@ -264,7 +283,8 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
         QueryEntity account = new QueryEntity();
         account.setKeyType(Integer.class.getName());
         account.setValueType(affKey ? AccountKeyWithAffinity.class.getName() : Account.class.getName());
-        account.addQueryField("personId", personKeyType, null);
+        account.addQueryField("personKey", personKeyType, null);
+        account.addQueryField("personId", Integer.class.getName(), null);
 
         QueryEntity person = new QueryEntity();
         person.setKeyType(personKeyType);
@@ -273,7 +293,7 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
         person.addQueryField("id", Integer.class.getName(), null);
         person.addQueryField("name", String.class.getName(), null);
 
-        if (includeAffKey)
+        if (affKey && includeAffKey)
             person.addQueryField("affKey", Integer.class.getName(), null);
 
         QueryEntity org = new QueryEntity();
@@ -361,7 +381,17 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
     /**
      *
      */
-    public static class TestKey {
+    public interface Id {
+        /**
+         * @return ID.
+         */
+        public int id();
+    }
+
+    /**
+     *
+     */
+    public static class TestKey implements Id {
         /** */
         private int id;
 
@@ -370,6 +400,11 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
          */
         public TestKey(int id) {
             this.id = id;
+        }
+
+        /** {@inheritDoc} */
+        @Override public int id() {
+            return id;
         }
 
         /** {@inheritDoc} */
@@ -394,7 +429,7 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
     /**
      *
      */
-    public static class TestKeyWithAffinity {
+    public static class TestKeyWithAffinity implements Id {
         /** */
         private int id;
 
@@ -409,6 +444,11 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
             this.id = id;
 
             affKey = id + 1;
+        }
+
+        /** {@inheritDoc} */
+        @Override public int id() {
+            return id;
         }
 
         /** {@inheritDoc} */
@@ -436,13 +476,18 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
     private static class Account implements Serializable {
         /** */
         @QuerySqlField
-        private TestKey personId;
+        private TestKey personKey;
+
+        /** */
+        @QuerySqlField
+        private int personId;
 
         /**
-         * @param personId Person ID.
+         * @param personKey Person key.
          */
-        public Account(Object personId) {
-            this.personId = (TestKey)personId;
+        public Account(Object personKey) {
+            this.personKey = (TestKey)personKey;
+            personId = this.personKey.id;
         }
     }
 
@@ -452,13 +497,18 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
     private static class AccountKeyWithAffinity implements Serializable {
         /** */
         @QuerySqlField
-        private TestKeyWithAffinity personId;
+        private TestKeyWithAffinity personKey;
+
+        /** */
+        @QuerySqlField
+        private int personId;
 
         /**
-         * @param personId Person ID.
+         * @param personKey Person key.
          */
-        public AccountKeyWithAffinity(Object personId) {
-            this.personId = (TestKeyWithAffinity)personId;
+        public AccountKeyWithAffinity(Object personKey) {
+            this.personKey = (TestKeyWithAffinity)personKey;
+            personId = this.personKey.id;
         }
     }
 
