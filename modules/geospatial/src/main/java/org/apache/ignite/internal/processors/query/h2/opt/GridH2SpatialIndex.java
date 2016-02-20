@@ -230,7 +230,8 @@ public class GridH2SpatialIndex extends GridH2IndexBase implements SpatialIndex 
 
     /** {@inheritDoc} */
     @Override public double getCost(Session ses, int[] masks, TableFilter[] filters, int filter, SortOrder sortOrder) {
-        return SpatialTreeIndex.getCostRangeIndex(masks, rowCnt, columns);
+        return SpatialTreeIndex.getCostRangeIndex(masks,
+            table.getRowCountApproximation(), columns) / 10;
     }
 
     /** {@inheritDoc} */
