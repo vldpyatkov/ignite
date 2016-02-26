@@ -176,7 +176,7 @@ public class GridMapQueryExecutor {
 
                 try {
                     if (msg instanceof GridCacheQueryMarshallable)
-                        ((GridCacheQueryMarshallable)msg).unmarshall(ctx.config().getMarshaller());
+                        ((GridCacheQueryMarshallable)msg).unmarshall(ctx.config().getMarshaller(), ctx);
 
                     GridMapQueryExecutor.this.onMessage(nodeId, msg);
                 }

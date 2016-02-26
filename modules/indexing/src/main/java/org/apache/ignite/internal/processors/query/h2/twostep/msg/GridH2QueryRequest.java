@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.GridDirectMap;
+import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryMarshallable;
 import org.apache.ignite.internal.processors.cache.query.GridCacheSqlQuery;
@@ -228,12 +229,12 @@ public class GridH2QueryRequest implements Message, GridCacheQueryMarshallable {
     }
 
     /** {@inheritDoc} */
-    @Override public void unmarshall(Marshaller m) {
+    @Override public void unmarshall(Marshaller m, GridKernalContext ctx) {
         if (F.isEmpty(qrys))
             return;
 
         for (GridCacheSqlQuery qry : qrys)
-            qry.unmarshall(m);
+            qry.unmarshall(m, ctx);
     }
 
     /** {@inheritDoc} */

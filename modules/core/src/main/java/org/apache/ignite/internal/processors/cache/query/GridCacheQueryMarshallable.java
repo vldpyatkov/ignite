@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.cache.query;
 
+import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.marshaller.Marshaller;
 
 /**
@@ -30,6 +31,7 @@ public interface GridCacheQueryMarshallable {
 
     /**
      * @param m Marshaller.
+     * @param ctx Context.
      */
-    public void unmarshall(Marshaller m);
+    public void unmarshall(Marshaller m, GridKernalContext ctx);
 }

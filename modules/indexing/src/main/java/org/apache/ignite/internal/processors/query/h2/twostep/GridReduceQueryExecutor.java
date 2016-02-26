@@ -194,7 +194,7 @@ public class GridReduceQueryExecutor {
 
                 try {
                     if (msg instanceof GridCacheQueryMarshallable)
-                        ((GridCacheQueryMarshallable)msg).unmarshall(ctx.config().getMarshaller());
+                        ((GridCacheQueryMarshallable)msg).unmarshall(ctx.config().getMarshaller(), ctx);
 
                     GridReduceQueryExecutor.this.onMessage(nodeId, msg);
                 }

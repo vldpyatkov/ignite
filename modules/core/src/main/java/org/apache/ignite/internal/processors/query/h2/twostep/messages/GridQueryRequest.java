@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import org.apache.ignite.internal.GridDirectCollection;
+import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteCodeGeneratingFail;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryMarshallable;
@@ -182,12 +183,12 @@ public class GridQueryRequest implements Message, GridCacheQueryMarshallable {
     }
 
     /** {@inheritDoc} */
-    @Override public void unmarshall(Marshaller m) {
+    @Override public void unmarshall(Marshaller m, GridKernalContext ctx) {
         if (F.isEmpty(qrys))
             return;
 
         for (GridCacheSqlQuery qry : qrys)
-            qry.unmarshall(m);
+            qry.unmarshall(m, ctx);
     }
 
     /** {@inheritDoc} */
