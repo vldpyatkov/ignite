@@ -231,9 +231,9 @@ public class IgniteCacheJoinQueryTest extends GridCommonAbstractTest {
 
             total += res.size();
 
-            qry2.setArgs((Id)e.getKey());
+            qry2.setArgs(((Id)e.getKey()).id());
 
-            res = cache.query(qry1).getAll();
+            res = cache.query(qry2).getAll();
 
             assertEquals((int)e.getValue(), res.size());
         }
