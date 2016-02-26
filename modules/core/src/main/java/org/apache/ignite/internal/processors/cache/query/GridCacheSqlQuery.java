@@ -22,10 +22,12 @@ import java.util.LinkedHashMap;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.GridDirectTransient;
+import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.A;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.marshaller.Marshaller;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
@@ -145,14 +147,14 @@ public class GridCacheSqlQuery implements Message, GridCacheQueryMarshallable {
     }
 
     /** {@inheritDoc} */
-    @Override public void unmarshall(Marshaller m) {
+    @Override public void unmarshall(Marshaller m, GridKernalContext ctx) {
         if (params != null)
             return;
 
         assert paramsBytes != null;
 
         try {
-            params = m.unmarshal(paramsBytes, null);
+            params = m.unmarshal(paramsBytes, U.resolveClassLoader(ctx.config()));
         }
         catch (IgniteCheckedException e) {
             throw new IgniteException(e);
