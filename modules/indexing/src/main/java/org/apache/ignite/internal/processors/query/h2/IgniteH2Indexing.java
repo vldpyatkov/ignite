@@ -1106,30 +1106,32 @@ public class IgniteH2Indexing implements GridQueryIndexing {
 
             boolean cachesCreated = false;
 
-            while (true) {
-                try {
-                    // Do not cache this statement because the whole two step query object will be cached later on.
-                    stmt = prepareStatement(c, sqlQry, false);
+            try {
+                while (true) {
+                    try {
+                        // Do not cache this statement because the whole two step query object will be cached later on.
+                        stmt = prepareStatement(c, sqlQry, false);
 
-                    break;
-                }
-                catch (SQLException e) {
-                    if (!cachesCreated && e.getErrorCode() == ErrorCode.SCHEMA_NOT_FOUND_1) {
-                        try {
-                            ctx.cache().createMissingCaches();
-                        }
-                        catch (IgniteCheckedException e1) {
-                            throw new CacheException("Failed to create missing caches.", e);
-                        }
-
-                        cachesCreated = true;
+                        break;
                     }
-                    else
-                        throw new CacheException("Failed to parse query: " + sqlQry, e);
+                    catch (SQLException e) {
+                        if (!cachesCreated && e.getErrorCode() == ErrorCode.SCHEMA_NOT_FOUND_1) {
+                            try {
+                                ctx.cache().createMissingCaches();
+                            }
+                            catch (IgniteCheckedException e1) {
+                                throw new CacheException("Failed to create missing caches.", e);
+                            }
+
+                            cachesCreated = true;
+                        }
+                        else
+                            throw new CacheException("Failed to parse query: " + sqlQry, e);
+                    }
                 }
-                finally {
-                    GridH2QueryContext.clear(false);
-                }
+            }
+            finally {
+                GridH2QueryContext.clear(false);
             }
 
             try {
