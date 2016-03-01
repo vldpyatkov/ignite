@@ -29,8 +29,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
@@ -103,7 +101,7 @@ class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     private final GridAtomicLong updateSeq = new GridAtomicLong(1);
 
     /** Lock. */
-    private final ReadWriteLock lock = new StripedCompositeReadWriteLock(16);
+    private final StripedCompositeReadWriteLock lock = new StripedCompositeReadWriteLock(16);
 
     /** Partition update counter. */
     private Map<Integer, Long> cntrMap = new HashMap<>();
@@ -1421,7 +1419,6 @@ class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
      */
     private void consistencyCheck() {
         if (CONSISTENCY_CHECK) {
-
             if (node2part == null)
                 return;
 

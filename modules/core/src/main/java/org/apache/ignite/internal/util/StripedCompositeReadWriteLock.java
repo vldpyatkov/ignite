@@ -19,8 +19,8 @@ package org.apache.ignite.internal.util;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -34,24 +34,21 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class StripedCompositeReadWriteLock implements ReadWriteLock {
 
-    /**
-     * Thread local index generator.
-     */
+    /** Index generator. */
+    private static final AtomicInteger IDX_GEN = new AtomicInteger();
+
+    /** Index. */
     private static final ThreadLocal<Integer> IDX = new ThreadLocal<Integer>() {
         @Override protected Integer initialValue() {
-            return ThreadLocalRandom.current().nextInt(100000);
+            return IDX_GEN.incrementAndGet();
         }
     };
 
-    /**
-     * Locks.
-     */
+    /** Locks. */
     private final ReentrantReadWriteLock[] locks;
 
-    /**
-     * Composite write lock.
-     */
-    private final CompositeWriteLock compositeWriteLock;
+    /** Composite write lock. */
+    private final WriteLock writeLock;
 
     /**
      * Creates a new instance with given concurrency level.
@@ -59,12 +56,12 @@ public class StripedCompositeReadWriteLock implements ReadWriteLock {
      * @param concurrencyLvl Number of internal read locks.
      */
     public StripedCompositeReadWriteLock(int concurrencyLvl) {
-        locks = new PaddedReentrantReadWriteLock[concurrencyLvl];
+        locks = new ReadLock[concurrencyLvl];
 
         for (int i = 0; i < concurrencyLvl; i++)
-            locks[i] = new PaddedReentrantReadWriteLock();
+            locks[i] = new ReadLock();
 
-        compositeWriteLock = new CompositeWriteLock();
+        writeLock = new WriteLock();
     }
 
     /** {@inheritDoc} */
@@ -76,145 +73,88 @@ public class StripedCompositeReadWriteLock implements ReadWriteLock {
 
     /** {@inheritDoc} */
     @NotNull @Override public Lock writeLock() {
-        return compositeWriteLock;
+        return writeLock;
     }
 
     /**
-     * {@inheritDoc}
-     *
-     * Compared to {@link ReentrantReadWriteLock}, this class contains padding to ensure that different instances will
-     * always be located in different CPU cache lines.
+     * Read lock.
      */
-    private static class PaddedReentrantReadWriteLock extends ReentrantReadWriteLock {
-
-        /**
-         *
-         */
+    @SuppressWarnings("unused")
+    private static class ReadLock extends ReentrantReadWriteLock {
+        /** */
         private static final long serialVersionUID = 0L;
 
-        /**
-         * Padding.
-         */
+        /** Padding. */
         private long p0, p1, p2, p3, p4, p5, p6, p7;
     }
 
     /**
-     * {@inheritDoc}
-     *
-     * Methods of this class will lock all {@link #locks}.
+     * Write lock.
      */
-    private class CompositeWriteLock implements Lock {
-
+    private class WriteLock implements Lock {
         /** {@inheritDoc} */
         @Override public void lock() {
             try {
-                lock(false);
+                lock0(false);
             }
-            catch (InterruptedException e) {
-                // This should never happen.
-                throw new RuntimeException(e);
+            catch (InterruptedException ignore) {
+                assert false : "Should never happen";
             }
         }
 
         /** {@inheritDoc} */
         @Override public void lockInterruptibly() throws InterruptedException {
-            lock(true);
-        }
-
-        /**
-         * @param interruptibly true if {@link Thread#interrupt()} should be considered.
-         * @throws InterruptedException
-         */
-        private void lock(boolean interruptibly) throws InterruptedException {
-            int i = 0;
-            try {
-                for (; i < locks.length; i++)
-                    if (interruptibly)
-                        locks[i].writeLock().lockInterruptibly();
-                    else
-                        locks[i].writeLock().lock();
-            }
-            catch (Throwable e) {
-                for (i--; i >= 0; i--)
-                    locks[i].writeLock().unlock();
-
-                throw e;
-            }
-        }
-
-        /** {@inheritDoc} */
-        @Override public boolean tryLock() {
-            int i = 0;
-
-            boolean unlock = false;
-
-            try {
-                for (; i < locks.length; i++)
-                    if (!locks[i].writeLock().tryLock()) {
-                        unlock = true;
-                        break;
-                    }
-            }
-            catch (Throwable e) {
-                for (i--; i >= 0; i--)
-                    locks[i].writeLock().unlock();
-
-                throw e;
-            }
-
-            if (unlock) {
-                for (i--; i >= 0; i--)
-                    locks[i].writeLock().unlock();
-
-                return false;
-            }
-
-            return true;
-        }
-
-        /** {@inheritDoc} */
-        @Override public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
-            long timeLeft = unit.convert(time, TimeUnit.NANOSECONDS);
-
-            long prevTime = System.nanoTime();
-
-            int i = 0;
-
-            boolean unlock = false;
-
-            try {
-                for (; i < locks.length; i++) {
-                    if (timeLeft < 0 || !locks[i].writeLock().tryLock(timeLeft, TimeUnit.NANOSECONDS)) {
-                        unlock = true;
-                        break;
-                    }
-
-                    long currentTime = System.nanoTime();
-                    timeLeft -= (currentTime - prevTime);
-                    prevTime = currentTime;
-                }
-            }
-            catch (Throwable e) {
-                for (i--; i >= 0; i--)
-                    locks[i].writeLock().unlock();
-
-                throw e;
-            }
-
-            if (unlock) {
-                for (i--; i >= 0; i--)
-                    locks[i].writeLock().unlock();
-
-                return false;
-            }
-
-            return true;
+            lock0(true);
         }
 
         /** {@inheritDoc} */
         @Override public void unlock() {
-            for (int i = locks.length - 1; i >= 0; i--)
+            unlock0(locks.length - 1);
+        }
+
+        /**
+         * Internal lock routine.
+         *
+         * @param canInterrupt Whether to acquire the lock interruptibly.
+         * @throws InterruptedException
+         */
+        private void lock0(boolean canInterrupt) throws InterruptedException {
+            int i = 0;
+
+            try {
+                for (; i < locks.length; i++) {
+                    if (canInterrupt)
+                        locks[i].writeLock().lockInterruptibly();
+                    else
+                        locks[i].writeLock().lock();
+                }
+            }
+            catch (InterruptedException e) {
+                unlock0(i - 1);
+
+                throw e;
+            }
+        }
+
+        /**
+         * Internal unlock routine.
+         *
+         * @param fromIdx Start index.
+         */
+        private void unlock0(int fromIdx) {
+            for (int i = fromIdx; i >= 0; i--)
                 locks[i].writeLock().unlock();
+        }
+
+        /** {@inheritDoc} */
+        @Override public boolean tryLock() {
+            throw new UnsupportedOperationException();
+        }
+
+        /** {@inheritDoc} */
+        @SuppressWarnings("NullableProblems")
+        @Override public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            throw new UnsupportedOperationException();
         }
 
         /** {@inheritDoc} */
