@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.cache.expiry.ExpiryPolicy;
 import javax.cache.processor.EntryProcessor;
@@ -1321,6 +1322,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         }
     }
 
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
     /**
      * Executes local update after preloader fetched values.
      *
@@ -1333,14 +1336,21 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         GridNearAtomicUpdateRequest req,
         CI2<GridNearAtomicUpdateRequest, GridNearAtomicUpdateResponse> completionCb
     ) {
-        GridNearAtomicUpdateResponse res = new GridNearAtomicUpdateResponse(ctx.cacheId(), nodeId, req.futureVersion(),
-            ctx.deploymentEnabled());
+        lock.readLock().lock();
 
-        GridCacheReturn retVal = new GridCacheReturn(ctx, false, true, null, true);
+        try {
+            GridNearAtomicUpdateResponse res = new GridNearAtomicUpdateResponse(ctx.cacheId(), nodeId, req.futureVersion(),
+                ctx.deploymentEnabled());
 
-        res.returnValue(retVal);
+            GridCacheReturn retVal = new GridCacheReturn(ctx, false, true, null, true);
 
-        completionCb.apply(req, res);
+            res.returnValue(retVal);
+
+            completionCb.apply(req, res);
+        }
+        finally {
+            lock.readLock().unlock();
+        }
 
 //        List<KeyCacheObject> keys = req.keys();
 //
