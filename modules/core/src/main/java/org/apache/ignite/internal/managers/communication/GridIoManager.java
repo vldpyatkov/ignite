@@ -920,7 +920,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
      */
     private boolean listenerReplace0(Object topic, GridMessageListener expected, GridMessageListener newVal) {
         if (topic instanceof GridTopic) {
-            return systemListenerChange(topic, expected, newVal);
+            synchronized (sysLsnrsMux) {
+                return systemListenerChange(topic, expected, newVal);
+            }
         }
         else
             return lsnrMap.replace(topic, expected, newVal);
