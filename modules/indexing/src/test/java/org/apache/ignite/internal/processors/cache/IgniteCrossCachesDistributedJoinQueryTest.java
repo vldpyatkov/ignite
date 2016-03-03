@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.cache;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -31,6 +32,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.QueryEntity;
+import org.apache.ignite.cache.query.Query;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cache.query.SqlQuery;
 import org.apache.ignite.cache.query.annotations.QuerySqlField;
@@ -49,7 +51,7 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 /**
  *
  */
-@SuppressWarnings("unchecked")
+@SuppressWarnings({"unchecked", "PackageVisibleField"})
 public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstractTest {
     /** */
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
@@ -242,6 +244,17 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
                         orgCacheType.cacheName,
                         personCacheType.cacheName,
                         accCacheType.cacheName);
+
+                    checkUninon(cache,
+                        data,
+                        orgCacheType.cacheName,
+                        personCacheType.cacheName,
+                        accCacheType.cacheName);
+
+                    checkCrossJoin(cache,
+                        data,
+                        personCacheType.cacheName,
+                        accCacheType.cacheName);
                 }
             }
         }
@@ -260,8 +273,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
      * @return Data.
      */
     private static Data prepareData() {
-        Map<Integer, Integer> personsCntAtOrg = new HashMap<>();
-        Map<Integer, Integer> accountsCntForPerson = new HashMap<>();
+        Map<Integer, Integer> personsPerOrg = new HashMap<>();
+        Map<Integer, Integer> accountsPerPerson = new HashMap<>();
         Map<Integer, Integer> accountsPerOrg = new HashMap<>();
 
         Collection<Organization> orgs = new ArrayList<>();
@@ -302,16 +315,16 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
                     accounts.add(new Account(accountId, personId));
                 }
 
-                accountsCntForPerson.put(personId, accountsCnt);
+                accountsPerPerson.put(personId, accountsCnt);
 
                 accsPerOrg += accountsCnt;
             }
 
-            personsCntAtOrg.put(orgId, personsCnt);
+            personsPerOrg.put(orgId, personsCnt);
             accountsPerOrg.put(orgId, accsPerOrg);
         }
 
-        return new Data(orgs, persons, accounts, personsCntAtOrg, accountsCntForPerson, accountsPerOrg);
+        return new Data(orgs, persons, accounts, personsPerOrg, accountsPerPerson, accountsPerOrg);
     }
 
     /**
@@ -347,6 +360,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             account.setKeyType(Integer.class.getName());
             account.setValueType(Account.class.getName());
             account.addQueryField("personId", Integer.class.getName(), null);
+            account.addQueryField("personDateId", Date.class.getName(), null);
+            account.addQueryField("personStrId", String.class.getName(), null);
 
             entities.add(account);
         }
@@ -355,8 +370,12 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             QueryEntity person = new QueryEntity();
             person.setKeyType(Integer.class.getName());
             person.setValueType(Person.class.getName());
-            person.addQueryField("orgId", Integer.class.getName(), null);
             person.addQueryField("id", Integer.class.getName(), null);
+            person.addQueryField("dateId", Date.class.getName(), null);
+            person.addQueryField("strId", String.class.getName(), null);
+            person.addQueryField("orgId", Integer.class.getName(), null);
+            person.addQueryField("orgDateId", Date.class.getName(), null);
+            person.addQueryField("orgStrId", String.class.getName(), null);
             person.addQueryField("name", String.class.getName(), null);
 
             entities.add(person);
@@ -367,6 +386,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             org.setKeyType(Integer.class.getName());
             org.setValueType(Organization.class.getName());
             org.addQueryField("id", Integer.class.getName(), null);
+            org.addQueryField("dateId", Date.class.getName(), null);
+            org.addQueryField("strId", String.class.getName(), null);
             org.addQueryField("name", String.class.getName(), null);
 
             entities.add(org);
@@ -447,82 +468,104 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         Map<Integer, Integer> cnts,
         String accCacheName,
         String personCacheName) {
-        SqlFieldsQuery qry1 = new SqlFieldsQuery("select p.name " +
-            "from \"" + personCacheName + "\".Person p, \"" + accCacheName + "\".Account a " +
-            "where p._key = a.personId and p._key=?");
+        List<Query> qrys = new ArrayList<>();
 
-        qry1.setDistributedJoins(true);
+        qrys.add(new SqlFieldsQuery("select p.name from " +
+                "\"" + personCacheName + "\".Person p, " +
+                "\"" + accCacheName + "\".Account a " +
+                "where p._key = a.personId and p._key=?")
+        );
 
-        SqlFieldsQuery qry2 = new SqlFieldsQuery("select p.name " +
-            "from \"" + personCacheName + "\".Person p, \"" + accCacheName + "\".Account a " +
-            "where p.id = a.personId and p.id=?");
+        qrys.add(new SqlFieldsQuery("select p.name from " +
+                "\"" + personCacheName + "\".Person p, " +
+                "\"" + accCacheName + "\".Account a " +
+                "where p.dateId = a.personDateId and p._key=?")
+        );
 
-        qry2.setDistributedJoins(true);
+        qrys.add(new SqlFieldsQuery("select p.name from " +
+                "\"" + personCacheName + "\".Person p, " +
+                "\"" + accCacheName + "\".Account a " +
+                "where p.strId = a.personStrId and p._key=?")
+        );
 
-        SqlQuery qry3 = null;
-        SqlQuery qry4 = null;
+        qrys.add(new SqlFieldsQuery("select p.name from " +
+                "\"" + personCacheName + "\".Person p, " +
+                "\"" + accCacheName + "\".Account a " +
+                "where p.id = a.personId and p.id=?")
+        );
+
+        qrys.add(new SqlFieldsQuery("select p.name from " +
+                "\"" + personCacheName + "\".Person p, " +
+                "\"" + accCacheName + "\".Account a " +
+                "where p.dateId = a.personDateId and p.id=?")
+        );
+
+        qrys.add(new SqlFieldsQuery("select p.name from " +
+                "\"" + personCacheName + "\".Person p, " +
+                "\"" + accCacheName + "\".Account a " +
+                "where p.strId = a.personStrId and p.id=?")
+        );
 
         if (personCacheName.equals(cache.getName())) {
-            qry3 = new SqlQuery(Person.class,
-                "from \"" + personCacheName + "\".Person , \"" + accCacheName + "\".Account  " +
-                "where Person._key = Account.personId and Person._key=?");
+            qrys.add(new SqlQuery(Person.class,
+                    "from \"" + personCacheName + "\".Person , \"" + accCacheName + "\".Account  " +
+                        "where Person._key = Account.personId and Person._key=?")
+            );
 
-            qry3.setDistributedJoins(true);
-
-            qry4 = new SqlQuery(Person.class,
-                "from \"" + personCacheName + "\".Person , \"" + accCacheName + "\".Account  " +
-                "where Person.id = Account.personId and Person.id=?");
-
-            qry4.setDistributedJoins(true);
+            qrys.add(new SqlQuery(Person.class,
+                    "from \"" + personCacheName + "\".Person , \"" + accCacheName + "\".Account  " +
+                        "where Person.id = Account.personId and Person.id=?")
+            );
         }
 
 
         long total = 0;
 
         for (Map.Entry<Integer, Integer> e : cnts.entrySet()) {
-            qry1.setArgs(e.getKey());
+            List<List<Object>> res = null;
 
-            List<List<Object>> res = cache.query(qry1).getAll();
+            for (Query q : qrys) {
+                if (q instanceof SqlFieldsQuery) {
+                    ((SqlFieldsQuery)q).setDistributedJoins(true);
 
-            assertEquals((int)e.getValue(), res.size());
+                    ((SqlFieldsQuery)q).setArgs(e.getKey());
+                }
+                else {
+                    ((SqlQuery)q).setDistributedJoins(true);
 
-            total += res.size();
+                    ((SqlQuery)q).setArgs(e.getKey());
+                }
 
-            qry2.setArgs(e.getKey());
-
-            res = cache.query(qry2).getAll();
-
-            assertEquals((int)e.getValue(), res.size());
-
-            if (qry3 != null) {
-                qry3.setArgs(e.getKey());
-
-                res = cache.query(qry3).getAll();
-
-                assertEquals((int)e.getValue(), res.size());
-
-                qry4.setArgs(e.getKey());
-
-                res = cache.query(qry4).getAll();
+                res = cache.query(q).getAll();
 
                 assertEquals((int)e.getValue(), res.size());
             }
+
+            total += res.size();
         }
 
-        SqlFieldsQuery[] qrys = new SqlFieldsQuery[2];
+        qrys.clear();
 
-        qrys[0] = new SqlFieldsQuery("select count(*) " +
+        qrys.add(new SqlFieldsQuery("select count(*) " +
             "from \"" + personCacheName + "\".Person p, \"" + accCacheName + "\".Account" + " a " +
-            "where p.id = a.personId");
+            "where p.id = a.personId"));
 
-        qrys[1] = new SqlFieldsQuery("select count(*) " +
+        qrys.add(new SqlFieldsQuery("select count(*) " +
             "from \"" + personCacheName + "\".Person p, \"" + accCacheName + "\".Account" + " a " +
-            "where p._key = a.personId");
+            "where p.Dateid = a.personDateId"));
 
-        for (SqlFieldsQuery qry : qrys) {
-            qry.setDistributedJoins(true);
+        qrys.add(new SqlFieldsQuery("select count(*) " +
+            "from \"" + personCacheName + "\".Person p, \"" + accCacheName + "\".Account" + " a " +
+            "where p.strId = a.personStrId"));
 
-            List<List<Object>> res = cache.query(qry).getAll();
+        qrys.add(new SqlFieldsQuery("select count(*) " +
+            "from \"" + personCacheName + "\".Person p, \"" + accCacheName + "\".Account" + " a " +
+            "where p._key = a.personId"));
+
+        for (Query q : qrys) {
+            ((SqlFieldsQuery)q).setDistributedJoins(true);
+
+            List<List<Object>> res = cache.query(q).getAll();
 
             assertEquals(1, res.size());
             assertEquals(total, res.get(0).get(0));
@@ -538,45 +581,60 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
      */
     private void checkOrganizationPersonAccountJoin(IgniteCache cache, Map<Integer, Integer> cnts, String orgCacheName,
         String personCacheName, String accCacheName) {
-        SqlFieldsQuery qry = new SqlFieldsQuery("select o.name, p.name, a._key " +
+        List<Query> queries = new ArrayList<>();
+
+        queries.add(new SqlFieldsQuery("select o.name, p.name, a._key " +
             "from " +
             "\"" + orgCacheName + "\".Organization o, " +
             "\"" + personCacheName + "\".Person p, " +
             "\"" + accCacheName + "\".Account a " +
-            "where p.orgId = o._key and p._key = a.personId and o.id = ?");
+            "where p.orgId = o._key and p._key = a.personId and o.id = ?"));
 
-        qry.setDistributedJoins(true);
+        queries.add(new SqlFieldsQuery("select o.name, p.name, a._key " +
+            "from " +
+            "\"" + orgCacheName + "\".Organization o, " +
+            "\"" + personCacheName + "\".Person p, " +
+            "\"" + accCacheName + "\".Account a " +
+            "where p.orgDateId = o.dateId and p.strId = a.personStrId and o.id = ?"));
 
-        SqlQuery qry2 = null;
+        queries.add(new SqlFieldsQuery("select o.name, p.name, a._key " +
+            "from " +
+            "\"" + orgCacheName + "\".Organization o, " +
+            "\"" + personCacheName + "\".Person p, " +
+            "\"" + accCacheName + "\".Account a " +
+            "where p.orgStrId = o.strId and p.id = a.personId and o.id = ?"));
 
         if (accCacheName.equals(cache.getName())) {
-            qry2 = new SqlQuery(Account.class, "from " +
+            queries.add(new SqlQuery(Account.class, "from " +
                 "\"" + orgCacheName + "\".Organization , " +
                 "\"" + personCacheName + "\".Person , " +
                 "\"" + accCacheName + "\".Account  " +
-                "where Person.orgId = Organization._key and Person._key = Account.personId and Organization.id = ?");
-
-            qry2.setDistributedJoins(true);
+                "where Person.orgId = Organization._key and Person._key = Account.personId and Organization.id = ?"));
         }
 
         long total = 0;
 
         for (int orgId = 0; orgId < cnts.size(); orgId++) {
-            qry.setArgs(orgId);
+            List<List<Object>> res = null;
 
-            List<List<Object>> res = cache.query(qry).getAll();
+            for (Query q : queries) {
+                if (q instanceof SqlFieldsQuery) {
+                    ((SqlFieldsQuery)q).setDistributedJoins(true);
 
-            assertEquals((int)cnts.get(orgId), res.size());
+                    ((SqlFieldsQuery)q).setArgs(orgId);
+                }
+                else {
+                    ((SqlQuery)q).setDistributedJoins(true);
 
-            total += res.size();
+                    ((SqlQuery)q).setArgs(orgId);
+                }
 
-            if (qry2 != null) {
-                qry2.setArgs(orgId);
-
-                res = cache.query(qry2).getAll();
+                res = cache.query(q).getAll();
 
                 assertEquals((int)cnts.get(orgId), res.size());
             }
+
+            total += res.size();
         }
 
         SqlFieldsQuery qry3 = new SqlFieldsQuery("select count(*) " +
@@ -593,6 +651,72 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         assertEquals(1, res.size());
         assertEquals(total, res.get(0).get(0));
 
+    }
+
+    /**
+     * @param cache Cache.
+     * @param data Data.
+     * @param orgCacheName Organization cache name.
+     * @param personCacheName Person cache name.
+     * @param accCacheName Account cache name.
+     */
+    private void checkUninon(IgniteCache cache, Data data, String orgCacheName,
+        String personCacheName, String accCacheName) {
+        List<Query> queries = new ArrayList<>();
+
+        queries.add(new SqlFieldsQuery(
+            "select p.name from " +
+            "\"" + personCacheName + "\".Person p, " +
+            "\"" + accCacheName + "\".Account a " +
+            "where p._key = a.personId and p.id = ? " +
+            "union all " +
+            "select o.name from " +
+            "\"" + orgCacheName + "\".Organization o, " +
+            "\"" + personCacheName + "\".Person p " +
+            "where p.orgStrId = o.strId and o.id = ?"
+        ));
+
+        Map<Integer, Integer> personsPerOrg = data.personsPerOrg;
+        Map<Integer, Integer> accountsPerPerson = data.accountsPerPerson;
+
+        for (Map.Entry<Integer, Integer> e1 : personsPerOrg.entrySet()) {
+            Integer orgId = e1.getKey();
+            Integer personsCnt = e1.getValue();
+
+            for (Map.Entry<Integer, Integer> e2 : accountsPerPerson.entrySet()) {
+                Integer personId = e2.getKey();
+                Integer accsCnt = e2.getValue();
+
+                for (Query q : queries) {
+                    ((SqlFieldsQuery)q).setDistributedJoins(true);
+
+                    ((SqlFieldsQuery)q).setArgs(personId, orgId);
+
+                    List res = cache.query(q).getAll();
+
+                    assertEquals(personsCnt + accsCnt, res.size());
+                }
+            }
+        }
+    }
+
+    /**
+     * @param cache Cache.
+     * @param data Data.
+     * @param personCacheName Person cache name.
+     * @param accCacheName Account cache name.
+     */
+    private void checkCrossJoin(IgniteCache cache, Data data,
+        String personCacheName, String accCacheName) {
+        SqlFieldsQuery q = new SqlFieldsQuery("select p.name " +
+            "from \"" + personCacheName + "\".Person p " +
+            "cross join \"" + accCacheName + "\".Account a");
+
+        q.setDistributedJoins(true);
+
+        List res = cache.query(q).getAll();
+
+        assertEquals(data.persons.size() * data.accounts.size(), res.size());
     }
 
     /**
@@ -663,7 +787,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         /** */
         final Map<Integer, Integer> personsPerOrg;
 
-        /** */
+        /** PersonId to count of accounts that person has. */
         final Map<Integer, Integer> accountsPerPerson;
 
         /** */
@@ -694,11 +818,20 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
      */
     private static class Account implements Serializable {
         /** */
+        @QuerySqlField
         private int id;
 
         /** */
         @QuerySqlField
         private int personId;
+
+        /** */
+        @QuerySqlField
+        private Date personDateId;
+
+        /** */
+        @QuerySqlField
+        private String personStrId;
 
         /**
          * @param id ID.
@@ -707,6 +840,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         Account(int id, int personId) {
             this.id = id;
             this.personId = personId;
+            personDateId = new Date(personId);
+            personStrId = "personId" + personId;
         }
     }
 
@@ -715,11 +850,28 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
      */
     private static class Person implements Serializable {
         /** */
+        @QuerySqlField
         int id;
+
+        /** Date as ID. */
+        @QuerySqlField
+        Date dateId;
+
+        /** String as ID */
+        @QuerySqlField
+        String strId;
 
         /** */
         @QuerySqlField
         int orgId;
+
+        /** */
+        @QuerySqlField
+        Date orgDateId;
+
+        /** */
+        @QuerySqlField
+        String orgStrId;
 
         /** */
         @QuerySqlField
@@ -730,9 +882,13 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
          * @param orgId Organization ID.
          * @param name Name.
          */
-        public Person(int id, int orgId, String name) {
+        Person(int id, int orgId, String name) {
             this.id = id;
+            dateId = new Date(id);
+            strId = "personId" + id;
             this.orgId = orgId;
+            orgDateId = new Date(orgId);
+            orgStrId = "orgId" + orgId;
             this.name = name;
         }
     }
@@ -747,6 +903,14 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
 
         /** */
         @QuerySqlField
+        Date dateId;
+
+        /** */
+        @QuerySqlField
+        String strId;
+
+        /** */
+        @QuerySqlField
         String name;
 
         /**
@@ -755,6 +919,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
          */
         Organization(int id, String name) {
             this.id = id;
+            dateId = new Date(id);
+            strId = "orgId" + id;
             this.name = name;
         }
     }
