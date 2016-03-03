@@ -2611,12 +2611,12 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             // Optimization.
             return;
 
-        // Must touch all entries since update may have deleted entries.
-        // Eviction manager will remove empty entries.
-        for (GridCacheMapEntry entry : locked) {
-            if (entry != null && (skip == null || !skip.contains(entry.key())))
-                ctx.evicts().touch(entry, topVer);
-        }
+//        // Must touch all entries since update may have deleted entries.
+//        // Eviction manager will remove empty entries.
+//        for (GridCacheMapEntry entry : locked) {
+//            if (entry != null && (skip == null || !skip.contains(entry.key())))
+//                ctx.evicts().touch(entry, topVer);
+//        }
     }
 
     /**
