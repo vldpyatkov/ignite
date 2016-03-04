@@ -281,7 +281,7 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
     @SuppressWarnings({"unchecked", "ConstantConditions", "ThrowableResultOfMethodCallIgnored"})
     private void onMessage0(final UUID nodeId, final GridCacheMessage cacheMsg,
         final IgniteBiInClosure<UUID, GridCacheMessage> c) {
-        //rw.readLock();
+        rw.readLock();
 
         try {
             if (stopping) {
@@ -312,7 +312,7 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
             if (depEnabled)
                 cctx.deploy().ignoreOwnership(false);
 
-            //rw.readUnlock();
+            rw.readUnlock();
         }
     }
 
@@ -619,7 +619,7 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
             cctx.mvcc().contextReset();
 
             // Unwind eviction notifications.
-            //CU.unwindEvicts(cctx);
+            CU.unwindEvicts(cctx);
         }
     }
 
