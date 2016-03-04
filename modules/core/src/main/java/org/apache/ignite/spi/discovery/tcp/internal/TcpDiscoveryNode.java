@@ -143,9 +143,11 @@ public class TcpDiscoveryNode extends GridMetadataAwareAdapter implements Cluste
     private transient boolean cacheCli;
 
     /** Daemon node initialization flag. */
+    @GridToStringExclude
     private transient volatile boolean daemonInit;
 
     /** Daemon node flag. */
+    @GridToStringExclude
     private transient boolean daemon;
 
     /**
