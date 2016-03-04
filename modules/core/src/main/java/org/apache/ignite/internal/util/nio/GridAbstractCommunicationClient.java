@@ -59,28 +59,30 @@ public abstract class GridAbstractCommunicationClient implements GridCommunicati
 
     /** {@inheritDoc} */
     @Override public boolean reserve() {
-        while (true) {
-            int r = reserves.get();
+//        while (true) {
+//            int r = reserves.get();
+//
+//            if (r == -1)
+//                return false;
+//
+//            if (reserves.compareAndSet(r, r + 1))
+//                return true;
+//        }
 
-            if (r == -1)
-                return false;
-
-            if (reserves.compareAndSet(r, r + 1))
-                return true;
-        }
+        return true;
     }
 
     /** {@inheritDoc} */
     @Override public void release() {
-        while (true) {
-            int r = reserves.get();
-
-            if (r == -1)
-                return;
-
-            if (reserves.compareAndSet(r, r - 1))
-                return;
-        }
+//        while (true) {
+//            int r = reserves.get();
+//
+//            if (r == -1)
+//                return;
+//
+//            if (reserves.compareAndSet(r, r - 1))
+//                return;
+//        }
     }
 
     /** {@inheritDoc} */

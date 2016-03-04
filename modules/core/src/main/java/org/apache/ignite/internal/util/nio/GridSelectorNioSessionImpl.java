@@ -21,6 +21,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.IgniteLogger;
@@ -37,7 +38,8 @@ import org.jsr166.ConcurrentLinkedDeque8;
  */
 class GridSelectorNioSessionImpl extends GridNioSessionImpl {
     /** Pending write requests. */
-    private final ConcurrentLinkedDeque8<GridNioFuture<?>> queue = new ConcurrentLinkedDeque8<>();
+    //private final ConcurrentLinkedDeque8<GridNioFuture<?>> queue = new ConcurrentLinkedDeque8<>();
+    private final ConcurrentLinkedQueue<GridNioFuture<?>> queue = new ConcurrentLinkedQueue<>();
 
     /** Selection key associated with this session. */
     @GridToStringExclude
@@ -166,7 +168,7 @@ class GridSelectorNioSessionImpl extends GridNioSessionImpl {
     int offerSystemFuture(GridNioFuture<?> writeFut) {
         writeFut.messageThread(true);
 
-        boolean res = queue.offerFirst(writeFut);
+        boolean res = queue.offer(writeFut);
 
         assert res : "Future was not added to queue";
 
@@ -252,7 +254,7 @@ class GridSelectorNioSessionImpl extends GridNioSessionImpl {
     boolean removeFuture(GridNioFuture<?> fut) {
         assert closed();
 
-        return queue.removeLastOccurrence(fut);
+        return queue.remove(fut);
     }
 
     /**
