@@ -48,6 +48,9 @@ public class IgniteThread extends Thread {
     /** Group index. */
     private final int grpIdx;
 
+    /** Message processing flag. */
+    private boolean procMsg;
+
     /**
      * Creates thread with given worker.
      *
@@ -123,6 +126,20 @@ public class IgniteThread extends Thread {
      */
     public int groupIndex() {
         return grpIdx;
+    }
+
+    /**
+     * @return Message processing flag.
+     */
+    public boolean processingMessage() {
+        return procMsg;
+    }
+
+    /**
+     * @param procMsg Message processing flag.
+     */
+    public void processingMessage(boolean procMsg) {
+        this.procMsg = procMsg;
     }
 
     /**
