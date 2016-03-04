@@ -34,6 +34,7 @@ import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.managers.communication.GridMessageListener;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfo;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxFinishRequest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.CacheGetFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtAffinityAssignmentRequest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtLockRequest;
@@ -586,7 +587,8 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
             cctx.mvcc().contextReset();
 
             // Unwind eviction notifications.
-            CU.unwindEvicts(cctx);
+            if (msg instanceof GridDistributedTxFinishRequest)
+                CU.unwindEvicts(cctx);
         }
     }
 

@@ -2759,7 +2759,12 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
         req.nodeId(ctx.localNodeId());
 
-        updateAllAsyncInternal(nodeId, req, updateReplyClos);
+        try {
+            updateAllAsyncInternal(nodeId, req, updateReplyClos);
+        }
+        finally {
+            CU.unwindEvicts(ctx);
+        }
     }
 
     /**
