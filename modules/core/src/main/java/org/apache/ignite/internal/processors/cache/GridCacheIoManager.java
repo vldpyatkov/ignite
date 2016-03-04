@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
@@ -60,7 +59,7 @@ import org.apache.ignite.internal.processors.cache.query.GridCacheQueryRequest;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryResponse;
 import org.apache.ignite.internal.util.F0;
 import org.apache.ignite.internal.util.GridLeanSet;
-import org.apache.ignite.internal.util.GridSpinReadWriteLock;
+import org.apache.ignite.internal.util.GridStripedSpinBusyLock;
 import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.P1;
@@ -102,11 +101,8 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
     private ConcurrentMap<Object, IgniteBiInClosure<UUID, ? extends GridCacheMessage>> orderedHandlers =
         new ConcurrentHashMap8<>();
 
-    /** Stopping flag. */
-    private boolean stopping;
-
     /** Mutex. */
-    private final GridSpinReadWriteLock rw = new GridSpinReadWriteLock();
+    private final GridStripedSpinBusyLock lock = new GridStripedSpinBusyLock();
 
     /** Deployment enabled. */
     private boolean depEnabled;
@@ -245,32 +241,7 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
         for (Object ordTopic : orderedHandlers.keySet())
             cctx.gridIO().removeMessageListener(ordTopic);
 
-        boolean interrupted = false;
-
-        // Busy wait is intentional.
-        while (true) {
-            try {
-                if (rw.tryWriteLock(200, TimeUnit.MILLISECONDS))
-                    break;
-                else
-                    Thread.sleep(200);
-            }
-            catch (InterruptedException ignore) {
-                // Preserve interrupt status & ignore.
-                // Note that interrupted flag is cleared.
-                interrupted = true;
-            }
-        }
-
-        if (interrupted)
-            Thread.currentThread().interrupt();
-
-        try {
-            stopping = true;
-        }
-        finally {
-            rw.writeUnlock();
-        }
+        lock.block();
     }
 
     /**
@@ -281,39 +252,35 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
     @SuppressWarnings({"unchecked", "ConstantConditions", "ThrowableResultOfMethodCallIgnored"})
     private void onMessage0(final UUID nodeId, final GridCacheMessage cacheMsg,
         final IgniteBiInClosure<UUID, GridCacheMessage> c) {
-        rw.readLock();
+        if (lock.enterBusy()) {
+            try {
+                if (depEnabled)
+                    cctx.deploy().ignoreOwnership(true);
 
-        try {
-            if (stopping) {
-                if (log.isDebugEnabled())
-                    log.debug("Received cache communication message while stopping (will ignore) [nodeId=" +
-                        nodeId + ", msg=" + cacheMsg + ']');
+                unmarshall(nodeId, cacheMsg);
 
-                return;
+                if (cacheMsg.classError() != null)
+                    processFailedMessage(nodeId, cacheMsg, c);
+                else
+                    processMessage(nodeId, cacheMsg, c);
             }
+            catch (Throwable e) {
+                U.error(log, "Failed to process message [senderId=" + nodeId +
+                    ", messageType=" + cacheMsg.getClass() + ']', e);
 
-            if (depEnabled)
-                cctx.deploy().ignoreOwnership(true);
+                if (e instanceof Error)
+                    throw (Error)e;
+            }
+            finally {
+                if (depEnabled)
+                    cctx.deploy().ignoreOwnership(false);
 
-            unmarshall(nodeId, cacheMsg);
-
-            if (cacheMsg.classError() != null)
-                processFailedMessage(nodeId, cacheMsg, c);
-            else
-                processMessage(nodeId, cacheMsg, c);
+                lock.leaveBusy();
+            }
         }
-        catch (Throwable e) {
-            U.error(log, "Failed to process message [senderId=" + nodeId + ", messageType=" + cacheMsg.getClass() + ']', e);
-
-            if (e instanceof Error)
-                throw (Error)e;
-        }
-        finally {
-            if (depEnabled)
-                cctx.deploy().ignoreOwnership(false);
-
-            rw.readUnlock();
-        }
+        else if (log.isDebugEnabled())
+            log.debug("Received cache communication message while stopping (will ignore) [nodeId=" + nodeId +
+                ", msg=" + cacheMsg + ']');
     }
 
     /**

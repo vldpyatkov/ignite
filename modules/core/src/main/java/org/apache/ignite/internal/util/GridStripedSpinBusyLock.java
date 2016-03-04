@@ -17,8 +17,11 @@
 
 package org.apache.ignite.internal.util;
 
-import java.util.Random;
+import org.apache.ignite.internal.util.typedef.internal.A;
+import org.apache.ignite.thread.IgniteThread;
+
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 /**
  * Striped spin busy lock. Aimed to provide efficient "read" lock semantics while still maintaining safety when
@@ -31,15 +34,21 @@ public class GridStripedSpinBusyLock {
     /** Default amount of stripes. */
     private static final int DFLT_STRIPE_CNT = Runtime.getRuntime().availableProcessors() * 4;
 
+    /** Thread index generator. */
+    private static final AtomicInteger THREAD_IDX_GEN = new AtomicInteger();
+
     /** Thread index. */
-    private static ThreadLocal<Integer> THREAD_IDX = new ThreadLocal<Integer>() {
+    private static final ThreadLocal<Integer> THREAD_IDX = new ThreadLocal<Integer>() {
         @Override protected Integer initialValue() {
-            return new Random().nextInt(Integer.MAX_VALUE);
+            return THREAD_IDX_GEN.incrementAndGet();
         }
     };
 
-    /** States; they are not subjects to false-sharing because actual values are located far from each other. */
-    private final AtomicInteger[] states;
+    /** Amount of stripes. */
+    private final int stripeCnt;
+
+    /** States. */
+    private final AtomicIntegerArray states;
 
     /**
      * Default constructor.
@@ -54,10 +63,12 @@ public class GridStripedSpinBusyLock {
      * @param stripeCnt Amount of stripes.
      */
     public GridStripedSpinBusyLock(int stripeCnt) {
-        states = new AtomicInteger[stripeCnt];
+        A.ensure(stripeCnt > 0, "stripeCnt > 0");
 
-        for (int i = 0; i < stripeCnt; i++)
-            states[i] = new AtomicInteger();
+        this.stripeCnt = stripeCnt;
+
+        // Each state must be located 64 bytes from the other to avoid false sharing.
+        states = new AtomicIntegerArray(adjusted(stripeCnt));
     }
 
     /**
@@ -66,7 +77,7 @@ public class GridStripedSpinBusyLock {
      * @return {@code True} if entered busy state.
      */
     public boolean enterBusy() {
-        int val = state().incrementAndGet();
+        int val = states.incrementAndGet(index());
 
         if ((val & WRITER_MASK) == WRITER_MASK) {
             leaveBusy();
@@ -81,7 +92,7 @@ public class GridStripedSpinBusyLock {
      * Leave busy state.
      */
     public void leaveBusy() {
-        state().decrementAndGet();
+        states.decrementAndGet(index());
     }
 
     /**
@@ -89,11 +100,13 @@ public class GridStripedSpinBusyLock {
      */
     public void block() {
         // 1. CAS-loop to set a writer bit.
-        for (AtomicInteger state : states) {
-            while (true) {
-                int oldVal = state.get();
+        for (int i = 0; i < stripeCnt; i++) {
+            int idx = adjusted(i);
 
-                if (state.compareAndSet(oldVal, oldVal | WRITER_MASK))
+            while (true) {
+                int oldVal = states.get(idx);
+
+                if (states.compareAndSet(idx, oldVal, oldVal | WRITER_MASK))
                     break;
             }
         }
@@ -101,8 +114,10 @@ public class GridStripedSpinBusyLock {
         // 2. Wait until all readers are out.
         boolean interrupt = false;
 
-        for (AtomicInteger state : states) {
-            while (state.get() != WRITER_MASK) {
+        for (int i = 0; i < stripeCnt; i++) {
+            int idx = adjusted(i);
+
+            while (states.get(idx) != WRITER_MASK) {
                 try {
                     Thread.sleep(10);
                 }
@@ -117,11 +132,30 @@ public class GridStripedSpinBusyLock {
     }
 
     /**
-     * Gets state of thread's stripe.
+     * Get index for the given thread.
      *
-     * @return State.
+     * @return Index for the given thread.
      */
-    private AtomicInteger state() {
-        return states[THREAD_IDX.get() % states.length];
+    private int index() {
+        Thread t = Thread.currentThread();
+
+        if (t instanceof IgniteThread) {
+            int idx = ((IgniteThread) t).groupIndex();
+
+            if (idx != IgniteThread.GRP_IDX_UNASSIGNED)
+                return idx;
+        }
+
+        return adjusted(THREAD_IDX.get() % stripeCnt);
+    }
+
+    /**
+     * Gets value adjusted for striping.
+     *
+     * @param val Value.
+     * @return Value.
+     */
+    private static int adjusted(int val) {
+        return val << 4;
     }
 }
