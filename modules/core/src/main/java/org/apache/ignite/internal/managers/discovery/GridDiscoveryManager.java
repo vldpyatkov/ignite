@@ -2592,7 +2592,8 @@ public class GridDiscoveryManager extends GridManagerAdapter<DiscoverySpi> {
             daemonNodes = Collections.unmodifiableList(new ArrayList<>(
                 F.view(F.concat(false, loc, rmts), F0.not(FILTER_DAEMON))));
 
-            Map<UUID, ClusterNode> nodeMap = new HashMap<>(allNodes().size() + daemonNodes.size(), 1.0f);
+            // Make map dense enough to minimize collisions.
+            Map<UUID, ClusterNode> nodeMap = new HashMap<>(allNodes().size() + daemonNodes.size(), 0.25f);
 
             for (ClusterNode n : F.concat(false, allNodes(), daemonNodes()))
                 nodeMap.put(n.id(), n);
