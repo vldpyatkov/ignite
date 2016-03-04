@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.managers.communication;
 
+import java.io.InterruptedIOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +36,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -53,6 +55,7 @@ import org.apache.ignite.internal.managers.GridManagerAdapter;
 import org.apache.ignite.internal.managers.deployment.GridDeployment;
 import org.apache.ignite.internal.managers.eventstorage.GridEventStorageManager;
 import org.apache.ignite.internal.managers.eventstorage.GridLocalEventListener;
+import org.apache.ignite.internal.processors.cache.distributed.dht.atomic.GridNearAtomicUpdateRequest;
 import org.apache.ignite.internal.processors.platform.message.PlatformMessageFilter;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObject;
 import org.apache.ignite.internal.util.GridBoundedConcurrentLinkedHashSet;
@@ -60,6 +63,7 @@ import org.apache.ignite.internal.util.GridSpinReadWriteLock;
 import org.apache.ignite.internal.util.lang.GridTuple3;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -82,6 +86,7 @@ import org.apache.ignite.thread.IgniteThreadPoolExecutor;
 import org.jetbrains.annotations.Nullable;
 import org.jsr166.ConcurrentHashMap8;
 import org.jsr166.ConcurrentLinkedDeque8;
+import org.jsr166.LongAdder8;
 
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
@@ -367,6 +372,33 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
     /** {@inheritDoc} */
     @SuppressWarnings({"deprecation", "SynchronizationOnLocalVariableOrMethodParameter"})
     @Override public void onKernalStart0() throws IgniteCheckedException {
+        Thread t = new Thread(new Runnable() {
+            @Override public void run() {
+                while (true) {
+                    try {
+                        Thread.sleep(2000);
+                    }
+                    catch (InterruptedException e) {
+                        return;
+                    }
+
+                    T2<LongAdder8, LongAdder8> t = T.get();
+
+                    T.set(new T2<>(new LongAdder8(), new LongAdder8()));
+
+                    long dur = t.get1().longValue();
+                    long cnt = t.get2().longValue();
+
+                    if (cnt != 0)
+                        System.out.println("AVG=" + ((double)dur/cnt));
+                }
+            }
+        });
+
+        t.setDaemon(true);
+
+        t.start();
+
         discoLsnr = new GridLocalEventListener() {
             @SuppressWarnings({"TooBroadScope", "fallthrough"})
             @Override public void onEvent(Event evt) {
@@ -815,6 +847,9 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
         }
     }
 
+    private static final AtomicReference<T2<LongAdder8, LongAdder8>> T =
+        new AtomicReference<>(new T2<>(new LongAdder8(), new LongAdder8()));
+
     /**
      * @param msg Message.
      * @param nodeId Node ID.
@@ -830,7 +865,20 @@ public class GridIoManager extends GridManagerAdapter<CommunicationSpi<Serializa
 
         assert obj != null;
 
-        lsnr.onMessage(nodeId, obj);
+        if (obj instanceof GridNearAtomicUpdateRequest) {
+            long start = System.nanoTime();
+
+            lsnr.onMessage(nodeId, obj);
+
+            long dur = System.nanoTime() - start;
+
+            T2<LongAdder8, LongAdder8> t = T.get();
+
+            t.get1().add(dur);
+            t.get2().add(1);
+        }
+        else
+            lsnr.onMessage(nodeId, obj);
     }
 
     /**
