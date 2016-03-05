@@ -83,6 +83,7 @@ import org.apache.ignite.internal.processors.cache.version.GridCacheVersionConfl
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersionEx;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObject;
 import org.apache.ignite.internal.util.F0;
+import org.apache.ignite.internal.util.GridStripedSpinBusyLock;
 import org.apache.ignite.internal.util.GridUnsafe;
 import org.apache.ignite.internal.util.future.GridEmbeddedFuture;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
@@ -1321,6 +1322,37 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         }
     }
 
+    private static final int MAJOR;
+    private static final int MINOR;
+    private static final int STRIPED;
+
+    private static final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock();
+    private static final GridStripedSpinBusyLock LOCK2 = new GridStripedSpinBusyLock();
+
+    private static volatile long consumedCPU;
+
+    private static void consumeCPU(long tokens) {
+        long t = consumedCPU;
+
+        for(long i = tokens; i > 0L; --i)
+            t += t * 25214903917L + 11L + i & 281474976710655L;
+
+        if(t == 42L)
+            consumedCPU += t;
+    }
+
+    static {
+        MAJOR = Integer.getInteger("I_MAJOR", 0);
+        MINOR = Integer.getInteger("I_MINOR", 0);
+        STRIPED = Integer.getInteger("I_STRIPE", 0);
+
+        System.out.println("MAJOR=" + MAJOR);
+        System.out.println("MINOR=" + MINOR);
+        System.out.println("STRIPED=" + STRIPED);
+
+        consumedCPU = System.nanoTime();
+    }
+
     /**
      * Executes local update after preloader fetched values.
      *
@@ -1336,202 +1368,236 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         GridNearAtomicUpdateResponse res = new GridNearAtomicUpdateResponse(ctx.cacheId(), nodeId, req.futureVersion(),
             ctx.deploymentEnabled());
 
-        List<KeyCacheObject> keys = req.keys();
+        res.returnValue(new GridCacheReturn(ctx, false, true, null, true));
 
-        assert !req.returnValue() || (req.operation() == TRANSFORM || keys.size() == 1);
-
-        GridDhtAtomicUpdateFuture dhtFut = null;
-
-        boolean remap = false;
-
-        String taskName = ctx.kernalContext().task().resolveTaskName(req.taskNameHash());
-
-        IgniteCacheExpiryPolicy expiry = null;
-
-        try {
-            // If batch store update is enabled, we need to lock all entries.
-            // First, need to acquire locks on cache entries, then check filter.
-            List<GridDhtCacheEntry> locked = lockEntries(keys, req.topologyVersion());
-
-            Collection<IgniteBiTuple<GridDhtCacheEntry, GridCacheVersion>> deleted = null;
-
-            try {
-                GridDhtPartitionTopology top = topology();
-
-                top.readLock();
+        if (STRIPED == 0) {
+            for (int i = 0; i < MAJOR; i++) {
+                LOCK.readLock().lock();
 
                 try {
-                    if (top.stopping()) {
-                        res.addFailedKeys(keys, new IgniteCheckedException("Failed to perform cache operation " +
-                            "(cache is stopped): " + name()));
-
-                        completionCb.apply(req, res);
-
-                        return;
-                    }
-
-                    // Do not check topology version for CLOCK versioning since
-                    // partition exchange will wait for near update future (if future is on server node).
-                    // Also do not check topology version if topology was locked on near node by
-                    // external transaction or explicit lock.
-                    if ((req.fastMap() && !req.clientRequest()) || req.topologyLocked() ||
-                        !needRemap(req.topologyVersion(), top.topologyVersion())) {
-                        ClusterNode node = ctx.discovery().node(nodeId);
-
-                        if (node == null) {
-                            U.warn(log, "Node originated update request left grid: " + nodeId);
-
-                            return;
-                        }
-
-                        boolean hasNear = ctx.discovery().cacheNearNode(node, name());
-
-                        GridCacheVersion ver = req.updateVersion();
-
-                        if (ver == null) {
-                            // Assign next version for update inside entries lock.
-                            ver = ctx.versions().next(top.topologyVersion());
-
-                            if (hasNear)
-                                res.nearVersion(ver);
-                        }
-
-                        assert ver != null : "Got null version for update request: " + req;
-
-                        if (log.isDebugEnabled())
-                            log.debug("Using cache version for update request on primary node [ver=" + ver +
-                                ", req=" + req + ']');
-
-                        boolean sndPrevVal = !top.rebalanceFinished(req.topologyVersion());
-
-                        dhtFut = createDhtFuture(ver, req, res, completionCb, false);
-
-                        expiry = expiryPolicy(req.expiry());
-
-                        GridCacheReturn retVal = null;
-
-                        if (keys.size() > 1 &&                             // Several keys ...
-                            writeThrough() && !req.skipStore() &&          // and store is enabled ...
-                            !ctx.store().isLocal() &&                      // and this is not local store ...
-                            !ctx.dr().receiveEnabled()                     // and no DR.
-                            ) {
-                            // This method can only be used when there are no replicated entries in the batch.
-                            UpdateBatchResult updRes = updateWithBatch(node,
-                                hasNear,
-                                req,
-                                res,
-                                locked,
-                                ver,
-                                dhtFut,
-                                completionCb,
-                                ctx.isDrEnabled(),
-                                taskName,
-                                expiry,
-                                sndPrevVal);
-
-                            deleted = updRes.deleted();
-                            dhtFut = updRes.dhtFuture();
-
-                            if (req.operation() == TRANSFORM)
-                                retVal = updRes.invokeResults();
-                        }
-                        else {
-                            UpdateSingleResult updRes = updateSingle(node,
-                                hasNear,
-                                req,
-                                res,
-                                locked,
-                                ver,
-                                dhtFut,
-                                completionCb,
-                                ctx.isDrEnabled(),
-                                taskName,
-                                expiry,
-                                sndPrevVal);
-
-                            retVal = updRes.returnValue();
-                            deleted = updRes.deleted();
-                            dhtFut = updRes.dhtFuture();
-                        }
-
-                        if (retVal == null)
-                            retVal = new GridCacheReturn(ctx, node.isLocal(), true, null, true);
-
-                        res.returnValue(retVal);
-
-                        if (req.writeSynchronizationMode() != FULL_ASYNC)
-                            req.cleanup(!node.isLocal());
-
-                        if (dhtFut != null)
-                            ctx.mvcc().addAtomicFuture(dhtFut.version(), dhtFut);
-                    }
-                    else
-                        // Should remap all keys.
-                        remap = true;
+                    consumeCPU(MINOR);
                 }
                 finally {
-                    top.readUnlock();
+                    LOCK.readLock().unlock();
                 }
             }
-            catch (GridCacheEntryRemovedException e) {
-                assert false : "Entry should not become obsolete while holding lock.";
-
-                e.printStackTrace();
-            }
-            finally {
-                if (locked != null)
-                    unlockEntries(locked, req.topologyVersion());
-
-                // Enqueue if necessary after locks release.
-                if (deleted != null) {
-                    assert !deleted.isEmpty();
-                    assert ctx.deferredDelete() : this;
-
-                    for (IgniteBiTuple<GridDhtCacheEntry, GridCacheVersion> e : deleted)
-                        ctx.onDeferredDelete(e.get1(), e.get2());
-                }
-            }
-        }
-        catch (GridDhtInvalidPartitionException ignore) {
-            assert !req.fastMap() || req.clientRequest() : req;
-
-            if (log.isDebugEnabled())
-                log.debug("Caught invalid partition exception for cache entry (will remap update request): " + req);
-
-            remap = true;
-        }
-        catch (Throwable e) {
-            // At least RuntimeException can be thrown by the code above when GridCacheContext is cleaned and there is
-            // an attempt to use cleaned resources.
-            U.error(log, "Unexpected exception during cache update", e);
-
-            res.addFailedKeys(keys, e);
-
-            completionCb.apply(req, res);
-
-            if (e instanceof Error)
-                throw e;
-
-            return;
-        }
-
-        if (remap) {
-            assert dhtFut == null;
-
-            res.remapKeys(keys);
-
-            completionCb.apply(req, res);
         }
         else {
-            // If there are backups, map backup update future.
-            if (dhtFut != null)
-                dhtFut.map();
-                // Otherwise, complete the call.
-            else
-                completionCb.apply(req, res);
+            for (int i = 0; i < MAJOR; i++) {
+                LOCK2.enterBusy();
+
+                try {
+                    consumeCPU(MINOR);
+                }
+                finally {
+                    LOCK2.leaveBusy();
+                }
+            }
         }
 
-        sendTtlUpdateRequest(expiry);
+        completionCb.apply(req, res);
+
+
+
+//        GridNearAtomicUpdateResponse res = new GridNearAtomicUpdateResponse(ctx.cacheId(), nodeId, req.futureVersion(),
+//            ctx.deploymentEnabled());
+//
+//        List<KeyCacheObject> keys = req.keys();
+//
+//        assert !req.returnValue() || (req.operation() == TRANSFORM || keys.size() == 1);
+//
+//        GridDhtAtomicUpdateFuture dhtFut = null;
+//
+//        boolean remap = false;
+//
+//        String taskName = ctx.kernalContext().task().resolveTaskName(req.taskNameHash());
+//
+//        IgniteCacheExpiryPolicy expiry = null;
+//
+//        try {
+//            // If batch store update is enabled, we need to lock all entries.
+//            // First, need to acquire locks on cache entries, then check filter.
+//            List<GridDhtCacheEntry> locked = lockEntries(keys, req.topologyVersion());
+//
+//            Collection<IgniteBiTuple<GridDhtCacheEntry, GridCacheVersion>> deleted = null;
+//
+//            try {
+//                GridDhtPartitionTopology top = topology();
+//
+//                top.readLock();
+//
+//                try {
+//                    if (top.stopping()) {
+//                        res.addFailedKeys(keys, new IgniteCheckedException("Failed to perform cache operation " +
+//                            "(cache is stopped): " + name()));
+//
+//                        completionCb.apply(req, res);
+//
+//                        return;
+//                    }
+//
+//                    // Do not check topology version for CLOCK versioning since
+//                    // partition exchange will wait for near update future (if future is on server node).
+//                    // Also do not check topology version if topology was locked on near node by
+//                    // external transaction or explicit lock.
+//                    if ((req.fastMap() && !req.clientRequest()) || req.topologyLocked() ||
+//                        !needRemap(req.topologyVersion(), top.topologyVersion())) {
+//                        ClusterNode node = ctx.discovery().node(nodeId);
+//
+//                        if (node == null) {
+//                            U.warn(log, "Node originated update request left grid: " + nodeId);
+//
+//                            return;
+//                        }
+//
+//                        boolean hasNear = ctx.discovery().cacheNearNode(node, name());
+//
+//                        GridCacheVersion ver = req.updateVersion();
+//
+//                        if (ver == null) {
+//                            // Assign next version for update inside entries lock.
+//                            ver = ctx.versions().next(top.topologyVersion());
+//
+//                            if (hasNear)
+//                                res.nearVersion(ver);
+//                        }
+//
+//                        assert ver != null : "Got null version for update request: " + req;
+//
+//                        if (log.isDebugEnabled())
+//                            log.debug("Using cache version for update request on primary node [ver=" + ver +
+//                                ", req=" + req + ']');
+//
+//                        boolean sndPrevVal = !top.rebalanceFinished(req.topologyVersion());
+//
+//                        dhtFut = createDhtFuture(ver, req, res, completionCb, false);
+//
+//                        expiry = expiryPolicy(req.expiry());
+//
+//                        GridCacheReturn retVal = null;
+//
+//                        if (keys.size() > 1 &&                             // Several keys ...
+//                            writeThrough() && !req.skipStore() &&          // and store is enabled ...
+//                            !ctx.store().isLocal() &&                      // and this is not local store ...
+//                            !ctx.dr().receiveEnabled()                     // and no DR.
+//                            ) {
+//                            // This method can only be used when there are no replicated entries in the batch.
+//                            UpdateBatchResult updRes = updateWithBatch(node,
+//                                hasNear,
+//                                req,
+//                                res,
+//                                locked,
+//                                ver,
+//                                dhtFut,
+//                                completionCb,
+//                                ctx.isDrEnabled(),
+//                                taskName,
+//                                expiry,
+//                                sndPrevVal);
+//
+//                            deleted = updRes.deleted();
+//                            dhtFut = updRes.dhtFuture();
+//
+//                            if (req.operation() == TRANSFORM)
+//                                retVal = updRes.invokeResults();
+//                        }
+//                        else {
+//                            UpdateSingleResult updRes = updateSingle(node,
+//                                hasNear,
+//                                req,
+//                                res,
+//                                locked,
+//                                ver,
+//                                dhtFut,
+//                                completionCb,
+//                                ctx.isDrEnabled(),
+//                                taskName,
+//                                expiry,
+//                                sndPrevVal);
+//
+//                            retVal = updRes.returnValue();
+//                            deleted = updRes.deleted();
+//                            dhtFut = updRes.dhtFuture();
+//                        }
+//
+//                        if (retVal == null)
+//                            retVal = new GridCacheReturn(ctx, node.isLocal(), true, null, true);
+//
+//                        res.returnValue(retVal);
+//
+//                        if (req.writeSynchronizationMode() != FULL_ASYNC)
+//                            req.cleanup(!node.isLocal());
+//
+//                        if (dhtFut != null)
+//                            ctx.mvcc().addAtomicFuture(dhtFut.version(), dhtFut);
+//                    }
+//                    else
+//                        // Should remap all keys.
+//                        remap = true;
+//                }
+//                finally {
+//                    top.readUnlock();
+//                }
+//            }
+//            catch (GridCacheEntryRemovedException e) {
+//                assert false : "Entry should not become obsolete while holding lock.";
+//
+//                e.printStackTrace();
+//            }
+//            finally {
+//                if (locked != null)
+//                    unlockEntries(locked, req.topologyVersion());
+//
+//                // Enqueue if necessary after locks release.
+//                if (deleted != null) {
+//                    assert !deleted.isEmpty();
+//                    assert ctx.deferredDelete() : this;
+//
+//                    for (IgniteBiTuple<GridDhtCacheEntry, GridCacheVersion> e : deleted)
+//                        ctx.onDeferredDelete(e.get1(), e.get2());
+//                }
+//            }
+//        }
+//        catch (GridDhtInvalidPartitionException ignore) {
+//            assert !req.fastMap() || req.clientRequest() : req;
+//
+//            if (log.isDebugEnabled())
+//                log.debug("Caught invalid partition exception for cache entry (will remap update request): " + req);
+//
+//            remap = true;
+//        }
+//        catch (Throwable e) {
+//            // At least RuntimeException can be thrown by the code above when GridCacheContext is cleaned and there is
+//            // an attempt to use cleaned resources.
+//            U.error(log, "Unexpected exception during cache update", e);
+//
+//            res.addFailedKeys(keys, e);
+//
+//            completionCb.apply(req, res);
+//
+//            if (e instanceof Error)
+//                throw e;
+//
+//            return;
+//        }
+//
+//        if (remap) {
+//            assert dhtFut == null;
+//
+//            res.remapKeys(keys);
+//
+//            completionCb.apply(req, res);
+//        }
+//        else {
+//            // If there are backups, map backup update future.
+//            if (dhtFut != null)
+//                dhtFut.map();
+//                // Otherwise, complete the call.
+//            else
+//                completionCb.apply(req, res);
+//        }
+//
+//        sendTtlUpdateRequest(expiry);
     }
 
     /**
