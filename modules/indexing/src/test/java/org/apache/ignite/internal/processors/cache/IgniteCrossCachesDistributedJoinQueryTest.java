@@ -28,7 +28,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
+import javax.cache.CacheException;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.QueryEntity;
@@ -43,9 +45,11 @@ import org.apache.ignite.internal.util.typedef.internal.SB;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
+import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
+import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 
 /**
@@ -66,7 +70,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
     private Data data;
 
     /** */
-    private String dataAsString;
+    private String dataAsStr;
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
@@ -204,15 +208,15 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         awaitPartitionMapExchange();
 
         try {
-            dataAsString = null;
+            dataAsStr = null;
             data = prepareData();
 
-            IgniteCache accCache = ignite(0).cache(accCacheType.cacheName);
+            final IgniteCache accCache = ignite(0).cache(accCacheType.cacheName);
 
             for (Account account : data.accounts)
                 accCache.put(account.id, account);
 
-            IgniteCache personCache = ignite(0).cache(personCacheType.cacheName);
+            final IgniteCache personCache = ignite(0).cache(personCacheType.cacheName);
 
             for (Person person : data.persons)
                 personCache.put(person.id, person);
@@ -232,41 +236,77 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
                 log.info("Test node: " + i);
 
                 for (String cacheName : cacheNames) {
-                    IgniteCache cache = ignite(i).cache(cacheName);
+                    final IgniteCache cache = ignite(i).cache(cacheName);
 
                     log.info("Use cache: " + cache.getName());
 
-                    checkPersonAccountsJoin(cache,
-                        data.accountsPerPerson,
-                        accCache.getName(),
-                        personCache.getName());
+                    CacheConfiguration cc = (CacheConfiguration)cache.getConfiguration(CacheConfiguration.class);
 
-                    checkOrganizationPersonsJoin(cache,
-                        data.personsPerOrg,
-                        orgCacheType.cacheName,
-                        personCacheType.cacheName);
+                    if (cc.getCacheMode() == REPLICATED && !ignite(i).configuration().isClientMode()) {
+                        GridTestUtils.assertThrows(log, new Callable<Object>() {
+                            @Override public Object call() throws Exception {
+                                cache.query(new SqlFieldsQuery("select p.name from " +
+                                    "\"" + personCache.getName() + "\".Person p, " +
+                                    "\"" + accCache.getName() + "\".Account a " +
+                                    "where p._key = a.personId").setDistributedJoins(true));
 
-                    checkOrganizationPersonAccountJoin(cache,
-                        data.accountsPerOrg,
-                        orgCacheType.cacheName,
-                        personCacheType.cacheName,
-                        accCacheType.cacheName);
+                                return null;
+                            }
+                        }, CacheException.class, "Queries using distributed JOINs have to be run on partitioned cache");
 
-                    checkUninon(cache,
-                        data,
-                        orgCacheType.cacheName,
-                        personCacheType.cacheName,
-                        accCacheType.cacheName);
+                        GridTestUtils.assertThrows(log, new Callable<Object>() {
+                            @Override public Object call() throws Exception {
+                                cache.query(new SqlQuery(Person.class,
+                                    "from \"" + personCache.getName() + "\".Person , " +
+                                        "\"" + accCache.getName() + "\".Account  " +
+                                        "where Person._key = Account.personId")
+                                    .setDistributedJoins(true));
 
-                    checkCrossJoin(cache,
-                        data,
-                        personCacheType.cacheName,
-                        accCacheType.cacheName);
+                                return null;
+                            }
+                        }, CacheException.class, "Queries using distributed JOINs have to be run on partitioned cache");
+                    }
+                    else {
+                        if (!cache.getName().equals(orgCacheType.cacheName))
+                            checkPersonAccountsJoin(cache,
+                                data.accountsPerPerson,
+                                accCache.getName(),
+                                personCache.getName());
 
-                    checkGroupBy(cache,
-                        personCacheType.cacheName,
-                        accCacheType.cacheName,
-                        orgCacheType.cacheName);
+                        if (!cache.getName().equals(accCacheType.cacheName))
+                            checkOrganizationPersonsJoin(cache,
+                                data.personsPerOrg,
+                                orgCacheType.cacheName,
+                                personCacheType.cacheName);
+
+                        checkOrganizationPersonAccountJoin(cache,
+                            data.accountsPerOrg,
+                            orgCacheType.cacheName,
+                            personCacheType.cacheName,
+                            accCacheType.cacheName);
+
+                        checkUninon(cache,
+                            data,
+                            orgCacheType.cacheName,
+                            personCacheType.cacheName,
+                            accCacheType.cacheName);
+
+                        if (!cache.getName().equals(orgCacheType.cacheName))
+                            checkPersonAccountCrossJoin(cache,
+                                data,
+                                personCacheType.cacheName,
+                                accCacheType.cacheName);
+
+                        if (!cache.getName().equals(accCacheType.cacheName))
+                            checkPersonOrganizationGroupBy(cache,
+                                personCacheType.cacheName,
+                                orgCacheType.cacheName);
+
+                        if (!cache.getName().equals(orgCacheType.cacheName))
+                            checkPersonAccountGroupBy(cache,
+                                personCacheType.cacheName,
+                                accCacheType.cacheName);
+                    }
                 }
             }
         }
@@ -728,7 +768,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
      * @param personCacheName Person cache name.
      * @param accCacheName Account cache name.
      */
-    private void checkCrossJoin(IgniteCache cache, Data data,
+    private void checkPersonAccountCrossJoin(IgniteCache cache, Data data,
         String personCacheName, String accCacheName) {
         SqlFieldsQuery q = new SqlFieldsQuery("select p.name " +
             "from \"" + personCacheName + "\".Person p " +
@@ -744,11 +784,10 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
     /**
      * @param cache Cache.
      * @param personCacheName Person cache name.
-     * @param accCacheName Account cache name.
      * @param orgCacheName Organization cache name.
      */
-    private void checkGroupBy(IgniteCache cache,
-        String personCacheName, String accCacheName, String orgCacheName) {
+    private void checkPersonOrganizationGroupBy(IgniteCache cache,
+        String personCacheName, String orgCacheName) {
         // Max salary per organization.
         SqlFieldsQuery q = new SqlFieldsQuery("select max(p.salary) " +
             "from \"" + personCacheName + "\".Person p join \""+orgCacheName+"\".Organization o " +
@@ -777,9 +816,17 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             else
                 assertEquals(errMsg, 0, res.size());
         }
+    }
 
+    /**
+     * @param cache Cache.
+     * @param personCacheName Person cache name.
+     * @param accCacheName Account cache name.
+     */
+    private void checkPersonAccountGroupBy(IgniteCache cache,
+        String personCacheName, String accCacheName) {
         // Count accounts per person.
-        q = new SqlFieldsQuery("select count(a.id) " +
+        SqlFieldsQuery q = new SqlFieldsQuery("select count(a.id) " +
             "from \"" + personCacheName + "\".Person p join \""+accCacheName+"\".Account a " +
             "on p.strId = a.personStrId " +
             "group by p.name " +
@@ -812,10 +859,10 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
      * @return Data as string.
      */
     private String dataAsString() {
-        if (dataAsString == null)
-            dataAsString = data.toString();
+        if (dataAsStr == null)
+            dataAsStr = data.toString();
 
-        return dataAsString;
+        return dataAsStr;
     }
 
     /**
