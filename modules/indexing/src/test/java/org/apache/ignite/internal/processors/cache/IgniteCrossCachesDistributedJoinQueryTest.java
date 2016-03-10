@@ -62,6 +62,12 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
     /** */
     private boolean client;
 
+    /** */
+    private Data data;
+
+    /** */
+    private String dataAsString;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(gridName);
@@ -198,7 +204,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         awaitPartitionMapExchange();
 
         try {
-            Data data = prepareData();
+            dataAsString = null;
+            data = prepareData();
 
             IgniteCache accCache = ignite(0).cache(accCacheType.cacheName);
 
@@ -255,6 +262,11 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
                         data,
                         personCacheType.cacheName,
                         accCacheType.cacheName);
+
+                    checkGroupBy(cache,
+                        personCacheType.cacheName,
+                        accCacheType.cacheName,
+                        orgCacheType.cacheName);
                 }
             }
         }
@@ -276,6 +288,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         Map<Integer, Integer> personsPerOrg = new HashMap<>();
         Map<Integer, Integer> accountsPerPerson = new HashMap<>();
         Map<Integer, Integer> accountsPerOrg = new HashMap<>();
+        Map<Integer, Integer> maxSalaryPerOrg = new HashMap<>();
 
         Collection<Organization> orgs = new ArrayList<>();
         Collection<Person> persons = new ArrayList<>();
@@ -293,6 +306,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             int personsCnt = ThreadLocalRandom.current().nextInt(20);
 
             int accsPerOrg = 0;
+            int maxSalary = -1;
 
             for (int p = 0; p < personsCnt; p++) {
                 int personId = ThreadLocalRandom.current().nextInt(10, 10_000);
@@ -302,7 +316,12 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
 
                 String name = "person-" + personId;
 
-                persons.add(new Person(personId, orgId, name));
+                int salary = ThreadLocalRandom.current().nextInt(1, 10) * 1000;
+
+                if (salary > maxSalary)
+                    maxSalary = salary;
+
+                persons.add(new Person(personId, orgId, name, salary));
 
                 int accountsCnt = ThreadLocalRandom.current().nextInt(10);
 
@@ -322,9 +341,10 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
 
             personsPerOrg.put(orgId, personsCnt);
             accountsPerOrg.put(orgId, accsPerOrg);
+            maxSalaryPerOrg.put(orgId, maxSalary);
         }
 
-        return new Data(orgs, persons, accounts, personsPerOrg, accountsPerPerson, accountsPerOrg);
+        return new Data(orgs, persons, accounts, personsPerOrg, accountsPerPerson, accountsPerOrg, maxSalaryPerOrg);
     }
 
     /**
@@ -359,6 +379,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             QueryEntity account = new QueryEntity();
             account.setKeyType(Integer.class.getName());
             account.setValueType(Account.class.getName());
+            account.addQueryField("id", Integer.class.getName(), null);
             account.addQueryField("personId", Integer.class.getName(), null);
             account.addQueryField("personDateId", Date.class.getName(), null);
             account.addQueryField("personStrId", String.class.getName(), null);
@@ -377,6 +398,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             person.addQueryField("orgDateId", Date.class.getName(), null);
             person.addQueryField("orgStrId", String.class.getName(), null);
             person.addQueryField("name", String.class.getName(), null);
+            person.addQueryField("salary", Integer.class.getName(), null);
 
             entities.add(person);
         }
@@ -666,14 +688,14 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
 
         queries.add(new SqlFieldsQuery(
             "select p.name from " +
-            "\"" + personCacheName + "\".Person p, " +
-            "\"" + accCacheName + "\".Account a " +
-            "where p._key = a.personId and p.id = ? " +
-            "union all " +
-            "select o.name from " +
-            "\"" + orgCacheName + "\".Organization o, " +
-            "\"" + personCacheName + "\".Person p " +
-            "where p.orgStrId = o.strId and o.id = ?"
+                "\"" + personCacheName + "\".Person p, " +
+                "\"" + accCacheName + "\".Account a " +
+                "where p._key = a.personId and p.id = ? " +
+                "union all " +
+                "select o.name from " +
+                "\"" + orgCacheName + "\".Organization o, " +
+                "\"" + personCacheName + "\".Person p " +
+                "where p.orgStrId = o.strId and o.id = ?"
         ));
 
         Map<Integer, Integer> personsPerOrg = data.personsPerOrg;
@@ -717,6 +739,83 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         List res = cache.query(q).getAll();
 
         assertEquals(data.persons.size() * data.accounts.size(), res.size());
+    }
+
+    /**
+     * @param cache Cache.
+     * @param personCacheName Person cache name.
+     * @param accCacheName Account cache name.
+     * @param orgCacheName Organization cache name.
+     */
+    private void checkGroupBy(IgniteCache cache,
+        String personCacheName, String accCacheName, String orgCacheName) {
+        // Max salary per organization.
+        SqlFieldsQuery q = new SqlFieldsQuery("select max(p.salary) " +
+            "from \"" + personCacheName + "\".Person p join \""+orgCacheName+"\".Organization o " +
+            "on p.orgId = o.id " +
+            "group by o.name " +
+            "having o.id = ?");
+
+        q.setDistributedJoins(true);
+
+        for (Map.Entry<Integer, Integer> e : data.maxSalaryPerOrg.entrySet()) {
+            Integer orgId = e.getKey();
+            Integer maxSalary = e.getValue();
+
+            q.setArgs(orgId);
+
+            List<List<?>> res = cache.query(q).getAll();
+
+            String errMsg = "Expected data [orgId=" + orgId + ", maxSalary=" + maxSalary + ", data=" + dataAsString() + "]";
+
+            // MaxSalary == -1 means that there are no persons at organization.
+            if (maxSalary > 0) {
+                assertEquals(errMsg, 1, res.size());
+                assertEquals(errMsg, 1, res.get(0).size());
+                assertEquals(errMsg, maxSalary, res.get(0).get(0));
+            }
+            else
+                assertEquals(errMsg, 0, res.size());
+        }
+
+        // Count accounts per person.
+        q = new SqlFieldsQuery("select count(a.id) " +
+            "from \"" + personCacheName + "\".Person p join \""+accCacheName+"\".Account a " +
+            "on p.strId = a.personStrId " +
+            "group by p.name " +
+            "having p.id = ?");
+
+        q.setDistributedJoins(true);
+
+        for (Map.Entry<Integer, Integer> e : data.accountsPerPerson.entrySet()) {
+            Integer personId = e.getKey();
+            Integer cnt = e.getValue();
+
+            q.setArgs(personId);
+
+            List<List<?>> res = cache.query(q).getAll();
+
+            String errMsg = "Expected data [personId=" + personId + ", cnt=" + cnt + ", data=" + dataAsString() + "]";
+
+            // Cnt == 0 means that there are no accounts for the person.
+            if (cnt > 0) {
+                assertEquals(errMsg, 1, res.size());
+                assertEquals(errMsg, 1, res.get(0).size());
+                assertEquals(errMsg, (long) cnt, res.get(0).get(0));
+            }
+            else
+                assertEquals(errMsg, 0, res.size());
+        }
+    }
+
+    /**
+     * @return Data as string.
+     */
+    private String dataAsString() {
+        if (dataAsString == null)
+            dataAsString = data.toString();
+
+        return dataAsString;
     }
 
     /**
@@ -793,6 +892,9 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         /** */
         final Map<Integer, Integer> accountsPerOrg;
 
+        /** */
+        final Map<Integer, Integer> maxSalaryPerOrg;
+
         /**
          * @param orgs Organizations.
          * @param persons Persons.
@@ -803,13 +905,26 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
          */
         Data(Collection<Organization> orgs, Collection<Person> persons, Collection<Account> accounts,
             Map<Integer, Integer> personsPerOrg, Map<Integer, Integer> accountsPerPerson,
-            Map<Integer, Integer> accountsPerOrg) {
+            Map<Integer, Integer> accountsPerOrg, Map<Integer, Integer> maxSalaryPerOrg) {
             this.orgs = orgs;
             this.persons = persons;
             this.accounts = accounts;
             this.personsPerOrg = personsPerOrg;
             this.accountsPerPerson = accountsPerPerson;
             this.accountsPerOrg = accountsPerOrg;
+            this.maxSalaryPerOrg = maxSalaryPerOrg;
+        }
+
+        @Override public String toString() {
+            return "Data{" +
+                "orgs=" + orgs +
+                ", persons=" + persons +
+                ", accounts=" + accounts +
+                ", personsPerOrg=" + personsPerOrg +
+                ", accountsPerPerson=" + accountsPerPerson +
+                ", accountsPerOrg=" + accountsPerOrg +
+                ", maxSalaryPerOrg=" + maxSalaryPerOrg +
+                '}';
         }
     }
 
@@ -842,6 +957,14 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             this.personId = personId;
             personDateId = new Date(personId);
             personStrId = "personId" + personId;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return "Account{" +
+                "id=" + id +
+                ", personId=" + personId +
+                '}';
         }
     }
 
@@ -877,12 +1000,16 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
         @QuerySqlField
         String name;
 
+        /** */
+        @QuerySqlField
+        int salary;
+
         /**
          * @param id ID.
          * @param orgId Organization ID.
          * @param name Name.
          */
-        Person(int id, int orgId, String name) {
+        Person(int id, int orgId, String name, int salary) {
             this.id = id;
             dateId = new Date(id);
             strId = "personId" + id;
@@ -890,6 +1017,17 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             orgDateId = new Date(orgId);
             orgStrId = "orgId" + orgId;
             this.name = name;
+            this.salary = salary;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return "Person{" +
+                "id=" + id +
+                ", orgId=" + orgId +
+                ", name='" + name + '\'' +
+                ", salary=" + salary +
+                '}';
         }
     }
 
@@ -922,6 +1060,14 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends GridCommonAbstrac
             dateId = new Date(id);
             strId = "orgId" + id;
             this.name = name;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return "Organization{" +
+                "name='" + name + '\'' +
+                ", id=" + id +
+                '}';
         }
     }
 }
