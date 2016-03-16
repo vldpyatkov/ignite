@@ -238,7 +238,8 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
         @Nullable GridCacheVersion conflictVer,
         boolean addPrevVal,
         @Nullable CacheObject prevVal,
-        long updateCntr) {
+        long updateCntr,
+        @Nullable Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterRes) {
         AffinityTopologyVersion topVer = updateReq.topologyVersion();
 
         Collection<ClusterNode> dhtNodes = cctx.dht().topology().nodes(entry.partition(), topVer);
@@ -284,6 +285,7 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
                     entry.partition(),
                     prevVal,
                     updateCntr,
+                    filterRes,
                     lsnrs != null);
             }
             else if (lsnrs != null && dhtNodes.size() == 1) {
@@ -298,7 +300,9 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
                         true,
                         false,
                         updateCntr,
-                        updateReq.topologyVersion());
+                        updateReq.topologyVersion(),
+                        filterRes
+                    );
                 }
                 catch (IgniteCheckedException e) {
                     U.warn(log, "Failed to send continuous query message. [key=" + entry.key() + ", newVal="
@@ -423,7 +427,8 @@ public class GridDhtAtomicUpdateFuture extends GridFutureAdapter<Void>
                                         true,
                                         false,
                                         req.updateCounter(i),
-                                        updateReq.topologyVersion());
+                                        updateReq.topologyVersion(),
+                                        req.filterResult(i));
                                 }
                                 catch (IgniteCheckedException e) {
                                     U.warn(log, "Failed to send continuous query message. [key=" + key +

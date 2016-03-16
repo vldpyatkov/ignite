@@ -218,6 +218,9 @@ public class IgniteConfiguration {
     /** Public pool size. */
     private int pubPoolSize = DFLT_PUBLIC_THREAD_CNT;
 
+    /** Async continuous query pool size. */
+    private int conQryPoolSize = DFLT_PUBLIC_THREAD_CNT;
+
     /** System pool size. */
     private int sysPoolSize = DFLT_SYSTEM_CORE_THREAD_CNT;
 
@@ -707,6 +710,24 @@ public class IgniteConfiguration {
      */
     public int getSystemThreadPoolSize() {
         return sysPoolSize;
+    }
+
+    /**
+     * TODO: add javadoc
+     *
+     * @return Thread pool size to be used
+     */
+    public int getContinuousQueryPoolSize() {
+        return conQryPoolSize;
+    }
+
+    /**
+     * TODO: add javadoc
+     *
+     * @param conQryPoolSize
+     */
+    public void setContinuousQueryPoolSize(int conQryPoolSize) {
+        this.conQryPoolSize = conQryPoolSize;
     }
 
     /**

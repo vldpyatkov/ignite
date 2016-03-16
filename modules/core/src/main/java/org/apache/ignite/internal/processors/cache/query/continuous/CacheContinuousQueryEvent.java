@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import javax.cache.Cache;
 import org.apache.ignite.cache.query.CacheQueryEntryEvent;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -32,6 +33,9 @@ class CacheContinuousQueryEvent<K, V> extends CacheQueryEntryEvent<K, V> {
 
     /** */
     private final GridCacheContext cctx;
+
+    /** */
+    private IgniteInternalFuture<Boolean> filterFut;
 
     /** Entry. */
     @GridToStringExclude
@@ -50,10 +54,31 @@ class CacheContinuousQueryEvent<K, V> extends CacheQueryEntryEvent<K, V> {
     }
 
     /**
+     * @return Filter future.
+     */
+    public IgniteInternalFuture<Boolean> getFilterFuture() {
+        return filterFut;
+    }
+
+    /**
+     * @param filterFut Filter future.
+     */
+    public void setFilterFut(IgniteInternalFuture<Boolean> filterFut) {
+        this.filterFut = filterFut;
+    }
+
+    /**
      * @return Entry.
      */
     CacheContinuousQueryEntry entry() {
         return e;
+    }
+
+    /**
+     * @return Partition id.
+     */
+    public int partitionId() {
+        return e.partition();
     }
 
     /** {@inheritDoc} */

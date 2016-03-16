@@ -66,6 +66,7 @@ import org.apache.ignite.internal.util.IgniteExceptionRegistry;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.plugin.PluginNotFoundException;
 import org.apache.ignite.plugin.PluginProvider;
+import org.apache.ignite.thread.IgniteStripedThreadPoolExecutor;
 
 /**
  *
@@ -295,6 +296,13 @@ public interface GridKernalContext extends Iterable<GridComponent> {
      * @return Marshaller cache pool.
      */
     public ExecutorService marshallerCachePool();
+
+    /**
+     * Gets continuous query pool.
+     *
+     * @return Continuous query pool.
+     */
+    public IgniteStripedThreadPoolExecutor continuousQueryPool();
 
     /**
      * Gets cache object processor.

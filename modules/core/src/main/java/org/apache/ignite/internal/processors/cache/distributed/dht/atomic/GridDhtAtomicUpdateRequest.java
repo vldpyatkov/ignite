@@ -22,12 +22,14 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import javax.cache.processor.EntryProcessor;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.GridDirectTransient;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -35,6 +37,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheDeployable;
 import org.apache.ignite.internal.processors.cache.GridCacheMessage;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryListener;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -159,6 +162,10 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
     @GridDirectTransient
     private List<CacheObject> locPrevVals;
 
+    /**  */
+    @GridDirectTransient
+    private List<Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>>> filterRes;
+
     /** Keep binary flag. */
     private boolean keepBinary;
 
@@ -242,6 +249,7 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
      * @param partId Partition.
      * @param prevVal Previous value.
      * @param updateCntr Update counter.
+     * @param filterRes Filter results.
      * @param storeLocPrevVal If {@code true} stores previous value.
      */
     public void addWriteValue(KeyCacheObject key,
@@ -254,6 +262,7 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
         int partId,
         @Nullable CacheObject prevVal,
         @Nullable Long updateCntr,
+        @Nullable Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterRes,
         boolean storeLocPrevVal) {
         keys.add(key);
 
@@ -286,6 +295,13 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
                 updateCntrs = new GridLongList();
 
             updateCntrs.add(updateCntr);
+        }
+
+        if (filterRes != null) {
+            if (this.filterRes == null)
+                this.filterRes = new ArrayList<>();
+
+            this.filterRes.add(filterRes);
         }
 
         // In case there is no conflict, do not create the list.
@@ -477,12 +493,23 @@ public class GridDhtAtomicUpdateRequest extends GridCacheMessage implements Grid
     }
 
     /**
-     * @param updCntr Update counter.
+     * @param idx Update counter index.
      * @return Update counter.
      */
-    public Long updateCounter(int updCntr) {
-        if (updateCntrs != null && updCntr < updateCntrs.size())
-            return updateCntrs.get(updCntr);
+    public Long updateCounter(int idx) {
+        if (updateCntrs != null && idx < updateCntrs.size())
+            return updateCntrs.get(idx);
+
+        return null;
+    }
+
+    /**
+     * @param idx Index.
+     * @return Filter result future.
+     */
+    public Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterResult(int idx) {
+        if (filterRes != null && idx < filterRes.size())
+            return filterRes.get(idx);
 
         return null;
     }

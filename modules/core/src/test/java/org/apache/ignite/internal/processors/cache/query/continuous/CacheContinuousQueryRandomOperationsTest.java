@@ -56,6 +56,7 @@ import org.apache.ignite.cache.store.CacheStore;
 import org.apache.ignite.cache.store.CacheStoreAdapter;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
@@ -1272,9 +1273,11 @@ public class CacheContinuousQueryRandomOperationsTest extends GridCommonAbstract
      */
     public static class QueryTestValue implements Serializable {
         /** */
+        @GridToStringInclude
         protected final Integer val1;
 
         /** */
+        @GridToStringInclude
         protected final String val2;
 
         /**

@@ -2098,7 +2098,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 newConflictVer,
                                 sndPrevVal,
                                 updRes.oldValue(),
-                                updRes.updateCounter());
+                                updRes.updateCounter(),
+                                updRes.getFilterResults());
                         }
 
                         if (!F.isEmpty(filteredReaders))
@@ -2126,7 +2127,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         primary,
                         false,
                         updRes.updateCounter(),
-                        topVer);
+                        topVer,
+                        updRes.getFilterResults());
                 }
 
                 if (hasNear) {
@@ -2417,7 +2419,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 null,
                                 sndPrevVal,
                                 updRes.oldValue(),
-                                updRes.updateCounter());
+                                updRes.updateCounter(),
+                                updRes.getFilterResults());
 
                         if (!F.isEmpty(filteredReaders))
                             dhtFut.addNearWriteEntries(filteredReaders,
@@ -2879,7 +2882,8 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                                 false,
                                 false,
                                 updRes.updateCounter(),
-                                req.topologyVersion());
+                                req.topologyVersion(),
+                                updRes.getFilterResults());
                         }
 
                         entry.onUnlock();

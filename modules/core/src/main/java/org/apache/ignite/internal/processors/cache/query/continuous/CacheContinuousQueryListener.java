@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache.query.continuous;
 
 import java.util.Map;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 
 /**
@@ -38,6 +39,15 @@ public interface CacheContinuousQueryListener<K, V> {
      * @param recordIgniteEvt Whether to record event.
      */
     public void onEntryUpdated(CacheContinuousQueryEvent<K, V> evt, boolean primary, boolean recordIgniteEvt);
+
+    /**
+     * Filters event.
+     *
+     * @param evt Event.
+     * @return {@code True} if the evaluation passes, otherwise false.
+     *   The effect of returning true is that listener will be invoked.
+     */
+    public IgniteInternalFuture<Boolean> filter(CacheContinuousQueryEvent<K, V> evt);
 
     /**
      * Listener unregistered callback.

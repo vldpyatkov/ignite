@@ -24,6 +24,7 @@ import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -46,9 +47,11 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheMode;
+import org.apache.ignite.cache.query.AsyncInvoke;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryEx;
@@ -267,8 +270,84 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                 primary,
                 preload,
                 updateCntr,
-                topVer);
+                topVer,
+                null);
         }
+    }
+
+    /**
+     * @param lsnrCol Listeners to notify.
+     * @param key Key.
+     * @param newVal New value.
+     * @param oldVal Old value.
+     * @param partId Partition.
+     * @param preload Whether update happened during preloading.
+     * @param updateCntr Update counter.
+     * @param topVer Topology version.
+     * @throws IgniteCheckedException In case of error.
+     */
+    public Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterEntry(
+        Map<UUID, CacheContinuousQueryListener> lsnrCol,
+        KeyCacheObject key,
+        CacheObject newVal,
+        CacheObject oldVal,
+        int partId,
+        boolean preload,
+        long updateCntr,
+        AffinityTopologyVersion topVer)
+        throws IgniteCheckedException
+    {
+        assert key != null;
+        assert lsnrCol != null;
+
+        boolean hasNewVal = newVal != null;
+        boolean hasOldVal = oldVal != null;
+
+        if (!hasNewVal && !hasOldVal)
+            return null;
+
+        EventType evtType = !hasNewVal ? REMOVED : !hasOldVal ? CREATED : UPDATED;
+
+        boolean initialized = false;
+
+        Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> res = new HashMap<>();
+
+        for (CacheContinuousQueryListener lsnr : lsnrCol.values()) {
+            if (preload && !lsnr.notifyExisting())
+                continue;
+
+            if (!initialized) {
+                if (lsnr.oldValueRequired()) {
+                    oldVal = (CacheObject)cctx.unwrapTemporary(oldVal);
+
+                    if (oldVal != null)
+                        oldVal.finishUnmarshal(cctx.cacheObjectContext(), cctx.deploy().globalLoader());
+                }
+
+                if (newVal != null)
+                    newVal.finishUnmarshal(cctx.cacheObjectContext(), cctx.deploy().globalLoader());
+
+                initialized = true;
+            }
+
+            CacheContinuousQueryEntry e0 = new CacheContinuousQueryEntry(
+                cctx.cacheId(),
+                evtType,
+                key,
+                newVal,
+                lsnr.oldValueRequired() ? oldVal : null,
+                lsnr.keepBinary(),
+                partId,
+                updateCntr,
+                topVer);
+
+            CacheContinuousQueryEvent evt = new CacheContinuousQueryEvent<>(
+                cctx.kernalContext().cache().jcache(cctx.name()), cctx, e0);
+
+            res.put(lsnr, lsnr.filter(evt));
+        }
+
+        return res;
     }
 
     /**
@@ -294,7 +373,36 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         boolean primary,
         boolean preload,
         long updateCntr,
-        AffinityTopologyVersion topVer)
+        AffinityTopologyVersion topVer) throws IgniteCheckedException {
+        onEntryUpdated(lsnrCol, key, newVal, oldVal, internal, partId, primary, preload, updateCntr, topVer, null);
+    }
+
+    /**
+     * @param lsnrCol Listeners to notify.
+     * @param key Key.
+     * @param newVal New value.
+     * @param oldVal Old value.
+     * @param internal Internal entry (internal key or not user cache),
+     * @param partId Partition.
+     * @param primary {@code True} if called on primary node.
+     * @param preload Whether update happened during preloading.
+     * @param updateCntr Update counter.
+     * @param topVer Topology version.
+     * @param filterRes Filter results.
+     * @throws IgniteCheckedException In case of error.
+     */
+    public void onEntryUpdated(
+        Map<UUID, CacheContinuousQueryListener> lsnrCol,
+        KeyCacheObject key,
+        CacheObject newVal,
+        CacheObject oldVal,
+        boolean internal,
+        int partId,
+        boolean primary,
+        boolean preload,
+        long updateCntr,
+        AffinityTopologyVersion topVer,
+        Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> filterRes)
         throws IgniteCheckedException
     {
         assert key != null;
@@ -346,6 +454,9 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
 
             CacheContinuousQueryEvent evt = new CacheContinuousQueryEvent<>(
                 cctx.kernalContext().cache().jcache(cctx.name()), cctx, e0);
+
+            if (filterRes != null)
+                evt.setFilterFut(filterRes.get(lsnr));
 
             lsnr.onEntryUpdated(evt, primary, recordIgniteEvt);
         }
@@ -510,7 +621,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         return executeQuery0(
             locLsnr,
             new IgniteClosure<Boolean, CacheContinuousQueryHandler>() {
-                @Override public CacheContinuousQueryHandler apply(Boolean aBoolean) {
+                @Override public CacheContinuousQueryHandler apply(Boolean v2) {
                     return new CacheContinuousQueryHandler(
                         cctx.name(),
                         TOPIC_CACHE.topic(topicPrefix, cctx.localNodeId(), seq.getAndIncrement()),
@@ -784,6 +895,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
     }
 
     /**
+     *
      */
     private class JCacheQuery {
         /** */
@@ -947,7 +1059,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                             break;
 
                         case UPDATED:
-                            assert impl instanceof CacheEntryUpdatedListener;
+                            assert impl instanceof CacheEntryUpdatedListener : evt;
 
                             ((CacheEntryUpdatedListener<K, V>)impl).onUpdated(singleton(evt));
 
@@ -1002,7 +1114,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         private static final long serialVersionUID = 0L;
 
         /** */
-        private CacheEntryEventFilter impl;
+        protected CacheEntryEventFilter impl;
 
         /** */
         private byte types;
@@ -1052,6 +1164,13 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
         @Override public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
             impl = (CacheEntryEventFilter)in.readObject();
             types = in.readByte();
+        }
+
+        /**
+         * @return {@code True} if filter should be executed in non-system thread.
+         */
+        protected boolean async() {
+            return impl != null && impl instanceof AsyncInvoke;
         }
 
         /**

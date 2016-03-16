@@ -17,7 +17,10 @@
 
 package org.apache.ignite.internal.processors.cache;
 
+import java.util.Map;
 import javax.cache.processor.EntryProcessor;
+import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.processors.cache.query.continuous.CacheContinuousQueryListener;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersionConflictContext;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -60,6 +63,9 @@ public class GridCacheUpdateAtomicResult {
     /** */
     private final long updateCntr;
 
+    /** */
+    Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> conQryFltrs;
+
     /** Value computed by entry processor. */
     private IgniteBiTuple<Object, Exception> res;
 
@@ -76,6 +82,7 @@ public class GridCacheUpdateAtomicResult {
      * @param conflictRes DR resolution result.
      * @param sndToDht Whether update should be propagated to DHT node.
      * @param updateCntr Partition update counter.
+     * @param conQryFltrs Continuous query
      */
     public GridCacheUpdateAtomicResult(boolean success,
         @Nullable CacheObject oldVal,
@@ -86,7 +93,9 @@ public class GridCacheUpdateAtomicResult {
         @Nullable GridCacheVersion rmvVer,
         @Nullable GridCacheVersionConflictContext<?, ?> conflictRes,
         boolean sndToDht,
-        long updateCntr) {
+        long updateCntr,
+        Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> conQryFltrs
+    ) {
         this.success = success;
         this.oldVal = oldVal;
         this.newVal = newVal;
@@ -97,6 +106,7 @@ public class GridCacheUpdateAtomicResult {
         this.conflictRes = conflictRes;
         this.sndToDht = sndToDht;
         this.updateCntr = updateCntr;
+        this.conQryFltrs = conQryFltrs;
     }
 
     /**
@@ -168,6 +178,13 @@ public class GridCacheUpdateAtomicResult {
      */
     public boolean sendToDht() {
         return sndToDht;
+    }
+
+    /**
+     * @return Continuous query filter results.
+     */
+    public Map<CacheContinuousQueryListener, IgniteInternalFuture<Boolean>> getFilterResults() {
+        return conQryFltrs;
     }
 
     /** {@inheritDoc} */
