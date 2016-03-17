@@ -713,21 +713,14 @@ public class IgniteConfiguration {
     }
 
     /**
-     * TODO: add javadoc
+     * Size of thread pool that is in charge of processing continuous query events.
+     * <p>
+     * If not provided, executor service will have size {@link #DFLT_PUBLIC_THREAD_CNT}.
      *
      * @return Thread pool size to be used
      */
     public int getContinuousQueryPoolSize() {
         return conQryPoolSize;
-    }
-
-    /**
-     * TODO: add javadoc
-     *
-     * @param conQryPoolSize
-     */
-    public void setContinuousQueryPoolSize(int conQryPoolSize) {
-        this.conQryPoolSize = conQryPoolSize;
     }
 
     /**
@@ -834,6 +827,19 @@ public class IgniteConfiguration {
      */
     public IgniteConfiguration setSystemThreadPoolSize(int poolSize) {
         sysPoolSize = poolSize;
+
+        return this;
+    }
+
+    /**
+     * Sets continuous query thread pool size to use within grid.
+     *
+     * @param poolSize Thread pool size to use within grid.
+     * @return {@code this} for chaining.
+     * @see IgniteConfiguration#getContinuousQueryPoolSize()
+     */
+    public IgniteConfiguration setContinuousQueryPoolSize(int poolSize) {
+        this.conQryPoolSize = poolSize;
 
         return this;
     }

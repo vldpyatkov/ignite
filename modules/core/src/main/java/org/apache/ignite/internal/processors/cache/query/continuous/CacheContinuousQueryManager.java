@@ -1052,7 +1052,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                 try {
                     switch (evt.getEventType()) {
                         case CREATED:
-                            assert impl instanceof CacheEntryCreatedListener;
+                            assert impl instanceof CacheEntryCreatedListener : evt;
 
                             ((CacheEntryCreatedListener<K, V>)impl).onCreated(singleton(evt));
 
@@ -1066,14 +1066,14 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
                             break;
 
                         case REMOVED:
-                            assert impl instanceof CacheEntryRemovedListener;
+                            assert impl instanceof CacheEntryRemovedListener : evt;
 
                             ((CacheEntryRemovedListener<K, V>)impl).onRemoved(singleton(evt));
 
                             break;
 
                         case EXPIRED:
-                            assert impl instanceof CacheEntryExpiredListener;
+                            assert impl instanceof CacheEntryExpiredListener : evt;
 
                             ((CacheEntryExpiredListener<K, V>)impl).onExpired(singleton(evt));
 
