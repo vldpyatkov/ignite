@@ -173,6 +173,9 @@ public final class ContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      * <b>WARNING:</b> all operations that involve any kind of JVM-local or distributed locking (e.g.,
      * synchronization or transactional cache operations), should be executed asynchronously without
      * blocking the thread that called the callback. Otherwise, you can get deadlocks.
+     * * <p>
+     * If listener implements {@link CacheAsyncCallback} marker interface then cache operations are allowed.
+     * see {@link CacheAsyncCallback}.
      *
      * @param locLsnr Local callback.
      * @return {@code this} for chaining.
@@ -227,6 +230,9 @@ public final class ContinuousQuery<K, V> extends Query<Cache.Entry<K, V>> {
      * <b>WARNING:</b> all operations that involve any kind of JVM-local or distributed locking
      * (e.g., synchronization or transactional cache operations), should be executed asynchronously
      * without blocking the thread that called the filter. Otherwise, you can get deadlocks.
+     * <p>
+     * If filter implements {@link CacheAsyncCallback} marker interface then cache operations are allowed.
+     * see {@link CacheAsyncCallback}.
      *
      * @param rmtFilterFactory Key-value filter factory.
      * @return {@code this} for chaining.

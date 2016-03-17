@@ -21,7 +21,6 @@ import java.io.Serializable;
 import java.util.concurrent.CountDownLatch;
 import javax.cache.configuration.FactoryBuilder;
 import javax.cache.event.CacheEntryEvent;
-import javax.cache.event.CacheEntryEventFilter;
 import javax.cache.event.CacheEntryListenerException;
 import javax.cache.event.CacheEntryUpdatedListener;
 import org.apache.ignite.Ignite;
@@ -32,7 +31,7 @@ import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.affinity.Affinity;
-import org.apache.ignite.cache.query.AsyncInvoke;
+import org.apache.ignite.cache.query.CacheAsyncCallback;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cache.query.QueryCursor;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -443,7 +442,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
      *
      */
     private static class CacheTestRemoteFilter implements
-        CacheEntryEventSerializableFilter<QueryTestKey, QueryTestValue>, AsyncInvoke {
+        CacheEntryEventSerializableFilter<QueryTestKey, QueryTestValue>, CacheAsyncCallback {
         /** */
         @IgniteInstanceResource
         private Ignite ignite;
@@ -472,7 +471,7 @@ public class CacheContinuousQueryAsyncFilterListenerTest extends GridCommonAbstr
      *
      */
     private static class CacheInvokeListener implements CacheEntryUpdatedListener<QueryTestKey, QueryTestValue>,
-        AsyncInvoke {
+        CacheAsyncCallback {
         @IgniteInstanceResource
         private Ignite ignite;
 

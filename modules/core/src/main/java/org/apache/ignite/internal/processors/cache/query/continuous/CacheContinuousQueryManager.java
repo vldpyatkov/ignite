@@ -47,7 +47,7 @@ import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
 import org.apache.ignite.cache.CacheMode;
-import org.apache.ignite.cache.query.AsyncInvoke;
+import org.apache.ignite.cache.query.CacheAsyncCallback;
 import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
@@ -1170,7 +1170,7 @@ public class CacheContinuousQueryManager extends GridCacheManagerAdapter {
          * @return {@code True} if filter should be executed in non-system thread.
          */
         protected boolean async() {
-            return impl != null && impl instanceof AsyncInvoke;
+            return impl != null && impl instanceof CacheAsyncCallback;
         }
 
         /**

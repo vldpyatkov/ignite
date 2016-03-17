@@ -26,7 +26,7 @@ import javax.cache.event.CacheEntryEvent;
 import javax.cache.event.CacheEntryEventFilter;
 import javax.cache.event.CacheEntryListenerException;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
-import org.apache.ignite.cache.query.AsyncInvoke;
+import org.apache.ignite.cache.query.CacheAsyncCallback;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -44,7 +44,7 @@ public class CacheContinuousQueryFactoryAsyncFilterRandomOperationTest
      *
      */
     protected static class NonSerializableAsyncFilter implements
-        CacheEntryEventSerializableFilter<QueryTestKey, QueryTestValue>, AsyncInvoke, Externalizable {
+        CacheEntryEventSerializableFilter<QueryTestKey, QueryTestValue>, CacheAsyncCallback, Externalizable {
         /** */
         public NonSerializableAsyncFilter() {
             // No-op.

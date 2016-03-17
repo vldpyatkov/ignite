@@ -17,9 +17,20 @@
 
 package org.apache.ignite.cache.query;
 
+import javax.cache.configuration.Factory;
+import javax.cache.event.CacheEntryEventFilter;
+import javax.cache.event.CacheEntryListener;
+import org.apache.ignite.configuration.IgniteConfiguration;
+
 /**
- * Marker interface.
+ * Marker interface. If {@link CacheEntryEventFilter filter} or {@link CacheEntryListener}
+ * implementations extend this interface then they will be executing on a separate thread pool. It allows
+ * to use cache API in a callbacks.
+ * <p>
+ * Thread pool which will be used for it can be configured by
+ * {@link IgniteConfiguration#setContinuousQueryPoolSize(int)}
  *
+ * @see ContinuousQuery#setRemoteFilterFactory(Factory)
  */
-public interface AsyncInvoke {
+public interface CacheAsyncCallback {
 }

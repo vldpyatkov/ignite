@@ -43,7 +43,7 @@ import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheEntryEventSerializableFilter;
-import org.apache.ignite.cache.query.AsyncInvoke;
+import org.apache.ignite.cache.query.CacheAsyncCallback;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.CacheQueryExecutedEvent;
 import org.apache.ignite.events.CacheQueryReadEvent;
@@ -292,12 +292,12 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
 
         final CacheEntryEventFilter filter = getEventFilter();
 
-        asyncLsnr = locLsnr instanceof AsyncInvoke;
+        asyncLsnr = locLsnr instanceof CacheAsyncCallback;
 
         if (filter != null) {
             ctx.resource().injectGeneric(filter);
 
-            asyncFilter = filter instanceof AsyncInvoke
+            asyncFilter = filter instanceof CacheAsyncCallback
                 || (filter instanceof JCacheQueryRemoteFilter && ((JCacheQueryRemoteFilter)filter).async());
         }
 
