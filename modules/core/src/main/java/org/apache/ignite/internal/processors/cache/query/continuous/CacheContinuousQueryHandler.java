@@ -1313,7 +1313,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         private CacheEntryEventFilter filter;
 
         /** */
-        private IgniteInternalFuture<Boolean> notify;
+        private IgniteInternalFuture<Boolean> notifyFut;
 
         /** */
         private final GridCacheContext<K, V> cctx;
@@ -1349,7 +1349,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
          * @param primary Primary flag.
          * @param cctx Cache context.
          * @param filter Filter.
-         * @param notify
+         * @param notifyFut Notify future.
          * @param evt Event.
          * @param cache Cache.
          */
@@ -1362,7 +1362,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             boolean primary,
             GridCacheContext<K, V> cctx,
             CacheEntryEventFilter filter,
-            IgniteInternalFuture<Boolean> notify,
+            IgniteInternalFuture<Boolean> notifyFut,
             CacheContinuousQueryEvent<K, V> evt,
             IgniteCache cache) {
             this.taskName = taskName;
@@ -1374,7 +1374,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             this.primary = primary;
             this.cctx = cctx;
             this.filter = filter;
-            this.notify = notify;
+            this.notifyFut = notifyFut;
             this.evt = evt;
             this.cache = cache;
         }
@@ -1383,7 +1383,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
         @Override public void run() {
             boolean notify;
 
-            if (evt.getFilterFuture() == null) {
+            if (notifyFut == null) {
                 notify = !evt.entry().isFiltered();
 
                 if (notify && filter != null) {
@@ -1397,7 +1397,7 @@ public class CacheContinuousQueryHandler<K, V> implements GridContinuousHandler 
             }
             else {
                 try {
-                    notify = evt.getFilterFuture().get();
+                    notify = notifyFut.get();
                 }
                 catch (IgniteCheckedException e) {
                     U.error(cctx.logger(CacheContinuousQueryHandler.class), "CacheEntryEventFilter failed.", e);
