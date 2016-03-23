@@ -1341,8 +1341,10 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                 // Preparing query closures.
                 IgniteClosure<Cache.Entry<K, V>, Object> trans =
                     (IgniteClosure<Cache.Entry<K, V>, Object>)qryInfo.transformer();
+                IgniteReducer<Map.Entry<K, V>, Object> rdc = (IgniteReducer<Map.Entry<K, V>, Object>)qryInfo.reducer();
 
                 injectResources(trans);
+                injectResources(rdc);
 
                 GridCacheQueryAdapter<?> qry = qryInfo.query();
 
@@ -1503,15 +1505,26 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                         }
                     }
 
-                    // Unwrap entry for transformer only.
-                    if (trans != null) {
+                    // Unwrap entry for transformer or reducer only.
+                    if (trans != null || rdc != null) {
                         key = (K)cctx.unwrapBinaryIfNeeded(key, qry.keepBinary());
                         val = (V)cctx.unwrapBinaryIfNeeded(val, qry.keepBinary());
-
-                        data.add(trans.apply(new CacheEntryImpl<>(key, val)));
                     }
-                    else
-                        data.add(!loc ? new GridCacheQueryResponseEntry<>(key, val) : F.t(key, val));
+
+                    if (rdc != null) {
+                        if (!rdc.collect(F.t(key, val)) || !iter.hasNext()) {
+                            onPageReady(loc, qryInfo, Collections.singletonList(rdc.reduce()), true, null);
+
+                            pageSent = true;
+
+                            break;
+                        }
+                        else
+                            continue;
+                    }
+
+                    data.add(trans != null ? trans.apply(new CacheEntryImpl<>(key, val)) :
+                        !loc ? new GridCacheQueryResponseEntry<>(key, val) : F.t(key, val));
 
                     if (!loc) {
                         if (++cnt == pageSize || !iter.hasNext()) {
@@ -1535,8 +1548,12 @@ public abstract class GridCacheQueryManager<K, V> extends GridCacheManagerAdapte
                     }
                 }
 
-                if (!pageSent)
-                    onPageReady(loc, qryInfo, data, true, null);
+                if (!pageSent) {
+                    if (rdc == null)
+                        onPageReady(loc, qryInfo, data, true, null);
+                    else
+                        onPageReady(loc, qryInfo, Collections.singletonList(rdc.reduce()), true, null);
+                }
             }
             catch (Throwable e) {
                 if (!X.hasCause(e, GridDhtUnreservedPartitionException.class))
