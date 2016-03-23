@@ -37,6 +37,7 @@ import javax.cache.CacheException;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.QueryEntity;
+import org.apache.ignite.cache.affinity.AffinityKey;
 import org.apache.ignite.cache.query.Query;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cache.query.SqlQuery;
@@ -44,7 +45,6 @@ import org.apache.ignite.cache.query.annotations.QuerySqlField;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.processors.query.h2.sql.AbstractH2CompareQueryTest;
-import org.apache.ignite.internal.util.typedef.T4;
 import org.apache.ignite.internal.util.typedef.internal.SB;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
@@ -58,7 +58,7 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
  *
  */
 @SuppressWarnings({"unchecked", "PackageVisibleField", "serial"})
-public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2CompareQueryTest {
+public class IgniteCrossCachesJoinsQueryTest extends AbstractH2CompareQueryTest {
     /** */
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 
@@ -82,6 +82,15 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
     /** */
     private String accCacheName;
+
+    /** Tested qry. */
+    private String qry;
+
+    /** Tested cache. */
+    private IgniteCache cache;
+
+    /** */
+    private boolean distributedJoins;
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
@@ -121,9 +130,11 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
     @Override protected void initCacheAndDbData() throws SQLException {
         Statement st = conn.createStatement();
 
+        final String keyType = useColocatedDate() ? "other" : "int";
+
         st.execute("create table \"" + accCacheName + "\".Account" +
             "  (" +
-            "  _key int not null," +
+            "  _key " + keyType + " not null," +
             "  _val other not null," +
             "  id int unique," +
             "  personId int," +
@@ -133,7 +144,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
         st.execute("create table \"" + personCacheName + "\".Person" +
             "  (" +
-            "  _key int not null," +
+            "  _key " + keyType + " not null," +
             "  _val other not null," +
             "  id int unique," +
             "  strId varchar(255) ," +
@@ -160,13 +171,13 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
         st.close();
 
         for (Account account : data.accounts) {
-            ignite(0).cache(accCacheName).put(account.id, account);
+            ignite(0).cache(accCacheName).put(account.key(useColocatedDate()), account);
 
             insertInDb(account);
         }
 
         for (Person person : data.persons) {
-            ignite(0).cache(personCacheName).put(person.id, person);
+            ignite(0).cache(personCacheName).put(person.key(useColocatedDate()), person);
 
             insertInDb(person);
         }
@@ -188,7 +199,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
                 "values(?, ?, ?, ?, ?, ?)")) {
             int i = 0;
 
-            st.setObject(++i, acc.id);
+            st.setObject(++i, acc.key(useColocatedDate()));
             st.setObject(++i, acc);
             st.setObject(++i, acc.id);
             st.setObject(++i, acc.personId);
@@ -210,7 +221,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
                 "values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
             int i = 0;
 
-            st.setObject(++i, p.id);
+            st.setObject(++i, p.key(useColocatedDate()));
             st.setObject(++i, p);
             st.setObject(++i, p.id);
             st.setObject(++i, p.strId);
@@ -262,105 +273,164 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
     @Override protected Statement initializeH2Schema() throws SQLException {
         Statement st = conn.createStatement();
 
-        st.execute("CREATE SCHEMA \"" + TestCacheType.REPLICATED_1.cacheName + "\"");
-        st.execute("CREATE SCHEMA \"" + TestCacheType.REPLICATED_2.cacheName + "\"");
-        st.execute("CREATE SCHEMA \"" + TestCacheType.REPLICATED_3.cacheName + "\"");
-
-        st.execute("CREATE SCHEMA \"" + TestCacheType.PARTITIONED_b0_1.cacheName + "\"");
-        st.execute("CREATE SCHEMA \"" + TestCacheType.PARTITIONED_b0_2.cacheName + "\"");
-        st.execute("CREATE SCHEMA \"" + TestCacheType.PARTITIONED_b0_3.cacheName + "\"");
-
-        st.execute("CREATE SCHEMA \"" + TestCacheType.PARTITIONED_b1_1.cacheName + "\"");
-        st.execute("CREATE SCHEMA \"" + TestCacheType.PARTITIONED_b1_2.cacheName + "\"");
-        st.execute("CREATE SCHEMA \"" + TestCacheType.PARTITIONED_b1_3.cacheName + "\"");
+        for (TestCacheType type : TestCacheType.values())
+            st.execute("CREATE SCHEMA \"" + type.cacheName + "\"");
 
         return st;
     }
 
     /** {@inheritDoc} */
     @Override protected long getTestTimeout() {
-        return 30 * 60 * 1000;
+        return 30 * 60_000;
+    }
+
+    /**
+     * @return Distributed joins flag.
+     */
+    protected boolean distributedJoins() {
+        return distributedJoins;
+    }
+
+    /**
+     * @return Use colocated data.
+     */
+    private boolean useColocatedDate() {
+        return !distributedJoins();
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testCrossCacheDistributedJoin1() throws Exception {
+    public void testDistributedJoins1() throws Exception {
+        distributedJoins = true;
+
+        checkAllCacheCombinationsSet1();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testDistributedJoins2() throws Exception {
+        distributedJoins = true;
+
+        checkAllCacheCombinationsSet2();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testDistributedJoins3() throws Exception {
+        distributedJoins = true;
+
+        checkAllCacheCombinationsSet3();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testColocatedJoins1() throws Exception {
+        distributedJoins = false;
+
+        checkAllCacheCombinationsSet1();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testColocatedJoins2() throws Exception {
+        distributedJoins = false;
+
+        checkAllCacheCombinationsSet2();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testColocatedJoins3() throws Exception {
+        distributedJoins = false;
+
+        checkAllCacheCombinationsSet3();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    private void checkAllCacheCombinationsSet1() throws Exception {
         final Set<TestCacheType> personCacheTypes = new LinkedHashSet<TestCacheType>() {{
             add(TestCacheType.REPLICATED_1);
         }};
 
         final Set<TestCacheType> accCacheTypes = new LinkedHashSet<TestCacheType>() {{
             add(TestCacheType.REPLICATED_1);
-            add(TestCacheType.PARTITIONED_b0_1);
-            add(TestCacheType.PARTITIONED_b1_1);
+            add(TestCacheType.PARTITIONED_1_b0);
+            add(TestCacheType.PARTITIONED_1_b1);
             add(TestCacheType.REPLICATED_2);
-            add(TestCacheType.PARTITIONED_b0_2);
-            add(TestCacheType.PARTITIONED_b1_2);
+            add(TestCacheType.PARTITIONED_2_b0);
+            add(TestCacheType.PARTITIONED_2_b1);
         }};
 
         Set<TestCacheType> orgCacheTypes = new LinkedHashSet<TestCacheType>() {{
             addAll(accCacheTypes);
             add(TestCacheType.REPLICATED_3);
-            add(TestCacheType.PARTITIONED_b0_3);
-            add(TestCacheType.PARTITIONED_b1_3);
+            add(TestCacheType.PARTITIONED_3_b0);
+            add(TestCacheType.PARTITIONED_3_b1);
         }};
 
-        checkCrossCacheDistributedJoin(accCacheTypes, personCacheTypes, orgCacheTypes);
+        checkAllCacheCombinations(accCacheTypes, personCacheTypes, orgCacheTypes);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testCrossCacheDistributedJoin2() throws Exception {
+    private void checkAllCacheCombinationsSet2() throws Exception {
         final Set<TestCacheType> personCacheTypes = new LinkedHashSet<TestCacheType>() {{
-            add(TestCacheType.PARTITIONED_b0_1);
+            add(TestCacheType.PARTITIONED_1_b0);
         }};
 
         final Set<TestCacheType> accCacheTypes = new LinkedHashSet<TestCacheType>() {{
             add(TestCacheType.REPLICATED_1);
-            add(TestCacheType.PARTITIONED_b0_1);
-            add(TestCacheType.PARTITIONED_b1_1);
+            add(TestCacheType.PARTITIONED_1_b0);
+            add(TestCacheType.PARTITIONED_1_b1);
             add(TestCacheType.REPLICATED_2);
-            add(TestCacheType.PARTITIONED_b0_2);
-            add(TestCacheType.PARTITIONED_b1_2);
+            add(TestCacheType.PARTITIONED_2_b0);
+            add(TestCacheType.PARTITIONED_2_b1);
         }};
 
         Set<TestCacheType> orgCacheTypes = new LinkedHashSet<TestCacheType>() {{
             addAll(accCacheTypes);
             add(TestCacheType.REPLICATED_3);
-            add(TestCacheType.PARTITIONED_b0_3);
-            add(TestCacheType.PARTITIONED_b1_3);
+            add(TestCacheType.PARTITIONED_3_b0);
+            add(TestCacheType.PARTITIONED_3_b1);
         }};
 
-        checkCrossCacheDistributedJoin(accCacheTypes, personCacheTypes, orgCacheTypes);
+        checkAllCacheCombinations(accCacheTypes, personCacheTypes, orgCacheTypes);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testCrossCacheDistributedJoin3() throws Exception {
+    private void checkAllCacheCombinationsSet3() throws Exception {
         final Set<TestCacheType> personCacheTypes = new LinkedHashSet<TestCacheType>() {{
-            add(TestCacheType.PARTITIONED_b0_1);
+            add(TestCacheType.PARTITIONED_1_b1);
         }};
 
         final Set<TestCacheType> accCacheTypes = new LinkedHashSet<TestCacheType>() {{
             add(TestCacheType.REPLICATED_1);
-            add(TestCacheType.PARTITIONED_b0_1);
-            add(TestCacheType.PARTITIONED_b1_1);
+            add(TestCacheType.PARTITIONED_1_b0);
+            add(TestCacheType.PARTITIONED_1_b1);
             add(TestCacheType.REPLICATED_2);
-            add(TestCacheType.PARTITIONED_b0_2);
-            add(TestCacheType.PARTITIONED_b1_2);
+            add(TestCacheType.PARTITIONED_2_b0);
+            add(TestCacheType.PARTITIONED_2_b1);
         }};
 
         Set<TestCacheType> orgCacheTypes = new LinkedHashSet<TestCacheType>() {{
             addAll(accCacheTypes);
             add(TestCacheType.REPLICATED_3);
-            add(TestCacheType.PARTITIONED_b0_3);
-            add(TestCacheType.PARTITIONED_b1_3);
+            add(TestCacheType.PARTITIONED_3_b0);
+            add(TestCacheType.PARTITIONED_3_b1);
         }};
 
-        checkCrossCacheDistributedJoin(accCacheTypes, personCacheTypes, orgCacheTypes);
+        checkAllCacheCombinations(accCacheTypes, personCacheTypes, orgCacheTypes);
     }
 
     /**
@@ -369,11 +439,11 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
      * @param personCacheTypes Person cache types.
      * @param orgCacheTypes Organization cache types.
      */
-    private void checkCrossCacheDistributedJoin(
+    private void checkAllCacheCombinations(
         Set<TestCacheType> accCacheTypes, Set<TestCacheType> personCacheTypes,
         Set<TestCacheType> orgCacheTypes) throws Exception {
-        Map<T4<Integer, TestCacheType, TestCacheType, TestCacheType>, Throwable> errors = new LinkedHashMap<>();
-        List<T4<Integer, TestCacheType, TestCacheType, TestCacheType>> success = new ArrayList<>();
+        Map<TestConfig, Throwable> errors = new LinkedHashMap<>();
+        List<TestConfig> success = new ArrayList<>();
 
         int cfgIdx = 0;
 
@@ -381,14 +451,14 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             for (TestCacheType accCacheType : accCacheTypes) {
                 for (TestCacheType orgCacheType : orgCacheTypes) {
                     try {
-                        checkDistributedCrossCacheJoin(personCacheType, accCacheType, orgCacheType);
+                        check(personCacheType, accCacheType, orgCacheType);
 
-                        success.add(new T4<>(cfgIdx, personCacheType, accCacheType, orgCacheType));
+                        success.add(new TestConfig(cfgIdx, cache, personCacheType, accCacheType, orgCacheType, ""));
                     }
                     catch (Throwable e) {
-                        error("Failed to make distributed cross cache select.", e);
+                        error("", e);
 
-                        errors.put(new T4<>(cfgIdx, personCacheType, accCacheType, orgCacheType), e);
+                        errors.put(new TestConfig(cfgIdx, cache, personCacheType, accCacheType, orgCacheType, qry), e);
                     }
 
                     cfgIdx++;
@@ -401,19 +471,13 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
             SB sb = new SB("Test failed for the following " + errors.size() + " combination(s) (" + total + " total):\n");
 
-            for (Map.Entry<T4<Integer, TestCacheType, TestCacheType, TestCacheType>, Throwable> e : errors.entrySet()) {
-                T4<Integer, TestCacheType, TestCacheType, TestCacheType> t = e.getKey();
-
-                sb.a("[cfgIdx=" + t.get1() + ", personCache=" + t.get2() + ", accCache=" + t.get3()
-                    + ", orgCache=" + t.get4() + ", exception=" + e.getValue() + "]").a("\n");
-            }
+            for (Map.Entry<TestConfig, Throwable> e : errors.entrySet())
+                sb.a(e.getKey()).a(", error=").a(e.getValue()).a("\n");
 
             sb.a("Successfully finished combinations:\n");
 
-            for (T4<Integer, TestCacheType, TestCacheType, TestCacheType> t : success) {
-                sb.a("[cfgIdx=" + t.get1() + ", personCache=" + t.get2() + ", accCache=" + t.get3()
-                    + ", orgCache=" + t.get4() + "]").a("\n");
-            }
+            for (TestConfig t : success)
+                sb.a(t).a("\n");
 
             sb.a("The following data has beed used for test:\n " + dataAsString());
 
@@ -422,16 +486,15 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
     }
 
     /**
-     * @param personCacheType Person cache type.
-     * @param accCacheType Account cache type.
-     * @param orgCacheType Organization cache type.
+     * @param personCacheType Person cache personCacheType.
+     * @param accCacheType Account cache personCacheType.
+     * @param orgCacheType Organization cache personCacheType.
      * @throws Exception If failed.
      */
-    private void checkDistributedCrossCacheJoin(final TestCacheType personCacheType,
+    private void check(final TestCacheType personCacheType,
         final TestCacheType accCacheType,
         final TestCacheType orgCacheType) throws Exception {
-        info("Checking distributed cross cache join [personCache=" + personCacheType +
-            ", accCache=" + accCacheType +
+        info("Checking cross cache joins [accCache=" + accCacheType + ", personCache=" + personCacheType +
             ", orgCache=" + orgCacheType + "]");
 
         Collection<TestCacheType> cacheTypes = new ArrayList<TestCacheType>() {{
@@ -475,10 +538,10 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             cacheNames.add(accCacheType.cacheName);
 
             for (int i = 0; i < NODES; i++) {
-                log.info("Test node: " + i);
+                log.info("Test node [idx=" + i + ", isClient=" + ignite(i).configuration().isClientMode() + "]");
 
                 for (String cacheName : cacheNames) {
-                    final IgniteCache cache = ignite(i).cache(cacheName);
+                    cache = ignite(i).cache(cacheName);
 
                     log.info("Use cache: " + cache.getName());
 
@@ -495,22 +558,19 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
                         // Queries running on replicated cache should not contain JOINs with partitioned tables.
                         if (!isClientNodeAndCacheIsReplicated || all3CachesAreReplicated) {
-                            if (cache.getName().equals(orgCacheType.cacheName))
-                                compareQueryRes0(cache, "select name from (select name from \"" + orgCacheName + "\".Organization)", true,
-                                    new Object[0], Ordering.RANDOM);
-
                             if (!cache.getName().equals(orgCacheType.cacheName))
                                 checkPersonAccountsJoin(cache, data.accountsPerPerson);
 
                             if (!cache.getName().equals(accCacheType.cacheName))
-                                checkOrganizationPersonsJoin(cache, data.personsPerOrg);
+                                checkOrganizationPersonsJoin(cache);
 
-                            checkOrganizationPersonAccountJoin(cache, data.accountsPerOrg);
+                            checkOrganizationPersonAccountJoin(cache); // TODO bad query (distrbMode)
 
-                            checkUninon(cache);
+                            checkUninon(); // TODO bad query (distrbMode and non-distrbMode)
+                            checkUninonAll(); // TODO bad query (distrbMode and non-distrbMode)
 
                             if (!cache.getName().equals(orgCacheType.cacheName))
-                                checkPersonAccountCrossJoin(cache);
+                                checkPersonAccountCrossJoin(cache); // TODO (non-distrbMode)
 
                             if (!cache.getName().equals(accCacheType.cacheName))
                                 checkPersonOrganizationGroupBy(cache);
@@ -518,10 +578,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
                             if (!cache.getName().equals(orgCacheType.cacheName))
                                 checkPersonAccountGroupBy(cache);
 
-                            if (!cache.getName().equals(accCacheType.cacheName))
-                                checkPersonOrganizationJoinInsideSubquery(cache);
-
-                            checkJoinInsideSubquery(cache);
+                            checkGroupBy(); // TODO bad result (distrbMode)
                         }
                     }
                 }
@@ -548,6 +605,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
      * @param cache Cache.
      */
     private void assertProperException(final IgniteCache cache) {
+        qry = "assertProperException";
+
         final IgniteCache accCache = ignite(0).cache(accCacheName);
         final IgniteCache personCache = ignite(0).cache(personCacheName);
 
@@ -673,7 +732,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
         if (accountIdx) {
             QueryEntity account = new QueryEntity();
-            account.setKeyType(Integer.class.getName());
+            account.setKeyType(useColocatedDate() ? AffinityKey.class.getName() : Integer.class.getName());
             account.setValueType(Account.class.getName());
             account.addQueryField("id", Integer.class.getName(), null);
             account.addQueryField("personId", Integer.class.getName(), null);
@@ -685,7 +744,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
         if (personIdx) {
             QueryEntity person = new QueryEntity();
-            person.setKeyType(Integer.class.getName());
+            person.setKeyType(useColocatedDate() ? AffinityKey.class.getName() : Integer.class.getName());
             person.setValueType(Person.class.getName());
             person.addQueryField("id", Integer.class.getName(), null);
             person.addQueryField("dateId", Date.class.getName(), null);
@@ -718,9 +777,10 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
     /**
      * @param cache Cache.
-     * @param cnts Organizations per person counts.
      */
-    private void checkOrganizationPersonsJoin(IgniteCache cache, Map<Integer, Integer> cnts) {
+    private void checkOrganizationPersonsJoin(IgniteCache cache) {
+        qry = "checkOrganizationPersonsJoin";
+
         SqlFieldsQuery qry = new SqlFieldsQuery("select o.name, p.name " +
             "from \"" + orgCacheName + "\".Organization o, \"" + personCacheName + "\".Person p " +
             "where p.orgId = o._key and o._key=?");
@@ -740,7 +800,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
         long total = 0;
 
-        for (int i = 0; i < cnts.size(); i++) {
+        for (int i = 0; i < data.personsPerOrg.size(); i++) {
             qry.setArgs(i);
 
             if (qry2 != null)
@@ -748,12 +808,12 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
             List<List<Object>> res = cache.query(qry).getAll();
 
-            assertEquals((int)cnts.get(i), res.size());
+            assertEquals((int)data.personsPerOrg.get(i), res.size());
 
             if (qry2 != null) {
                 List<List<Object>> res2 = cache.query(qry2).getAll();
 
-                assertEquals((int)cnts.get(i), res2.size());
+                assertEquals((int)data.personsPerOrg.get(i), res2.size());
             }
 
             total += res.size();
@@ -775,24 +835,26 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
      * @param cnts Accounts per person counts.
      */
     private void checkPersonAccountsJoin(IgniteCache cache, Map<Integer, Integer> cnts) {
+        qry = "checkPersonAccountsJoin";
+
         List<Query> qrys = new ArrayList<>();
 
         qrys.add(new SqlFieldsQuery("select p.name from " +
                 "\"" + personCacheName + "\".Person p, " +
                 "\"" + accCacheName + "\".Account a " +
-                "where p._key = a.personId and p._key=?")
+                "where p.id = a.personId and p.id=?")
         );
 
         qrys.add(new SqlFieldsQuery("select p.name from " +
                 "\"" + personCacheName + "\".Person p, " +
                 "\"" + accCacheName + "\".Account a " +
-                "where p.dateId = a.personDateId and p._key=?")
+                "where p.dateId = a.personDateId and p.id=?")
         );
 
         qrys.add(new SqlFieldsQuery("select p.name from " +
                 "\"" + personCacheName + "\".Person p, " +
                 "\"" + accCacheName + "\".Account a " +
-                "where p.strId = a.personStrId and p._key=?")
+                "where p.strId = a.personStrId and p.id=?")
         );
 
         qrys.add(new SqlFieldsQuery("select p.name from " +
@@ -816,7 +878,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
         if (personCacheName.equals(cache.getName())) {
             qrys.add(new SqlQuery(Person.class,
                     "from \"" + personCacheName + "\".Person , \"" + accCacheName + "\".Account  " +
-                        "where Person._key = Account.personId and Person._key=?")
+                        "where Person.id = Account.personId and Person.id=?")
             );
 
             qrys.add(new SqlQuery(Person.class,
@@ -832,12 +894,12 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
             for (Query q : qrys) {
                 if (q instanceof SqlFieldsQuery) {
-                    ((SqlFieldsQuery)q).setDistributedJoins(true);
+                    ((SqlFieldsQuery)q).setDistributedJoins(distributedJoins());
 
                     ((SqlFieldsQuery)q).setArgs(e.getKey());
                 }
                 else {
-                    ((SqlQuery)q).setDistributedJoins(true);
+                    ((SqlQuery)q).setDistributedJoins(distributedJoins());
 
                     ((SqlQuery)q).setArgs(e.getKey());
                 }
@@ -866,10 +928,10 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
         qrys.add(new SqlFieldsQuery("select count(*) " +
             "from \"" + personCacheName + "\".Person p, \"" + accCacheName + "\".Account" + " a " +
-            "where p._key = a.personId"));
+            "where p.id = a.personId"));
 
         for (Query q : qrys) {
-            ((SqlFieldsQuery)q).setDistributedJoins(true);
+            ((SqlFieldsQuery)q).setDistributedJoins(distributedJoins());
 
             List<List<Object>> res = cache.query(q).getAll();
 
@@ -880,142 +942,130 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
 
     /**
      * @param cache Cache.
-     * @param cnts Accounts per organization count
      */
-    private void checkOrganizationPersonAccountJoin(IgniteCache cache, Map<Integer, Integer> cnts) {
-        List<Query> queries = new ArrayList<>();
+    private void checkOrganizationPersonAccountJoin(IgniteCache cache) throws SQLException {
+        qry = "checkOrganizationPersonAccountJoin";
 
-        queries.add(new SqlFieldsQuery("select o.name, p.name, a._key " +
+        List<String> sqlFields = new ArrayList<>();
+
+        sqlFields.add("select o.name, p.name, a._key " +
             "from " +
             "\"" + orgCacheName + "\".Organization o, " +
             "\"" + personCacheName + "\".Person p, " +
             "\"" + accCacheName + "\".Account a " +
-            "where p.orgId = o._key and p._key = a.personId and o.id = ?"));
+            "where p.orgId = o.id and p.id = a.personId and o.id = ?");
 
-        queries.add(new SqlFieldsQuery("select o.name, p.name, a._key " +
+        sqlFields.add("select o.name, p.name, a._key " +
             "from " +
             "\"" + orgCacheName + "\".Organization o, " +
             "\"" + personCacheName + "\".Person p, " +
             "\"" + accCacheName + "\".Account a " +
-            "where p.orgDateId = o.dateId and p.strId = a.personStrId and o.id = ?"));
+            "where p.orgDateId = o.dateId and p.strId = a.personStrId and o.id = ?");
 
-        queries.add(new SqlFieldsQuery("select o.name, p.name, a._key " +
+        sqlFields.add("select o.name, p.name, a._key " +
             "from " +
             "\"" + orgCacheName + "\".Organization o, " +
             "\"" + personCacheName + "\".Person p, " +
             "\"" + accCacheName + "\".Account a " +
-            "where p.orgStrId = o.strId and p.id = a.personId and o.id = ?"));
+            "where p.orgStrId = o.strId and p.id = a.personId and o.id = ?");
+
+        for (Organization org : data.orgs) {
+            for (String sql : sqlFields)
+                compareQueryRes0(cache, sql, distributedJoins(), new Object[] {org.id}, Ordering.RANDOM);
+        }
 
         if (accCacheName.equals(cache.getName())) {
-            queries.add(new SqlQuery(Account.class, "from " +
-                "\"" + orgCacheName + "\".Organization , " +
-                "\"" + personCacheName + "\".Person , " +
-                "\"" + accCacheName + "\".Account  " +
-                "where Person.orgId = Organization._key and Person._key = Account.personId and Organization.id = ?"));
-        }
+            for (int orgId = 0; orgId < data.accountsPerOrg.size(); orgId++) {
 
-        long total = 0;
+                SqlQuery q = new SqlQuery(Account.class, "from " +
+                    "\"" + orgCacheName + "\".Organization , " +
+                    "\"" + personCacheName + "\".Person , " +
+                    "\"" + accCacheName + "\".Account  " +
+                    "where Person.orgId = Organization.id and Person.id = Account.personId and Organization.id = ?");
 
-        for (int orgId = 0; orgId < cnts.size(); orgId++) {
-            List<List<Object>> res = null;
+                q.setDistributedJoins(distributedJoins());
 
-            for (Query q : queries) {
-                if (q instanceof SqlFieldsQuery) {
-                    ((SqlFieldsQuery)q).setDistributedJoins(true);
+                q.setArgs(orgId);
 
-                    ((SqlFieldsQuery)q).setArgs(orgId);
-                }
-                else {
-                    ((SqlQuery)q).setDistributedJoins(true);
+                List<List<Object>> res = cache.query(q).getAll();
 
-                    ((SqlQuery)q).setArgs(orgId);
-                }
-
-                res = cache.query(q).getAll();
-
-                assertEquals((int)cnts.get(orgId), res.size());
+                assertEquals((int)data.accountsPerOrg.get(orgId), res.size());
             }
-
-            total += res.size();
         }
 
-        SqlFieldsQuery qry3 = new SqlFieldsQuery("select count(*) " +
+        String sql = "select count(*) " +
             "from " +
             "\"" + orgCacheName + "\".Organization o, " +
             "\"" + personCacheName + "\".Person p, " +
             "\"" + accCacheName + "\".Account a " +
-            "where p.orgId = o._key and p._key = a.personId");
+            "where p.orgId = o.id and p.id = a.personId";
 
-        qry3.setDistributedJoins(true);
-
-        List<List<Object>> res = cache.query(qry3).getAll();
-
-        assertEquals(1, res.size());
-        assertEquals(total, res.get(0).get(0));
-
+        compareQueryRes0(cache, sql, distributedJoins(), new Object[0], Ordering.RANDOM);
     }
 
     /**
-     * @param cache Cache.
+     *
      */
-    private void checkUninon(IgniteCache cache) {
-        List<Query> queries = new ArrayList<>();
+    private void checkUninonAll() throws SQLException {
+        qry = "checkUninonAll";
 
-        queries.add(new SqlFieldsQuery(
-            "select p.name from " +
-                "\"" + personCacheName + "\".Person p, " +
-                "\"" + accCacheName + "\".Account a " +
-                "where p._key = a.personId and p.id = ? " +
-                "union all " +
-                "select o.name from " +
-                "\"" + orgCacheName + "\".Organization o, " +
-                "\"" + personCacheName + "\".Person p " +
-                "where p.orgStrId = o.strId and o.id = ?"
-        ));
+        String sql = "select p.name from " +
+            "\"" + personCacheName + "\".Person p, " +
+            "\"" + accCacheName + "\".Account a " +
+            "where p.id = a.personId and p.id = ? " +
+            "union all " +
+            "select o.name from " +
+            "\"" + orgCacheName + "\".Organization o, " +
+            "\"" + personCacheName + "\".Person p " +
+            "where p.orgStrId = o.strId and o.id = ?";
 
-        Map<Integer, Integer> personsPerOrg = data.personsPerOrg;
-        Map<Integer, Integer> accountsPerPerson = data.accountsPerPerson;
+        for (Person person : data.persons) {
+            for (Organization org : data.orgs)
+                compareQueryRes0(cache, sql, distributedJoins(), new Object[] {person.id, org.id}, Ordering.RANDOM);
+        }
+    }
 
-        for (Map.Entry<Integer, Integer> e1 : personsPerOrg.entrySet()) {
-            Integer orgId = e1.getKey();
-            Integer personsCnt = e1.getValue();
+    /**
+     *
+     */
+    private void checkUninon() throws SQLException {
+        qry = "checkUninon";
 
-            for (Map.Entry<Integer, Integer> e2 : accountsPerPerson.entrySet()) {
-                Integer personId = e2.getKey();
-                Integer accsCnt = e2.getValue();
+        String sql = "select p.name from " +
+            "\"" + personCacheName + "\".Person p, " +
+            "\"" + accCacheName + "\".Account a " +
+            "where p.id = a.personId and p.id = ? " +
+            "union " +
+            "select o.name from " +
+            "\"" + orgCacheName + "\".Organization o, " +
+            "\"" + personCacheName + "\".Person p " +
+            "where p.orgStrId = o.strId and o.id = ?";
 
-                for (Query q : queries) {
-                    ((SqlFieldsQuery)q).setDistributedJoins(true);
-
-                    ((SqlFieldsQuery)q).setArgs(personId, orgId);
-
-                    List res = cache.query(q).getAll();
-
-                    assertEquals(personsCnt + accsCnt, res.size());
-                }
-            }
+        for (Person person : data.persons) {
+            for (Organization org : data.orgs)
+                compareQueryRes0(cache, sql, distributedJoins(), new Object[] {person.id, org.id}, Ordering.RANDOM);
         }
     }
 
     /**
      * @param cache Cache.
      */
-    private void checkPersonAccountCrossJoin(IgniteCache cache) {
-        SqlFieldsQuery q = new SqlFieldsQuery("select p.name " +
+    private void checkPersonAccountCrossJoin(IgniteCache cache) throws SQLException {
+        qry = "checkPersonAccountCrossJoin";
+
+        String sql = "select p.name " +
             "from \"" + personCacheName + "\".Person p " +
-            "cross join \"" + accCacheName + "\".Account a");
+            "cross join \"" + accCacheName + "\".Account a";
 
-        q.setDistributedJoins(true);
-
-        List res = cache.query(q).getAll();
-
-        assertEquals(data.persons.size() * data.accounts.size(), res.size());
+        compareQueryRes0(cache, sql, distributedJoins(), new Object[0], Ordering.RANDOM);
     }
 
     /**
      * @param cache Cache.
      */
     private void checkPersonOrganizationGroupBy(IgniteCache cache) {
+        qry = "checkPersonOrganizationGroupBy";
+
         // Max salary per organization.
         SqlFieldsQuery q = new SqlFieldsQuery("select max(p.salary) " +
             "from \"" + personCacheName + "\".Person p join \"" + orgCacheName + "\".Organization o " +
@@ -1023,7 +1073,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             "group by o.name " +
             "having o.id = ?");
 
-        q.setDistributedJoins(true);
+        q.setDistributedJoins(distributedJoins());
 
         for (Map.Entry<Integer, Integer> e : data.maxSalaryPerOrg.entrySet()) {
             Integer orgId = e.getKey();
@@ -1050,6 +1100,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
      * @param cache Cache.
      */
     private void checkPersonAccountGroupBy(IgniteCache cache) {
+        qry = "checkPersonAccountGroupBy";
+
         // Count accounts per person.
         SqlFieldsQuery q = new SqlFieldsQuery("select count(a.id) " +
             "from \"" + personCacheName + "\".Person p join \"" + accCacheName + "\".Account a " +
@@ -1057,7 +1109,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             "group by p.name " +
             "having p.id = ?");
 
-        q.setDistributedJoins(true);
+        q.setDistributedJoins(distributedJoins());
 
         for (Map.Entry<Integer, Integer> e : data.accountsPerPerson.entrySet()) {
             Integer personId = e.getKey();
@@ -1084,6 +1136,8 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
      * @param cache Cache.
      */
     private void checkPersonAccountOrganizationGroupBy(IgniteCache cache) {
+        qry = "checkPersonAccountOrganizationGroupBy";
+
         // Max count of accounts at org.
         SqlFieldsQuery q = new SqlFieldsQuery("select max(count(a.id)) " +
             "from " +
@@ -1094,7 +1148,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             "group by org.id " +
             "having o.id = ?");
 
-        q.setDistributedJoins(true);
+        q.setDistributedJoins(distributedJoins());
 
         for (Map.Entry<Integer, Integer> e : data.accountsPerPerson.entrySet()) {
             Integer personId = e.getKey();
@@ -1118,28 +1172,11 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
     }
 
     /**
-     * @param cache Cache.
+     *
      */
-    private void checkPersonOrganizationJoinInsideSubquery(IgniteCache cache) throws SQLException {
-        // Select persons with max salary at organization.
-        String sql = "select p.id " +
-            "from \"" + personCacheName + "\".Person p, " +
-            "\"" + orgCacheName + "\".Organization o " +
-            "where p.orgId = o.id and o.id = ? and p.salary = (" +
-            "   select max(p.salary) from \"" + personCacheName + "\".Person p join " +
-            "   \"" + orgCacheName + "\".Organization o on p.orgDateId = o.dateId group by o.id having o.id = ?)";
+    private void checkGroupBy() throws SQLException {
+        qry = "checkGroupBy";
 
-        for (Organization org : data.orgs) {
-            Integer orgId = org.id;
-
-            compareQueryRes0(cache, sql, true, new Object[] {orgId, orgId}, Ordering.RANDOM);
-        }
-    }
-
-    /**
-     * @param cache Cache.
-     */
-    private void checkJoinInsideSubquery(IgniteCache cache) throws SQLException {
         // Select persons with count of accounts of person at organization.
         String sql = "select p.id, count(a.id) " +
             "from " +
@@ -1151,7 +1188,7 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             "having o.id = ?";
 
         for (Organization org : data.orgs)
-            compareQueryRes0(cache, sql, true, new Object[] {org.id}, Ordering.RANDOM);
+            compareQueryRes0(cache, sql, distributedJoins(), new Object[] {org.id}, Ordering.RANDOM);
     }
 
     /**
@@ -1178,22 +1215,22 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
         REPLICATED_3(CacheMode.REPLICATED, 0),
 
         /** */
-        PARTITIONED_b0_1(CacheMode.PARTITIONED, 0),
+        PARTITIONED_1_b0(CacheMode.PARTITIONED, 0),
 
         /** */
-        PARTITIONED_b0_2(CacheMode.PARTITIONED, 0),
+        PARTITIONED_2_b0(CacheMode.PARTITIONED, 0),
 
         /** */
-        PARTITIONED_b0_3(CacheMode.PARTITIONED, 0),
+        PARTITIONED_3_b0(CacheMode.PARTITIONED, 0),
 
         /** */
-        PARTITIONED_b1_1(CacheMode.PARTITIONED, 1),
+        PARTITIONED_1_b1(CacheMode.PARTITIONED, 1),
 
         /** */
-        PARTITIONED_b1_2(CacheMode.PARTITIONED, 1),
+        PARTITIONED_2_b1(CacheMode.PARTITIONED, 1),
 
         /** */
-        PARTITIONED_b1_3(CacheMode.PARTITIONED, 1);
+        PARTITIONED_3_b1(CacheMode.PARTITIONED, 1);
 
         /** */
         final String cacheName;
@@ -1309,6 +1346,14 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             personStrId = "personId" + personId;
         }
 
+        /**
+         * @param useColocatedData Use colocated data.
+         * @return Key.
+         */
+        public Object key(boolean useColocatedData) {
+            return useColocatedData ? new AffinityKey<>(id, orgId) : id;
+        }
+
         /** {@inheritDoc} */
         @Override public String toString() {
             return "Account{" +
@@ -1370,6 +1415,14 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             this.salary = salary;
         }
 
+        /**
+         * @param useColocatedData Use colocated data.
+         * @return Key.
+         */
+        public Object key(boolean useColocatedData) {
+            return useColocatedData ? new AffinityKey<>(id, orgId) : id;
+        }
+
         /** {@inheritDoc} */
         @Override public String toString() {
             return "Person{" +
@@ -1417,6 +1470,60 @@ public class IgniteCrossCachesDistributedJoinQueryTest extends AbstractH2Compare
             return "Organization{" +
                 "name='" + name + '\'' +
                 ", id=" + id +
+                '}';
+        }
+    }
+
+    /**
+     *
+     */
+    private static class TestConfig {
+        /** */
+        private final int idx;
+
+        /** */
+        private final IgniteCache testedCache;
+
+        /** */
+        private final TestCacheType personCacheType;
+
+        /** */
+        private final TestCacheType accCacheType;
+
+        /** */
+        private final TestCacheType orgCacheType;
+
+        /** */
+        private final String qry;
+
+        /**
+         * @param cfgIdx Tested configuration index.
+         * @param testedCache Tested testedCache.
+         * @param personCacheType Person testedCache personCacheType.
+         * @param accCacheType Account testedCache personCacheType.
+         * @param orgCacheType Organization testedCache personCacheType.
+         * @param testedQry Query.
+         */
+        TestConfig(int cfgIdx, IgniteCache testedCache, TestCacheType personCacheType,
+            TestCacheType accCacheType, TestCacheType orgCacheType, String testedQry) {
+
+            idx = cfgIdx;
+            this.testedCache = testedCache;
+            this.personCacheType = personCacheType;
+            this.accCacheType = accCacheType;
+            this.orgCacheType = orgCacheType;
+            qry = testedQry;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return "TestConfig{" +
+                "idx=" + idx +
+                ", testedCache=" + testedCache.getName() +
+                ", accCacheType=" + accCacheType +
+                ", personCacheType=" + personCacheType +
+                ", orgCacheType=" + orgCacheType +
+                ", qry=" + qry +
                 '}';
         }
     }
