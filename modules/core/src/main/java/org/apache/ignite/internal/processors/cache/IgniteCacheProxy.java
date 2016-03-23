@@ -83,6 +83,7 @@ import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiPredicate;
+import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.mxbean.CacheMetricsMXBean;
 import org.apache.ignite.plugin.security.SecurityPermission;
@@ -449,6 +450,56 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
     /**
      * @param filter Filter.
      * @param grp Optional cluster group.
+     * @param transformer Transformer.
+     * @return Cursor.
+     * @throws IgniteCheckedException In case of error.
+     */
+    @SuppressWarnings("unchecked")
+    private <R> QueryCursor<R> query(final ScanQuery<K, V> filter, @Nullable ClusterGroup grp,
+        final IgniteClosure transformer) throws IgniteCheckedException {
+        boolean isKeepBinary = opCtx != null && opCtx.isKeepBinary();
+
+        IgniteBiPredicate<K, V> p = filter.getFilter();
+
+        final CacheQuery<Map.Entry<K, V>> qry = ctx.queries().createScanQuery(p, filter.getPartition(), isKeepBinary);
+
+        if (grp != null)
+            qry.projection(grp);
+
+        final CacheQueryFuture<R> fut = ctx.kernalContext().query().executeQuery(ctx,
+            new IgniteOutClosureX<CacheQueryFuture<R>>() {
+                @Override public CacheQueryFuture<R> applyx() throws IgniteCheckedException {
+                    return qry.execute(transformer);
+                }
+            }, false);
+
+        return new QueryCursorImpl<>(new GridCloseableIteratorAdapter<R>() {
+            private R cur;
+
+            @Override protected R onNext() throws IgniteCheckedException {
+                if (!onHasNext())
+                    throw new NoSuchElementException();
+
+                R e = cur;
+
+                cur = null;
+
+                return e;
+            }
+
+            @Override protected boolean onHasNext() throws IgniteCheckedException {
+                return cur != null || (cur = fut.next()) != null;
+            }
+
+            @Override protected void onClose() throws IgniteCheckedException {
+                fut.cancel();
+            }
+        });
+    }
+
+    /**
+     * @param filter Filter.
+     * @param grp Optional cluster group.
      * @return Cursor.
      */
     @SuppressWarnings("unchecked")
@@ -653,6 +704,36 @@ public class IgniteCacheProxy<K, V> extends AsyncSupportAdapter<IgniteCache<K, V
             }
 
             return (QueryCursor<R>)query(qry, projection(qry.isLocal()));
+        }
+        catch (Exception e) {
+            if (e instanceof CacheException)
+                throw (CacheException)e;
+
+            throw new CacheException(e);
+        }
+        finally {
+            onLeave(gate, prev);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public <T, R> QueryCursor<R> query(Query<T> qry, IgniteClosure<T, R> transformer) {
+        A.notNull(qry, "qry");
+        A.notNull(transformer, "transformer");
+
+        if (!(qry instanceof ScanQuery))
+            throw new UnsupportedOperationException("Transformers are supported only for SCAN queries.");
+
+        GridCacheGateway<K, V> gate = this.gate;
+
+        CacheOperationContext prev = onEnter(gate, opCtx);
+
+        try {
+            ctx.checkSecurity(SecurityPermission.CACHE_READ);
+
+            validate(qry);
+
+            return query((ScanQuery<K, V>)qry, projection(qry.isLocal()), transformer);
         }
         catch (Exception e) {
             if (e instanceof CacheException)
