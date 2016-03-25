@@ -30,6 +30,7 @@ module.exports = {
 /**
  * @param _
  * @param fs
+ * @param ws
  * @param path
  * @param JSZip
  * @param socketio
@@ -40,48 +41,40 @@ module.exports = {
  */
 module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite, settings, mongo) {
     /**
-     * Creates an instance of server for Ignite.
+     *
      */
-    class AgentServer {
+    class Command {
         /**
-         * @this {AgentServer}
-         * @param {Agent} agent Connected agent
-         * @param {Boolean} demo Use demo node for request
+         * @param {Boolean} demo Is need run command on demo node.
+         * @param {String} name Command name.
          */
-        constructor(agent, demo) {
-            this._agent = agent;
-            this._demo = !!demo;
+        constructor(demo, name) {
+            this._demo = demo;
+
+            /**
+             * Command name.
+             * @type {String}
+             */
+            this._name = name;
+
+            /**
+             * Command parameters.
+             * @type {Array.<String>}
+             */
+            this._params = [];
         }
 
         /**
-         * Run http request
-         *
-         * @this {AgentServer}
-         * @param {cmd} cmd Command
-         * @param {callback} callback on finish
+         * Add parameter to command.
+         * @param {string} key Parameter key.
+         * @param {Object} value Parameter value.
+         * @returns {Command}
          */
-        runCommand(cmd, callback) {
-            const params = {cmd: cmd.name()};
+        addParam(key, value) {
+            this._params.push({key, value});
 
-            for (const param of cmd._params)
-                params[param.key] = param.value;
-
-            let body;
-
-            let headers;
-
-            let method = 'GET';
-
-            if (cmd._isPost()) {
-                body = cmd.postData();
-
-                method = 'POST';
-
-                headers = {JSONObject: 'application/json'};
-            }
-
-            this._agent.executeRest('ignite', params, this._demo, method, headers, body, callback);
-        }
+            return this;
+        };
     }
 
     /**
@@ -99,42 +92,6 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
              * @private
              */
             this._socket = socket;
-
-            /**
-             * Executor for grid.
-             *
-             * @type {apacheIgnite.Ignite}
-             * @private
-             */
-            this._cluster = new apacheIgnite.Ignite(new AgentServer(this));
-
-            /**
-             * Executor for demo node.
-             *
-             * @type {apacheIgnite.Ignite}
-             * @private
-             */
-            this._demo = new apacheIgnite.Ignite(new AgentServer(this, true));
-        }
-
-        /**
-         * Send message to agent.
-         *
-         * @param {String} event - Event name.
-         * @param {Object} data - Transmitted data.
-         * @returns {Promise}
-         */
-        _exec(event, data) {
-            const self = this;
-
-            return new Promise((resolve, reject) =>
-                self._emit(event, data, (error, res) => {
-                    if (error)
-                        return reject(error);
-
-                    resolve(res);
-                })
-            );
         }
 
         /**
@@ -157,72 +114,63 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
         }
 
         /**
+         * Send message to agent.
+         *
+         * @param {String} event - Event name.
+         * @param {Object?} data - Transmitted data.
+         * @returns {Promise}
+         */
+        executeAgent(event, data) {
+            return new Promise((resolve, reject) =>
+                this._emit(event, data, (error, res) => {
+                    if (error)
+                        return reject(error);
+
+                    resolve(res);
+                })
+            );
+        }
+
+        /**
          * Execute rest request on node.
          *
-         * @param {String} uri - REST endpoint uri.
-         * @param {Object} params - REST request parameters.
-         * @param {Boolean} demo - true if execute on demo node.
-         * @param {String} [method] - Request method GET or POST.
-         * @param {Object} [headers] - REST request headers.
-         * @param {String} [body] - REST request body
-         * @param {Function} [cb] Callback. Take 3 arguments: {Number} successStatus, {String} error,  {String} response.
+         * @param {Command} cmd - REST command.
+         * @return {Promise}
          */
-        executeRest(uri, params, demo, method, headers, body, cb) {
-            if (typeof (params) !== 'object')
-                throw '"params" argument must be an object';
+        executeRest(cmd) {
+            const params = {cmd: cmd._name};
 
-            if (typeof (cb) !== 'function')
-                throw 'callback must be a function';
+            for (const param of this._params)
+                params[param.key] = param.value;
 
-            if (body && typeof (body) !== 'string')
-                throw 'body must be a string';
+            return new Promise((resolve, reject) => {
+                this._emit('node:rest', {uri: 'ignite', params, demo: cmd._demo, method: 'GET'}, (error, restResult) => {
+                    if (error)
+                        return reject(new Error(error));
 
-            if (headers && typeof (headers) !== 'object')
-                throw 'headers must be an object';
+                    error = restResult.error;
 
-            method = method ? method.toUpperCase() : 'GET';
+                    const code = restResult.code;
 
-            if (method !== 'GET' && method !== 'POST')
-                throw 'Unknown HTTP method: ' + method;
-
-            const _cb = (error, restResult) => {
-                if (error)
-                    return cb(error);
-
-                error = restResult.error;
-
-                const code = restResult.code;
-
-                if (code !== 200) {
                     if (code === 401)
-                        return cb({code, message: 'Failed to authenticate on node.'});
+                        return reject(Error('Failed to authenticate on node.', 2));
 
-                    return cb({code, message: error || 'Failed connect to node and execute REST command.'});
-                }
+                    if (code !== 200)
+                        return reject(new Error(error || 'Failed connect to node and execute REST command.'));
 
-                try {
-                    const response = JSON.parse(restResult.data);
+                    try {
+                        const response = JSON.parse(restResult.data);
 
-                    if (response.successStatus === 0)
-                        return cb(null, response.response);
+                        if (response.successStatus === 0)
+                            return resolve(response.response);
 
-                    switch (response.successStatus) {
-                        case 1:
-                            return cb({code: 500, message: response.error});
-                        case 2:
-                            return cb({code: 401, message: response.error});
-                        case 3:
-                            return cb({code: 403, message: response.error});
-                        default:
-                            return cb(response.error);
+                        reject(new Error(response.error, response.successStatus));
                     }
-                }
-                catch (e) {
-                    return cb(e);
-                }
-            };
-
-            this._emit('node:rest', {uri, params, demo, method, headers, body}, _cb);
+                    catch (e) {
+                        return reject(e);
+                    }
+                });
+            });
         }
 
         /**
@@ -233,7 +181,7 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
          * @returns {Promise} Promise on list of tables (see org.apache.ignite.schema.parser.DbTable java class)
          */
         metadataSchemas(driverPath, driverClass, url, info) {
-            return this._exec('schemaImport:schemas', {driverPath, driverClass, url, info});
+            return this.executeAgent('schemaImport:schemas', {driverPath, driverClass, url, info});
         }
 
         /**
@@ -246,14 +194,79 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
          * @returns {Promise} Promise on list of tables (see org.apache.ignite.schema.parser.DbTable java class)
          */
         metadataTables(driverPath, driverClass, url, info, schemas, tablesOnly) {
-            return this._exec('schemaImport:metadata', {driverPath, driverClass, url, info, schemas, tablesOnly});
+            return this.executeAgent('schemaImport:metadata', {driverPath, driverClass, url, info, schemas, tablesOnly});
         }
 
         /**
          * @returns {Promise} Promise on list of jars from driver folder.
          */
         availableDrivers() {
-            return this._exec('schemaImport:drivers');
+            return this.executeAgent('schemaImport:drivers');
+        }
+
+        /**
+         *
+         * @param {Boolean} demo Is need run command on demo node.
+         * @param {Boolean} attr Get attributes, if this parameter has value true. Default value: true.
+         * @param {Boolean} mtr Get metrics, if this parameter has value true. Default value: false.
+         * @returns {Promise}
+         */
+        topology(demo, attr, mtr) {
+            var cmd = new Command(demo, 'top')
+                .addParam('attr', attr !== false)
+                .addParam('mtr', !!mtr);
+
+            this.executeRest(cmd);
+        }
+
+        /**
+         *
+         * @param res
+         * @return {{meta: Array, rows: Array, queryId: int}}
+         * @private
+         */
+        static _onQueryResult(res) {
+            const queryId = res === null && res["last"] ? null : queryId;
+
+            return {
+                meta: res['fieldsMetadata'],
+                rows: res['items'],
+                queryId
+            }
+        }
+
+        /**
+         *
+         * @param {Boolean} demo Is need run command on demo node.
+         * @param {String} cacheName Cache name.
+         * @param {String} query Query.
+         * @param {int} pageSize Page size.
+         * @returns {Promise}
+         */
+        fieldsQuery(demo, cacheName, query, pageSize) {
+            var cmd = new Command(demo, 'qryfldexe')
+                .addParam('cacheName', cacheName)
+                .addParam('query', query)
+                .addParam('pageSize', pageSize);
+
+            this.executeRest(cmd)
+                .then(this._onQueryResult);
+        }
+
+        /**
+         *
+         * @param {Boolean} demo Is need run command on demo node.
+         * @param {String} cacheName Cache name.
+         * @param {int} pageSize Page size.
+         * @returns {Promise}
+         */
+        scan(demo, cacheName, pageSize) {
+            var cmd = new Command(demo, 'qryscanexe')
+                .addParam('cacheName', cacheName)
+                .addParam('pageSize', pageSize);
+
+            this.executeRest(cmd)
+                .then(this._onQueryResult);
         }
 
         /**
@@ -327,7 +340,7 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
                 }
             }
 
-            const latest = _.first(Object.keys(this.supportedAgents).sort((a, b) => {
+            const latest = _.head(Object.keys(this.supportedAgents).sort((a, b) => {
                 const aParts = a.split('.');
                 const bParts = b.split('.');
 

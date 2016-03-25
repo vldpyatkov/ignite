@@ -76,7 +76,7 @@ module.exports.factory = (_, socketio, apacheIgnite, agentMgr, configure) => {
                 // Return topology command result from grid to browser.
                 socket.on('node:topology', (demo, attr, mtr, cb) => {
                     agentMgr.findAgent(user._id)
-                        .then((agent) => agent.ignite(demo).cluster(attr, mtr))
+                        .then((agent) => agent.topology(demo, attr, mtr))
                         .then((clusters) => cb(null, clusters))
                         .catch((errMsg) => cb(errMsg));
                 });
@@ -97,19 +97,12 @@ module.exports.factory = (_, socketio, apacheIgnite, agentMgr, configure) => {
                 socket.on('node:query', (args, cb) => {
                     agentMgr.findAgent(user._id)
                         .then((agent) => {
-                            // Create sql query.
-                            const qry = args.type === 'SCAN' ? new ScanQuery() : new SqlFieldsQuery(args.query);
+                            if (args.type === 'SCAN')
+                                return agent.scan(args.demo, args.cacheName, args.pageSize);
 
-                            // Set page size for query.
-                            qry.setPageSize(args.pageSize);
-
-                            return agent.ignite(args.demo).cache(args.cacheName).query(qry).nextPage();
+                            return agent.fieldsQuery(args.demo, args.cacheName, args.query, args.pageSize);
                         })
-                        .then((cursor) => cb(null, {
-                            meta: cursor.fieldsMetadata(),
-                            rows: cursor.page(),
-                            queryId: cursor.queryId()
-                        }))
+                        .then((res) => cb(null, res))
                         .catch((errMsg) => cb(errMsg));
                 });
 
