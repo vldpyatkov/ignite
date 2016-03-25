@@ -39,7 +39,7 @@ form.panel.panel-default(name='query' novalidate)
                     +number('Long query timeout:', model + '.longQueryWarningTimeout', 'longQueryWarningTimeout', 'true', '3000', '0',
                         'Timeout in milliseconds after which long query warning will be printed')
                 .settings-row
-                    ignite-form-group(ng-model='#{sqlFunctionClasses}' ng-form='#{form}')
+                    ignite-form-group(ng-model=sqlFunctionClasses ng-form=form)
                         ignite-form-field-label
                             | SQL functions
                         ignite-form-group-tooltip
@@ -49,7 +49,7 @@ form.panel.panel-default(name='query' novalidate)
 
                         -var uniqueTip = 'SQL function with such class name already exists!'
 
-                        .group-content(ng-if='#{sqlFunctionClasses}.length')
+                        .group-content(ng-if=sqlFunctionClasses + '.length')
                             -var field = 'edit'
                             -var valid = form + '.' + field + '.$valid'
                             -var unique = form + '.' + field + '.$error.igniteUnique'

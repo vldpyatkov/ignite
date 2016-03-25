@@ -120,7 +120,9 @@ consoleModule.config(function($dropdownProvider) {
 
 // Common functions to be used in controllers.
 consoleModule.service('$common', [
-    '$alert', '$popover', '$timeout', '$focus', '$window', function ($alert, $popover, $timeout, $focus, $window) {
+    '$alert', '$popover', '$anchorScroll', '$location', '$timeout', '$focus', '$window', function ($alert, $popover, $anchorScroll, $location, $timeout, $focus, $window) {
+        $anchorScroll.yOffset = 55;
+
         function isDefined(v) {
             return !(v === undefined || v === null);
         }
@@ -603,14 +605,20 @@ consoleModule.service('$common', [
             if (popover)
                 popover.hide();
 
-            ensureActivePanel(ui, panelId, id);
+            ensureActivePanel(ui, panelId);
 
-            var el = $('body').find('#' + id);
+            var body = $('body');
+
+            var el = body.find('#' + id);
 
             if (!el || el.length === 0)
-                el = $('body').find('[name="' + id + '"]');
+                el = body.find('[name="' + id + '"]');
 
             if (el && el.length > 0) {
+                $location.hash(el[0].id);
+
+                $anchorScroll();
+
                 var newPopover = $popover(el, {content: message});
 
                 popover = newPopover;
