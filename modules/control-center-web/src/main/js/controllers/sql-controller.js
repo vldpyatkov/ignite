@@ -257,7 +257,7 @@ consoleModule.controller('sqlController', [
         var _refreshFn = function() {
             IgniteAgentMonitor.topology($scope.demo)
                 .then(function(clusters) {
-                    var caches = _.flattenDeep(clusters.map(function (cluster) { return cluster._caches; }));
+                    var caches = _.flattenDeep(clusters.map(function (cluster) { return cluster.caches; }));
 
                     $scope.caches = _.sortBy(_.uniq(_.reject(caches, { mode: 'LOCAL' }), function (cache) {
                         return _mask(cache.name);
@@ -831,7 +831,7 @@ consoleModule.controller('sqlController', [
 
                     _showLoading(paragraph, false);
 
-                    if (res.last)
+                    if (res.queryId === null)
                         delete paragraph.queryId;
                 })
                 .catch(function (errMsg) {
@@ -1502,28 +1502,31 @@ consoleModule.controller('sqlController', [
 
             $scope.metadata = [];
 
-        IgniteAgentMonitor.metadata($scope.demo)
-            .then(function (metadata) {
-                $scope.metadata = _.sortBy(_.filter(metadata, function (meta) {
-                    var cache = _.find($scope.caches, { name: meta.cacheName });
+            IgniteAgentMonitor.metadata($scope.demo)
+                .then(function (metadata) {
+                    $scope.metadata = _.sortBy(_.filter(metadata, function (meta) {
+                        var cache = _.find($scope.caches, { name: meta.cacheName });
 
-                        if (cache) {
-                            meta.name = (cache.sqlSchema ? cache.sqlSchema : '"' + meta.cacheName + '"') + '.' + meta.typeName;
+                            if (cache) {
+                                meta.name = (cache.sqlSchema ? cache.sqlSchema : '"' + meta.cacheName + '"') + '.' + meta.typeName;
 
-                            meta.displayMame = _mask(meta.cacheName) + '.' + meta.typeName;
+                                meta.displayMame = _mask(meta.cacheName) + '.' + meta.typeName;
 
-                            if (cache.sqlSchema)
-                                meta.children.unshift({type: 'plain', name: 'sqlSchema: ' + cache.sqlSchema});
+                                if (cache.sqlSchema)
+                                    meta.children.unshift({type: 'plain', name: 'sqlSchema: ' + cache.sqlSchema});
 
-                            meta.children.unshift({type: 'plain', name: 'mode: ' + cache.mode});
-                        }
+                                meta.children.unshift({type: 'plain', name: 'mode: ' + cache.mode});
+                            }
 
-                    return cache;
-                }), 'name');
-            })
-            .finally(function () {
-                $loading.finish('loadingCacheMetadata');
-            });
+                        return cache;
+                    }), 'name');
+                })
+                .catch(function (err) {
+                    console.log(err);
+                })
+                .finally(function () {
+                    $loading.finish('loadingCacheMetadata');
+                });
         };
 
         $scope.showResultQuery = function (paragraph) {

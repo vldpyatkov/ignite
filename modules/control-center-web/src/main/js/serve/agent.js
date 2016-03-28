@@ -140,7 +140,7 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
         executeRest(cmd) {
             const params = {cmd: cmd._name};
 
-            for (const param of this._params)
+            for (const param of cmd._params)
                 params[param.key] = param.value;
 
             return new Promise((resolve, reject) => {
@@ -216,7 +216,7 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
                 .addParam('attr', attr !== false)
                 .addParam('mtr', !!mtr);
 
-            this.executeRest(cmd);
+            return this.executeRest(cmd);
         }
 
         /**
@@ -226,12 +226,10 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
          * @private
          */
         static _onQueryResult(res) {
-            const queryId = res === null && res["last"] ? null : queryId;
-
             return {
-                meta: res['fieldsMetadata'],
-                rows: res['items'],
-                queryId
+                meta: res.fieldsMetadata,
+                rows: res.items,
+                queryId: res.last ? null : res.queryId
             }
         }
 
@@ -246,11 +244,11 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
         fieldsQuery(demo, cacheName, query, pageSize) {
             var cmd = new Command(demo, 'qryfldexe')
                 .addParam('cacheName', cacheName)
-                .addParam('query', query)
+                .addParam('qry', query)
                 .addParam('pageSize', pageSize);
 
-            this.executeRest(cmd)
-                .then(this._onQueryResult);
+            return this.executeRest(cmd)
+                .then(Agent._onQueryResult);
         }
 
         /**
@@ -265,8 +263,24 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
                 .addParam('cacheName', cacheName)
                 .addParam('pageSize', pageSize);
 
-            this.executeRest(cmd)
-                .then(this._onQueryResult);
+            return this.executeRest(cmd)
+                .then(Agent._onQueryResult);
+        }
+
+
+        /**
+         * @param {Boolean} demo Is need run command on demo node.
+         * @param {int} queryId Query Id.
+         * @param {int} pageSize Page size.
+         * @returns {Promise}
+         */
+        queryFetch(demo, queryId, pageSize) {
+            var cmd = new Command(demo, 'qryfetch')
+                .addParam('qryId', queryId)
+                .addParam('pageSize', pageSize);
+
+            return this.executeRest(cmd)
+                .then(Agent._onQueryResult);
         }
 
         /**

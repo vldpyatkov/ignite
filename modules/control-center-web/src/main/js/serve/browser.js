@@ -78,7 +78,7 @@ module.exports.factory = (_, socketio, apacheIgnite, agentMgr, configure) => {
                     agentMgr.findAgent(user._id)
                         .then((agent) => agent.topology(demo, attr, mtr))
                         .then((clusters) => cb(null, clusters))
-                        .catch((errMsg) => cb(errMsg));
+                        .catch((err) => cb(err));
                 });
 
                 // Close query on node.
@@ -90,7 +90,7 @@ module.exports.factory = (_, socketio, apacheIgnite, agentMgr, configure) => {
                             return cache.__createPromise(cache._createCommand('qrycls').addParam('qryId', args.queryId));
                         })
                         .then(() => cb())
-                        .catch((errMsg) => cb(errMsg));
+                        .catch((err) => cb(err));
                 });
 
                 // Execute query on node and return first page to browser.
@@ -103,43 +103,47 @@ module.exports.factory = (_, socketio, apacheIgnite, agentMgr, configure) => {
                             return agent.fieldsQuery(args.demo, args.cacheName, args.query, args.pageSize);
                         })
                         .then((res) => cb(null, res))
-                        .catch((errMsg) => cb(errMsg));
+                        .catch((err) => cb(err));
                 });
 
                 // Fetch next page for query and return result to browser.
                 socket.on('node:query:fetch', (args, cb) => {
                     agentMgr.findAgent(user._id)
-                        .then((agent) => {
-                            const cache = agent.ignite(args.demo).cache(args.cacheName);
-
-                            const cmd = cache._createCommand('qryfetch')
-                                .addParam('qryId', args.queryId)
-                                .addParam('pageSize', args.pageSize);
-
-                            return cache.__createPromise(cmd);
-                        })
-                        .then((page) => cb(null, {
-                            rows: page.items,
-                            last: page === null || page.last
-                        }))
-                        .catch((errMsg) => cb(errMsg));
+                        .then((agent) => agent.queryFetch(args.demo, args.queryId, args.pageSize))
+                        .then((res) => cb(null, res))
+                        .catch((err) => cb(err));
                 });
 
                 // Execute query on node and return full result to browser.
                 socket.on('node:query:getAll', (args, cb) => {
+                    // Set page size for query.
+                    const pageSize = 1024;
+
                     agentMgr.findAgent(user._id)
                         .then((agent) => {
-                            // Create sql query.
-                            const qry = args.type === 'SCAN' ? new ScanQuery() : new SqlFieldsQuery(args.query);
+                            if (args.type === 'SCAN')
+                                return agent.scan(args.demo, args.cacheName, pageSize);
 
-                            // Set page size for query.
-                            qry.setPageSize(1024);
-
-                            const cursor = agent.ignite(args.demo).cache(args.cacheName).query(qry);
-
-                            return cursor.getAll()
-                                .then((rows) => cb(null, {meta: cursor.fieldsMetadata(), rows}));
+                            return agent.fieldsQuery(args.demo, args.cacheName, args.query, pageSize);
                         })
+                        .then((res) => {
+                            const fetchResult = (fullRes) => {
+                                if (fullRes.last)
+                                    return fullRes;
+
+                                return agent.queryFetch(args.demo, args.queryId, pageSize)
+                                    .then((res) => {
+                                        fullRes.rows = fullRes.rows.concat(res.rows);
+
+                                        fullRes.last = res.last;
+
+                                        return fetchResult(fullRes);
+                                    })
+                            };
+
+                            return fetchResult(res);
+                        })
+                        .then((res) => cb(null, res))
                         .catch((errMsg) => cb(errMsg));
                 });
 

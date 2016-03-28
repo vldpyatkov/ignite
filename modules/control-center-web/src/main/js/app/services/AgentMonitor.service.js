@@ -225,10 +225,10 @@ class IgniteAgentMonitor {
 
                 return res;
             })
-            .catch((errMsg) => {
+            .catch((err) => {
                 this._downloadAgentModal.show();
 
-                return this._$q.reject(errMsg);
+                return this._$q.reject(err);
             });
     }
 
