@@ -24,7 +24,7 @@
  */
 module.exports = {
     implements: 'agent-manager',
-    inject: ['require(lodash)', 'require(ws)', 'require(fs)', 'require(path)', 'require(jszip)', 'require(socket.io)', 'require(apache-ignite)', 'settings', 'mongo']
+    inject: ['require(lodash)', 'require(ws)', 'require(fs)', 'require(path)', 'require(jszip)', 'require(socket.io)', 'settings', 'mongo']
 };
 
 /**
@@ -34,12 +34,11 @@ module.exports = {
  * @param path
  * @param JSZip
  * @param socketio
- * @param apacheIgnite
  * @param settings
  * @param mongo
  * @returns {AgentManager}
  */
-module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite, settings, mongo) {
+module.exports.factory = function(_, ws, fs, path, JSZip, socketio, settings, mongo) {
     /**
      *
      */
@@ -221,20 +220,6 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
 
         /**
          *
-         * @param res
-         * @return {{meta: Array, rows: Array, queryId: int}}
-         * @private
-         */
-        static _onQueryResult(res) {
-            return {
-                meta: res.fieldsMetadata,
-                rows: res.items,
-                queryId: res.last ? null : res.queryId
-            }
-        }
-
-        /**
-         *
          * @param {Boolean} demo Is need run command on demo node.
          * @param {String} cacheName Cache name.
          * @param {String} query Query.
@@ -247,8 +232,7 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
                 .addParam('qry', query)
                 .addParam('pageSize', pageSize);
 
-            return this.executeRest(cmd)
-                .then(Agent._onQueryResult);
+            return this.executeRest(cmd);
         }
 
         /**
@@ -263,10 +247,8 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
                 .addParam('cacheName', cacheName)
                 .addParam('pageSize', pageSize);
 
-            return this.executeRest(cmd)
-                .then(Agent._onQueryResult);
+            return this.executeRest(cmd);
         }
-
 
         /**
          * @param {Boolean} demo Is need run command on demo node.
@@ -279,15 +261,31 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
                 .addParam('qryId', queryId)
                 .addParam('pageSize', pageSize);
 
-            return this.executeRest(cmd)
-                .then(Agent._onQueryResult);
+            return this.executeRest(cmd);
         }
 
         /**
-         * @returns {apacheIgnite.Ignite}
+         * @param {Boolean} demo Is need run command on demo node.
+         * @param {int} queryId Query Id.
+         * @returns {Promise}
          */
-        ignite(demo) {
-            return demo ? this._demo : this._cluster;
+        queryClose(demo, queryId) {
+            var cmd = new Command(demo, 'qrycls')
+                .addParam('qryId', queryId);
+
+            return this.executeRest(cmd);
+        }
+
+        /**
+         * @param {Boolean} demo Is need run command on demo node.
+         * @param {String} cacheName Cache name.
+         * @returns {Promise}
+         */
+        metadata(demo, cacheName) {
+            var cmd = new Command(demo, 'metadata')
+                .addParam('cacheName', cacheName);
+
+            return this.executeRest(cmd);
         }
     }
 
@@ -395,7 +393,7 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
             this._server = srv;
 
             /**
-             * @type {WebSocketServer}
+             * @type {socketIo.Server}
              */
             this._socket = socketio(this._server);
 
@@ -467,12 +465,12 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
          */
         findAgent(userId) {
             if (!this._server)
-                return Promise.reject('Agent server not started yet!');
+                throw new Error('Agent server not started yet!');
 
             const agents = this._agents[userId];
 
             if (!agents || agents.length === 0)
-                return Promise.reject('Failed to connect to agent');
+                throw new Error('Failed to connect to agent');
 
             return Promise.resolve(agents[0]);
         }
@@ -483,7 +481,7 @@ module.exports.factory = function(_, ws, fs, path, JSZip, socketio, apacheIgnite
          */
         close(userId) {
             if (!this._server)
-                throw 'Agent server not started yet!';
+                return;
 
             const agents = this._agents[userId];
 

@@ -257,6 +257,8 @@ consoleModule.controller('sqlController', [
         var _refreshFn = function() {
             IgniteAgentMonitor.topology($scope.demo)
                 .then(function(clusters) {
+                    IgniteAgentMonitor.checkModal();
+
                     var caches = _.flattenDeep(clusters.map(function (cluster) { return cluster.caches; }));
 
                     $scope.caches = _.sortBy(_.uniq(_.reject(caches, { mode: 'LOCAL' }), function (cache) {
@@ -265,8 +267,10 @@ consoleModule.controller('sqlController', [
 
                     _setActiveCache();
                 })
-                .catch(_handleException)
-                .finally(function() {
+                .catch(function (err) {
+                    IgniteAgentMonitor.showNodeError(err.message)
+                })
+                .finally(function () {
                     $loading.finish('loading');
                 });
         };
@@ -585,11 +589,16 @@ consoleModule.controller('sqlController', [
             return retainedCols;
         }
 
+        /**
+         * @param {Object} paragraph Query
+         * @param {{fieldsMetadata: Array, items: Array, queryId: int, last: Boolean}} res Query results.
+         * @private
+         */
         var _processQueryResult = function (paragraph, res) {
             var prevKeyCols = paragraph.chartKeyCols;
             var prevValCols = paragraph.chartValCols;
 
-            if (!_.eq(paragraph.meta, res.meta)) {
+            if (!_.eq(paragraph.meta, res.fieldsMetadata)) {
                 paragraph.meta = [];
 
                 paragraph.chartColumns = [];
@@ -600,17 +609,17 @@ consoleModule.controller('sqlController', [
                 if (!$common.isDefined(paragraph.chartValCols))
                     paragraph.chartValCols = [];
 
-                if (res.meta.length <= 2) {
-                    var _key = _.find(res.meta, {fieldName: '_KEY'});
-                    var _val = _.find(res.meta, {fieldName: '_VAL'});
+                if (res.fieldsMetadata.length <= 2) {
+                    var _key = _.find(res.fieldsMetadata, {fieldName: '_KEY'});
+                    var _val = _.find(res.fieldsMetadata, {fieldName: '_VAL'});
 
-                    paragraph.disabledSystemColumns = (res.meta.length == 2 && _key && _val) ||
-                        (res.meta.length == 1 && (_key || _val));
+                    paragraph.disabledSystemColumns = (res.fieldsMetadata.length == 2 && _key && _val) ||
+                        (res.fieldsMetadata.length == 1 && (_key || _val));
                 }
 
                 paragraph.columnFilter = _columnFilter(paragraph);
 
-                paragraph.meta = res.meta;
+                paragraph.meta = res.fieldsMetadata;
 
                 _rebuildColumns(paragraph);
             }
@@ -619,16 +628,16 @@ consoleModule.controller('sqlController', [
 
             paragraph.total = 0;
 
-            paragraph.queryId = res.queryId;
+            paragraph.queryId = res.last ? null : res.queryId;
 
             delete paragraph.errMsg;
 
             // Prepare explain results for display in table.
-            if (paragraph.queryArgs.type == "EXPLAIN" && res.rows) {
+            if (paragraph.queryArgs.type == "EXPLAIN" && res.items) {
                 paragraph.rows = [];
 
-                res.rows.forEach(function (row, i) {
-                    var line = res.rows.length - 1 == i ? row[0] : row[0] + '\n';
+                res.items.forEach(function (row, i) {
+                    var line = res.items.length - 1 == i ? row[0] : row[0] + '\n';
 
                     line.replace(/\"/g, '').split('\n').forEach(function (line) {
                         paragraph.rows.push([line]);
@@ -636,7 +645,7 @@ consoleModule.controller('sqlController', [
                 });
             }
             else
-                paragraph.rows = res.rows;
+                paragraph.rows = res.items;
 
             paragraph.gridOptions.setRows(paragraph.rows);
 
@@ -818,7 +827,7 @@ consoleModule.controller('sqlController', [
 
                     paragraph.total += paragraph.rows.length;
 
-                    paragraph.rows = res.rows;
+                    paragraph.rows = res.items;
 
                     if (paragraph.chart()) {
                         if (paragraph.result == 'pie')
@@ -827,11 +836,11 @@ consoleModule.controller('sqlController', [
                             _updateChartsWithData(paragraph, _chartDatum(paragraph));
                     }
 
-                    paragraph.gridOptions.setRows(res.rows);
+                    paragraph.gridOptions.setRows(paragraph.rows);
 
                     _showLoading(paragraph, false);
 
-                    if (res.queryId === null)
+                    if (res.last)
                         delete paragraph.queryId;
                 })
                 .catch(function (errMsg) {
