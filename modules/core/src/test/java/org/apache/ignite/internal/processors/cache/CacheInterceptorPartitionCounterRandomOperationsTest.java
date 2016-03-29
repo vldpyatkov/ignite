@@ -145,6 +145,7 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
                 new BlockingArrayQueue<Cache.Entry<QueryTestKey, QueryTestValue>>());
         }
     }
+
     /**
      * @throws Exception If failed.
      */
@@ -154,6 +155,19 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
             ATOMIC,
             ONHEAP_TIERED,
             false);
+
+        doTestPartitionCounterOperation(ccfg);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicWithStore() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            ATOMIC,
+            ONHEAP_TIERED,
+            true);
 
         doTestPartitionCounterOperation(ccfg);
     }
@@ -174,12 +188,38 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
     /**
      * @throws Exception If failed.
      */
+    public void testAtomicReplicatedWithStore() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED,
+            0,
+            ATOMIC,
+            ONHEAP_TIERED,
+            true);
+
+        doTestPartitionCounterOperation(ccfg);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testAtomicOffheapValues() throws Exception {
         CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
             1,
             ATOMIC,
             OFFHEAP_VALUES,
             false);
+
+        doTestPartitionCounterOperation(ccfg);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testAtomicOffheapValuesWithStore() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            ATOMIC,
+            OFFHEAP_VALUES,
+            true);
 
         doTestPartitionCounterOperation(ccfg);
     }
@@ -226,6 +266,19 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
     /**
      * @throws Exception If failed.
      */
+    public void testTxWithStore() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            1,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            true);
+
+        doTestPartitionCounterOperation(ccfg);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testTxExplicit() throws Exception {
         CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
             1,
@@ -245,6 +298,19 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
             TRANSACTIONAL,
             ONHEAP_TIERED,
             false);
+
+        doTestPartitionCounterOperation(ccfg);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxReplicatedWithStore() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(REPLICATED,
+            0,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            true);
 
         doTestPartitionCounterOperation(ccfg);
     }
@@ -317,6 +383,19 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
     /**
      * @throws Exception If failed.
      */
+    public void testTxNoBackupsWithStore() throws Exception {
+        CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
+            0,
+            TRANSACTIONAL,
+            ONHEAP_TIERED,
+            true);
+
+        doTestPartitionCounterOperation(ccfg);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testTxNoBackupsExplicit() throws Exception {
         CacheConfiguration<Object, Object> ccfg = cacheConfiguration(PARTITIONED,
             0,
@@ -372,7 +451,7 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
         Map<Integer, Long> partCntr,
         IgniteCache<Object, Object> cache)
         throws Exception {
-        Object key = new QueryTestKey(rnd.nextInt(1));
+        Object key = new QueryTestKey(rnd.nextInt(KEYS));
         Object newVal = value(rnd);
         Object oldVal = expData.get(key);
 
@@ -616,7 +695,9 @@ public class CacheInterceptorPartitionCounterRandomOperationsTest extends GridCo
         boolean rmv
     ) {
         Collection<ClusterNode> nodes =
-            Collections.singletonList(affinity(cache).mapKeyToPrimaryAndBackups(key).iterator().next());
+            cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL ?
+                affinity(cache).mapKeyToPrimaryAndBackups(key) :
+                Collections.singletonList(affinity(cache).mapKeyToPrimaryAndBackups(key).iterator().next());
 
         List<BlockingQueue<Cache.Entry<QueryTestKey, QueryTestValue>>> queues = new ArrayList<>();
 
