@@ -17,6 +17,8 @@
 
 package org.apache.ignite.internal.processors.cache.datastructures.partitioned;
 
+import org.apache.ignite.Ignite;
+import org.apache.ignite.IgniteCountDownLatch;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.internal.processors.cache.datastructures.IgniteCountDownLatchAbstractSelfTest;
 
@@ -34,5 +36,55 @@ public class IgnitePartitionedCountDownLatchSelfTest extends IgniteCountDownLatc
     /** {@inheritDoc} */
     @Override public void testLatch() throws Exception {
         fail("https://issues.apache.org/jira/browse/IGNITE-1793");
+    }
+
+    public void testLatchMultinode111() throws Exception {
+        for (int i=0; i<5000; i++)
+            testLatchMultinode11();
+    }
+
+    public void testLatchMultinode11() throws Exception {
+
+        if (gridCount() == 1)
+            return;
+
+        IgniteCountDownLatch latch = grid(0).countDownLatch("l1", 10,
+            true,
+            true);
+
+        for (int i = 0; i < gridCount(); i++) {
+            final Ignite ignite = grid(i);
+
+            latch = ignite.countDownLatch("l1", 10,
+                true,
+                false);
+
+            assertNotNull(latch);
+        }
+
+        for (int i = 0; i < 10; i++)
+            latch.countDown();
+
+        latch.close();
+
+        IgniteCountDownLatch latch2 = grid(0).countDownLatch("l2", 10,
+            true,
+            true);
+
+        for (int i = gridCount() - 1; i >= 0; i--) {
+            final Ignite ignite = grid(i);
+
+            latch2 = ignite.countDownLatch("l2", 10,
+                true,
+                false);
+
+            assertNotNull(latch);
+        }
+
+        for (int i = 0; i < 10; i++)
+            latch2.countDown();
+
+        latch2.close();
+
     }
 }
