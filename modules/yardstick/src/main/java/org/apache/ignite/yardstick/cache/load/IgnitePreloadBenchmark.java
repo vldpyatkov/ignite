@@ -128,6 +128,6 @@ public class IgnitePreloadBenchmark extends IgniteAbstractBenchmark {
 
     /** {@inheritDoc} */
     @Override public boolean test(Map<Object, Object> map) throws Exception {
-        return false;
+        return true;
     }
 }

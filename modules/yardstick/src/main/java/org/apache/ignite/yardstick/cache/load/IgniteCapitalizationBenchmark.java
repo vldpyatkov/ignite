@@ -217,6 +217,8 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                     BenchmarkUtils.println("Deposit " + depositKey + " has incorrect balace "
                         + balance + " when expected " + expectedBalance);
 
+                BenchmarkUtils.println("Checked " + depositKey);
+
             }
 
             BenchmarkUtils.println("Deposits checked");
