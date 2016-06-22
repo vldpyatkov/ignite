@@ -887,8 +887,6 @@ public class IgniteCacheRandomOperationBenchmark extends IgniteAbstractBenchmark
             else {
                 String sql = queries.get(nextRandom(queries.size()));
 
-                BenchmarkUtils.println(sql);
-
                 sq = new SqlFieldsQuery(sql);
             }
 
