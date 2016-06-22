@@ -218,6 +218,8 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                         + balance + " when expected " + expectedBalance);
 
             }
+
+            BenchmarkUtils.println("Deposits checked");
         }
         finally {
             super.tearDown();
