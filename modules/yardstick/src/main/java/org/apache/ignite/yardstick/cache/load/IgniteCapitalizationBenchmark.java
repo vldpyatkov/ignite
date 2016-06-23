@@ -65,6 +65,10 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
     private static final String DEPOSIT_OPERATION_COUNT_SQL = "SELECT COUNT(*) FROM \"" + DEPOSIT_HISTORY_CACHE
         + "\".Operation WHERE DEPOSIT_ID=?";
 
+    /** Get last history row. */
+    private static final String LAST_HISTORY_ROW_SQL = "SELECT MAX(OPDAY) FROM \"" + DEPOSIT_HISTORY_CACHE
+        + "\".Operation WHERE DEPOSIT_ID=?";
+
     /** Find deposit SQL query. */
     static final String FIND_DEPOSIT_SQL = "SELECT _key FROM \"" + DEPOSIT_CACHE + "\".Deposit WHERE PERSON_ID=?";
 
@@ -233,8 +237,7 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
         /** {@inheritDoc} */
         @Override public void run() {
-            //TODO: rename to persons.
-            IgniteCache cache = node.cache(PERSON_CACHE).withKeepBinary();
+            IgniteCache persons = node.cache(PERSON_CACHE).withKeepBinary();
 
             IgniteCache<String, BinaryObject> depositCache = node.cache(DEPOSIT_CACHE).withKeepBinary();
 
@@ -246,7 +249,7 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
                 scanQry.setPartition(part);
 
-                try (QueryCursor<Cache.Entry<String, BinaryObject>> cursor = cache.query(scanQry)) {
+                try (QueryCursor<Cache.Entry<String, BinaryObject>> cursor = persons.query(scanQry)) {
                     for (Cache.Entry<String, BinaryObject> entry : cursor) {
                         String clientId = entry.getKey();
 
@@ -259,6 +262,7 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                                 for (String depositId : depositIds)
                                     try {
                                         updateDeposit(depositCache, depositId);
+                                        checkDeposit(depositCache, depositId);
                                     }
                                     catch (Exception e) {
                                         BenchmarkUtils.error("Can not update deposit " + depositId, e);
@@ -293,7 +297,14 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                             .setField("BALANCE", newBalance)
                             .build();
 
-                        //TODO: add a local sql query that will return current history for this depositID
+                        SqlFieldsQuery findDepositHistory = new SqlFieldsQuery(LAST_HISTORY_ROW_SQL).setLocal(true);
+
+                        try (QueryCursor cursor1 = historyCache.query(findDepositHistory.setArgs(depositKey))) {
+                            for (Object o: cursor1){
+                                // No-op.
+                            }
+                        }
+
                         String depositHistoryKey = depositKey + "&histId=" + System.nanoTime();
 
                         BinaryObject depositHistoryRow = node.binary().builder("Operation")
@@ -310,8 +321,38 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                         return null;
                     }
                 });
+        }
 
-            //TODO: check that the deposit holds actual value (get and compare).
+        private void checkDeposit(IgniteCache<String, BinaryObject> depositCache, String depositKey) {
+            IgniteCache historyCache = node.cache(DEPOSIT_HISTORY_CACHE).withKeepBinary();
+
+            BinaryObject deposit = depositCache.get(depositKey);
+
+            BigDecimal startBalance = deposit.field("BALANCEF");
+
+            BigDecimal balance = deposit.field("BALANCE");
+
+            BigDecimal rate = deposit.field("DEPOSITRATE");
+
+            BigDecimal expectedBalance;
+
+            SqlFieldsQuery findDepositHistory = new SqlFieldsQuery(DEPOSIT_OPERATION_COUNT_SQL);
+
+            try (QueryCursor cursor1 = historyCache.query(findDepositHistory.setArgs(depositKey))) {
+                Long count = (Long)((ArrayList)cursor1.iterator().next()).get(0);
+
+                expectedBalance = startBalance.multiply(rate.add(BigDecimal.ONE).pow(count.intValue()));
+            }
+
+            expectedBalance.setScale(2, BigDecimal.ROUND_DOWN);
+            balance.setScale(2, BigDecimal.ROUND_DOWN);
+
+            if (!expectedBalance.equals(balance))
+                BenchmarkUtils.println("Deposit " + depositKey + " has incorrect balace "
+                    + balance + " when expected " + expectedBalance);
+            else
+                BenchmarkUtils.println("Deposit " + depositKey + " was checked.");
+
         }
     }
 }

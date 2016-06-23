@@ -48,9 +48,9 @@
                 <bean parent="client_personcard" />
                 <bean parent="client_edbo" />
 				<bean parent="deposit_deposit"/>
-                <bean parent="deposit_depohist" />
                 -->
 
+                <bean parent="deposit_depohist" />
                 <bean parent="client_person" />
                 <bean parent="client_address" />
                 <bean parent="deposit_deposit" />
