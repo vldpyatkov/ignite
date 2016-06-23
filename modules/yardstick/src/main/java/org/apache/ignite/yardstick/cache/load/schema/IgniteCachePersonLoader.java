@@ -7,8 +7,7 @@ import org.apache.ignite.binary.BinaryObjectBuilder;
 /**
  * Ignite benchmark for performs filling Person cache.
  */
-public class IgniteCachePersonLoader extends IgniteCacheBaseLoader{
-
+public class IgniteCachePersonLoader extends IgniteCacheBaseLoader {
     /** {@inheritDoc} */
     public IgniteCachePersonLoader(String cacheName, String valueType, int preloadAmount) {
         super(cacheName, valueType, preloadAmount);
@@ -32,7 +31,9 @@ public class IgniteCachePersonLoader extends IgniteCacheBaseLoader{
                 builder.setField(fieldKey, valueRnd);
             }
         }
+
         Pair<String, BinaryObject> pair = new Pair(strId, builder.build());
+
         return pair;
     }
 }
