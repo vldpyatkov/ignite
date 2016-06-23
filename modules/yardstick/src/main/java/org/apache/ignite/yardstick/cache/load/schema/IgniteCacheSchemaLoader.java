@@ -1,21 +1,9 @@
 package org.apache.ignite.yardstick.cache.load.schema;
 
-import javafx.util.Pair;
-import org.apache.ignite.Ignite;
-import org.apache.ignite.IgniteCache;
-import org.apache.ignite.IgniteDataStreamer;
-import org.apache.ignite.Ignition;
-import org.apache.ignite.binary.BinaryObject;
-import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.yardstick.IgniteAbstractBenchmark;
 import org.yardstickframework.BenchmarkConfiguration;
 import org.yardstickframework.BenchmarkUtils;
-
-
-import java.util.ArrayList;
 import java.util.Map;
-import java.util.UUID;
-import java.util.LinkedHashMap;
 
 /**
  * Ignite benchmark that performs put operations.

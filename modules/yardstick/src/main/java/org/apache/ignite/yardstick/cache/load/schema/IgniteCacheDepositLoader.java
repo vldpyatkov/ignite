@@ -1,12 +1,8 @@
 package org.apache.ignite.yardstick.cache.load.schema;
 
 import javafx.util.Pair;
-import org.apache.ignite.*;
 import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.binary.BinaryObjectBuilder;
-import org.yardstickframework.BenchmarkUtils;
-
-import java.util.LinkedHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -28,12 +24,11 @@ public class IgniteCacheDepositLoader extends IgniteCacheBaseLoader {
             String fieldType = cacheFields.get(fieldKey);
             String fieldKeyUpper = fieldKey.toUpperCase();
 
-            if ("ID".equals(fieldKey)) {
+            if ("ID".equals(fieldKey))
                 builder.setField(fieldKey, strId);
-
-            } else if ("BALANCEF".equals(fieldKey)) {
+            else if ("BALANCEF".equals(fieldKey))
                 continue;
-            } else if ("BALANCE".equals(fieldKey)) {
+            else if ("BALANCE".equals(fieldKey)) {
                 Object valueRnd = CacheLoaderUtils.getRandomValue(fieldKey, fieldType);
                 builder.setField("BALANCE", valueRnd);
                 builder.setField("BALANCEF", valueRnd);
@@ -42,9 +37,9 @@ public class IgniteCacheDepositLoader extends IgniteCacheBaseLoader {
                 // one person has more then one deposit
                 int personId = (ThreadLocalRandom.current().nextDouble() < 0.5d) ? rowId : rowId / 2;
                 builder.setField(fieldKey, "" + personId);
-            } else if (fieldKeyUpper.contains("_ID")) {
+            } else if (fieldKeyUpper.contains("_ID"))
                 builder.setField(fieldKey, strId);
-            } else {
+            else {
                 Object valueRnd = CacheLoaderUtils.getRandomValue(fieldKey, fieldType);
                 builder.setField(fieldKey, valueRnd);
             }

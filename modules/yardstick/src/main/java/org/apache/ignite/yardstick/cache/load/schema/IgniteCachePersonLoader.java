@@ -1,14 +1,8 @@
 package org.apache.ignite.yardstick.cache.load.schema;
 
 import javafx.util.Pair;
-import org.apache.ignite.*;
 import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.binary.BinaryObjectBuilder;
-import org.yardstickframework.BenchmarkUtils;
-
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.UUID;
 
 /**
  * Ignite benchmark for performs filling Person cache.
@@ -29,11 +23,11 @@ public class IgniteCachePersonLoader extends IgniteCacheBaseLoader{
             String fieldType = cacheFields.get(fieldKey);
             String fieldKeyUpper = fieldKey.toUpperCase();
 
-            if ("ID".equals(fieldKeyUpper)) {
+            if ("ID".equals(fieldKeyUpper))
                 builder.setField(fieldKey, strId);
-            } else if (fieldKeyUpper.contains("_ID")) {
+            else if (fieldKeyUpper.contains("_ID"))
                 builder.setField(fieldKey, strId);
-            } else {
+            else {
                 Object valueRnd = CacheLoaderUtils.getRandomValue(fieldKey, fieldType);
                 builder.setField(fieldKey, valueRnd);
             }

@@ -1,5 +1,7 @@
 package org.apache.ignite.yardstick.cache.load.schema;
 
+import java.util.LinkedHashMap;
+import java.util.UUID;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.cache.CacheTypeMetadata;
@@ -9,7 +11,10 @@ import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.yardstickframework.BenchmarkUtils;
 
-import java.util.*;
+import java.util.Map;
+import java.util.List;
+import java.util.Calendar;
+import java.util.Collection;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**

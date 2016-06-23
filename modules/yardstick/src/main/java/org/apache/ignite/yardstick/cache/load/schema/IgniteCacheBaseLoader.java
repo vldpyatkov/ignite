@@ -1,9 +1,12 @@
 package org.apache.ignite.yardstick.cache.load.schema;
 
 import javafx.util.Pair;
-import org.apache.ignite.*;
+import org.apache.ignite.Ignite;
+import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteDataStreamer;
+import org.apache.ignite.IgniteException;
+import org.apache.ignite.Ignition;
 import org.apache.ignite.binary.BinaryObject;
-import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.yardstickframework.BenchmarkUtils;
 
 import java.util.LinkedHashMap;
