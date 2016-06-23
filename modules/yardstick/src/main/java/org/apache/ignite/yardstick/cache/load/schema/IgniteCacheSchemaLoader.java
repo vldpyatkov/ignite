@@ -37,7 +37,7 @@ public class IgniteCacheSchemaLoader extends IgniteAbstractBenchmark {
     }
 
     /**
-     * Loading values to cache
+     * Loading values to cache.
      */
     private void preLoading() throws Exception {
         int preloadAmount = args.preloadAmount();
