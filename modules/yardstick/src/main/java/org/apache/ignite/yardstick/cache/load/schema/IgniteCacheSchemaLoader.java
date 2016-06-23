@@ -9,6 +9,7 @@ import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.yardstick.IgniteAbstractBenchmark;
 import org.yardstickframework.BenchmarkConfiguration;
+import org.yardstickframework.BenchmarkUtils;
 
 
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ public class IgniteCacheSchemaLoader extends IgniteAbstractBenchmark {
 
     @Override
     public boolean test(Map<Object, Object> map) throws Exception {
-        return true;
+        return false;
     }
 
     @Override
@@ -66,17 +67,17 @@ public class IgniteCacheSchemaLoader extends IgniteAbstractBenchmark {
         };
         persThread.start();
 
-        Thread depThread = new Thread() {
+        Thread depsThread = new Thread() {
             @Override public void run() {
                 deps.fillCache(preloadAmount);
             }
         };
-        depThread.start();
+        depsThread.start();
 
-        // wait while thread completed*
-        addrThread.join();
-        persThread.join();
-        depThread.join();
+        addrThread.join();;
+        persThread.join();;
+        depsThread.join();;
+        BenchmarkUtils.println("preLoading completed");
     }
 }
-//end
+

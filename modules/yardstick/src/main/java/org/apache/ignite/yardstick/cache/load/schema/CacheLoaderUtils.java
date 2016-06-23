@@ -36,11 +36,13 @@ public class CacheLoaderUtils {
             throw new IgniteException(msg );
         }
 
-        BenchmarkUtils.println("------------------------------------------------------------");
-        BenchmarkUtils.println("Size for valueType[" + valueType + "] " + totalRows + " rows");
-        BenchmarkUtils.println(querySql);
-        BenchmarkUtils.println("Query returns " + cache.size() + " rows");
-        BenchmarkUtils.println("------------------------------------------------------------");
+        StringBuilder sb = new StringBuilder(System.lineSeparator());
+        sb.append("------------------------------------------------------------" + System.lineSeparator());
+        sb.append("Size for valueType[" + valueType + "] " + totalRows + " rows" + System.lineSeparator());
+        sb.append(querySql + System.lineSeparator());
+        sb.append("Query returns " + cache.size() + " rows" + System.lineSeparator());
+        sb.append("------------------------------------------------------------");
+        BenchmarkUtils.println(sb.toString());
     }
 
     /**
