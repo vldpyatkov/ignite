@@ -15,47 +15,14 @@
  * limitations under the License.
  */
 
-/**
- * \mainpage Apache Ignite C++
- *
- * Apache Ignite In-Memory Data Fabric is a high-performance, integrated and distributed in-memory platform for
- * computing and transacting on large-scale data sets in real-time, orders of magnitude faster than possible with
- * traditional disk-based or flash-based technologies.
- */
- 
- /**
-  * Apache %Ignite API.
-  */
- namespace ignite
- {
-	 /**
-	  * %Ignite Binary Objects API.
-	  */
-	 namespace binary
-	 {
-		 // Empty.
-	 }
+package org.apache.ignite.internal;
 
-	 /**
-	  * %Ignite %Transaction API.
-	  */
-	 namespace transactions
-	 {
-		 // Empty.
-	 }
-	 
-	 /**
-	  * %Ignite %Cache API.
-	  */
-	 namespace cache
-	 {
-		 /**
-		  * Contains APIs for creating and executing cache queries.
-		  */
-		 namespace query
-		 {
-			 // Empty.
-		 }
-	 }
- }
- 
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+
+/**
+ * Marker interface for beans with less naming conventions i.e., without "get" and "set" prefixes.
+ */
+@GridToStringExclude
+public interface LessNamingBean {
+    // No-op.
+}
