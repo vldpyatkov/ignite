@@ -48,8 +48,7 @@ import java.util.UUID;
 import org.yardstickframework.BenchmarkUtils;
 
 /**
- * Ignite capitalization benchmark.
- * Topology should NOT be changed during benchmark processing.
+ * Ignite capitalization benchmark. Topology should NOT be changed during benchmark processing.
  */
 public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
@@ -78,7 +77,6 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
         partitionsMap = personCachePartitions();
 
-        //TODO: Remove it.
         preLoading();
     }
 
@@ -86,7 +84,6 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
      * @throws Exception If fail.
      */
     private void preLoading() throws Exception {
-
         Thread preloadPerson = new Thread() {
             @Override public void run() {
                 setName("preloadPerson");
@@ -94,7 +91,7 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                 try (IgniteDataStreamer dataLdr = ignite().dataStreamer(PERSON_CACHE)) {
                     for (int i = 0; i < args.preloadAmount() && !isInterrupted(); i++) {
                         String clientKey = "clientId=" + i;
-                        dataLdr.addData(clientKey, createPerson(clientKey, i));
+                        dataLdr.addData(clientKey, createPerson(clientKey));
                     }
                 }
             }
@@ -124,15 +121,13 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
         preloadDeposit.join();
         preloadPerson.join();
-
     }
 
     /**
      * @param id Identifier.
-     * @param num Num.
      * @return Person entity as binary object.
      */
-    private BinaryObject createPerson(String id, int num) {
+    private BinaryObject createPerson(String id) {
         BinaryObject client = ignite().binary()
             .builder("Person")
             .setField("ID", id)
@@ -166,8 +161,6 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
         return deposit;
     }
 
-
-
     /** {@inheritDoc} */
     @Override public boolean test(Map<Object, Object> ctx) throws Exception {
         ScanQueryBroadcastClosure c = new ScanQueryBroadcastClosure(partitionsMap);
@@ -178,58 +171,12 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
         compute.broadcast(c);
 
-
         return true;
-    }
-
-    /** {@inheritDoc} */
-    @Override public void tearDown() throws Exception {
-        try {
-            BenchmarkUtils.println("Checking deposits");
-
-            IgniteCache<String, BinaryObject> cache = ignite().cache(DEPOSIT_CACHE).withKeepBinary();
-
-            for (Cache.Entry<String, BinaryObject> entry: cache) {
-                BinaryObject deposit = entry.getValue();
-
-                String depositKey = entry.getKey();
-
-                BigDecimal startBalance = deposit.field("BALANCEF");
-
-                BigDecimal balance = deposit.field("BALANCE");
-
-                BigDecimal rate = deposit.field("DEPOSITRATE");
-
-                BigDecimal expectedBalance;
-
-                SqlFieldsQuery findDepositHistory = new SqlFieldsQuery(DEPOSIT_OPERATION_COUNT_SQL);
-
-                try (QueryCursor cursor1 = cache.query(findDepositHistory.setArgs(depositKey))) {
-                    Long count = (Long)((ArrayList)cursor1.iterator().next()).get(0);
-
-                    expectedBalance = startBalance.multiply(rate.add(BigDecimal.ONE).pow(count.intValue()));
-                }
-
-                expectedBalance.setScale(2, BigDecimal.ROUND_DOWN);
-                balance.setScale(2, BigDecimal.ROUND_DOWN);
-
-                if (!expectedBalance.equals(balance))
-                    BenchmarkUtils.println("Deposit " + depositKey + " has incorrect balace "
-                        + balance + " when expected " + expectedBalance);
-
-            }
-
-            BenchmarkUtils.println("Deposits checked");
-        }
-        finally {
-            super.tearDown();
-        }
     }
 
     /**
      * Building a map that contains mapping of node ID to a list of partitions stored on the node.
      *
-     * @param cacheName Name of Ignite cache.
      * @return Node to partitions map.
      */
     private Map<UUID, List<Integer>> personCachePartitions() {
@@ -286,7 +233,10 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
         /** {@inheritDoc} */
         @Override public void run() {
+            //TODO: rename to persons.
             IgniteCache cache = node.cache(PERSON_CACHE).withKeepBinary();
+
+            IgniteCache<String, BinaryObject> depositCache = node.cache(DEPOSIT_CACHE).withKeepBinary();
 
             // Getting a list of the partitions owned by this node.
             List<Integer> myPartitions = cachePart.get(node.cluster().localNode().id());
@@ -300,14 +250,13 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                     for (Cache.Entry<String, BinaryObject> entry : cursor) {
                         String clientId = entry.getKey();
 
-                        IgniteCache<String, BinaryObject> depositCache = node.cache(DEPOSIT_CACHE).withKeepBinary();
-
                         SqlFieldsQuery findDepositQuery = new SqlFieldsQuery(FIND_DEPOSIT_SQL).setLocal(true);
 
                         try (QueryCursor cursor1 = depositCache.query(findDepositQuery.setArgs(clientId))) {
                             for (Object obj : cursor1) {
                                 List<String> depositIds = (List<String>)obj;
-                                for (String depositId: depositIds)
+
+                                for (String depositId : depositIds)
                                     try {
                                         updateDeposit(depositCache, depositId);
                                     }
@@ -344,6 +293,7 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                             .setField("BALANCE", newBalance)
                             .build();
 
+                        //TODO: add a local sql query that will return current history for this depositID
                         String depositHistoryKey = depositKey + "&histId=" + System.nanoTime();
 
                         BinaryObject depositHistoryRow = node.binary().builder("Operation")
@@ -360,6 +310,8 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                         return null;
                     }
                 });
+
+            //TODO: check that the deposit holds actual value (get and compare).
         }
     }
 }

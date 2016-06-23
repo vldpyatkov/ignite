@@ -241,7 +241,7 @@ public class IgniteCacheRandomOperationBenchmark extends IgniteAbstractBenchmark
                             }
                         } catch (ClassNotFoundException e) {
                             BenchmarkUtils.println(e.getMessage());
-                            BenchmarkUtils.println("Object can be binary.");
+                            BenchmarkUtils.println("This can be a BinaryObject. Ignoring exception.");
 
                             if (!cacheSqlDescriptors.containsKey(cacheName))
                                 cacheSqlDescriptors.put(cacheName, new ArrayList<SqlCacheDescriptor>());
@@ -275,16 +275,13 @@ public class IgniteCacheRandomOperationBenchmark extends IgniteAbstractBenchmark
                             }
                         } catch (ClassNotFoundException e) {
                             BenchmarkUtils.println(e.getMessage());
-                            BenchmarkUtils.println("Object can be binary.");
+                            BenchmarkUtils.println("This can be a BinaryObject. Ignoring exception.");
 
                             if (!cacheSqlDescriptors.containsKey(cacheName))
                                 cacheSqlDescriptors.put(cacheName, new ArrayList<SqlCacheDescriptor>());
                         }
                     }
                 }
-
-//                if (keys.isEmpty() || values.isEmpty())
-//                    continue;
 
                 keysCacheClasses.put(cacheName, keys.toArray(new Class[] {}));
 
@@ -875,6 +872,7 @@ public class IgniteCacheRandomOperationBenchmark extends IgniteAbstractBenchmark
 
         if (descriptors != null) {
             Query sq = null;
+
             if (queries.isEmpty()) {
                 if (!descriptors.isEmpty()) {
                     SqlCacheDescriptor randomDesc = descriptors.get(nextRandom(descriptors.size()));
