@@ -33,17 +33,20 @@ public class IgniteCacheDepositLoader extends IgniteCacheBaseLoader {
                 builder.setField("BALANCE", valueRnd);
                 builder.setField("BALANCEF", valueRnd);
 
-            } else if (fieldKeyUpper.contains("PERSON_ID")) {
+            }
+            else if (fieldKeyUpper.contains("PERSON_ID")) {
                 // one person has more then one deposit
                 int personId = (ThreadLocalRandom.current().nextDouble() < 0.5d) ? rowId : rowId / 2;
                 builder.setField(fieldKey, "" + personId);
-            } else if (fieldKeyUpper.contains("_ID"))
+            }
+            else if (fieldKeyUpper.contains("_ID"))
                 builder.setField(fieldKey, strId);
             else {
                 Object valueRnd = CacheLoaderUtils.getRandomValue(fieldKey, fieldType);
                 builder.setField(fieldKey, valueRnd);
             }
         }
+
         Pair<String, BinaryObject> pair = new Pair(strId, builder.build());
         return pair;
     }

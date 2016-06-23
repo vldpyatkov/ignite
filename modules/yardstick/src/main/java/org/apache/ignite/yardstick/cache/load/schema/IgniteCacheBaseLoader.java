@@ -14,11 +14,12 @@ import java.util.LinkedHashMap;
 /**
  * Ignite benchmark for performs filling cache.
  */
-public abstract class IgniteCacheBaseLoader extends Thread{
-
+public abstract class IgniteCacheBaseLoader extends Thread {
+    /** */
     protected IgniteCache<String, BinaryObject> cache;
+    //TODO: left a comment or just place /** */ in all the files.
     protected LinkedHashMap<String, String> cacheFields;
-    protected Ignite ignite  = Ignition.ignite();
+    protected Ignite ignite = Ignition.ignite();
 
     protected int preloadAmount;
     protected String cacheName;
@@ -27,17 +28,19 @@ public abstract class IgniteCacheBaseLoader extends Thread{
     /**
      * Constructor.
      *
-     * * @param cacheName cache name.
-     * * @param valueType cache value type.
-     * * @param preloadAmount amount to add records.
+     * * @param cacheName cache name. * @param valueType cache value type. * @param preloadAmount amount to add
+     * records.
      */
-    public IgniteCacheBaseLoader(String cacheName, String valueType, int preloadAmount){
+    public IgniteCacheBaseLoader(String cacheName, String valueType, int preloadAmount) {
         this.cacheName = cacheName;
         this.valueType = valueType;
         this.preloadAmount = preloadAmount;
 
         cache = ignite.cache(cacheName);
-        if (cache == null) throw new IgniteException("Cache [" + cacheName + "] is not found, check ignite config file");
+
+        if (cache == null)
+            throw new IgniteException("Cache [" + cacheName + "] is not found, check ignite config file");
+
         cacheFields = CacheLoaderUtils.getFields(cache);
     }
 
@@ -59,6 +62,7 @@ public abstract class IgniteCacheBaseLoader extends Thread{
                 stmr.addData(addressPair.getKey(), addressPair.getValue());
             }
         }
+
         CacheLoaderUtils.validateCache(cache, valueType, addRows);
     }
 

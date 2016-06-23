@@ -22,18 +22,27 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class CacheLoaderUtils {
     /**
-     * Validate and pritnt cache info.
+     * Validates cache size.
+     *
+     * @param cache TODO:
+     * @param valueType
+     * @param validRows
+     * @param <K>
+     * @param <V>
      */
+    //TODO: rename to checkCacheSize
     public static <K, V> void validateCache(IgniteCache<K, V> cache, String valueType, int validRows) {
         String querySql = "select count(*) from " + valueType;
+        long totalRows = 0;
+
         QueryCursor<List<?>> qcur = cache.query(new SqlFieldsQuery(querySql));
         List<List<?>> listRes = qcur.getAll();
 
-        long totalRows = 0;
         if (listRes != null && listRes.size() > 0){
             Object value = listRes.get(0).get(0);
             totalRows = (Long)value;
         }
+
         if (validRows != totalRows || totalRows != cache.size()){
             String msg = querySql + " == " + totalRows + " NOT EQUAL cache.size() == "  + cache.size();
             throw new IgniteException(msg );
@@ -96,7 +105,7 @@ public class CacheLoaderUtils {
      * Generate random value
      */
     public static Object getRandomValue(String fieldKey, String fieldType) {
-        Object value = null;
+        Object value;
         int minValue = 1;
         int maxValue = 120000;
 

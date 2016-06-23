@@ -7,8 +7,7 @@ import org.apache.ignite.binary.BinaryObjectBuilder;
 /**
  * Ignite benchmark for performs filling Address cache.
  */
-public class IgniteCacheAddressLoader extends IgniteCacheBaseLoader{
-
+public class IgniteCacheAddressLoader extends IgniteCacheBaseLoader {
     /** {@inheritDoc} */
     public IgniteCacheAddressLoader(String cacheName, String valueType, int preloadAmount) {
         super(cacheName, valueType, preloadAmount);
@@ -34,7 +33,9 @@ public class IgniteCacheAddressLoader extends IgniteCacheBaseLoader{
                 builder.setField(fieldKey, valueRnd);
             }
         }
+
         Pair<String, BinaryObject> pair = new Pair(strId, builder.build());
+
         return pair;
     }
 }
