@@ -10,26 +10,22 @@ import java.util.LinkedHashMap;
 /**
  * Ignite benchmark for performs filling Address cache.
  */
-public class IgniteCacheAddressLoader {
+public class IgniteCacheAddressLoader extends IgniteCacheBaseLoader{
 
-    public static final String CACHE_NAME = "CLIENT_ADDRESS";
-
-    private IgniteCache<String, BinaryObject> cacheAddress;
-    private LinkedHashMap<String, String> addressFields;
-    private Ignite ignite  = Ignition.ignite();
-
-    public IgniteCacheAddressLoader() {
-        cacheAddress = ignite.cache(CACHE_NAME);
-        if (cacheAddress == null) throw new IgniteException("Cache [" + CACHE_NAME + "] is not found, check ignite config file");
-        addressFields = CacheLoaderUtils.getFields(cacheAddress);
+    /** {@inheritDoc} */
+    public IgniteCacheAddressLoader(String cacheName, String valueType, int preloadAmount) {
+        super(cacheName, valueType, preloadAmount);
     }
 
-    public Pair<String, BinaryObject> createAddress(Integer rowId) {
+    /**
+     * Create binary object.
+     */
+    @Override public Pair<String, BinaryObject> createBinaryObject(Integer rowId) {
         BinaryObjectBuilder builder = ignite.binary().builder("Address");
         String strId = "" + rowId;
 
-        for (String fieldKey : addressFields.keySet()) {
-            String fieldType = addressFields.get(fieldKey);
+        for (String fieldKey : cacheFields.keySet()) {
+            String fieldType = cacheFields.get(fieldKey);
             String fieldKeyUpper = fieldKey.toUpperCase();
 
             if ("ID".equals(fieldKey)) {
@@ -44,19 +40,4 @@ public class IgniteCacheAddressLoader {
         Pair<String, BinaryObject> pair = new Pair(strId, builder.build());
         return pair;
     }
-
-    public void fillCache(int addRows) {
-        try (IgniteDataStreamer<String, BinaryObject> stmr = ignite.dataStreamer(cacheAddress.getName())) {
-            for (int ind = 1; ind <= addRows; ind++) {
-                if (ind % 50_000 == 0 || ind == addRows) {
-                    BenchmarkUtils.println("Filling cache[" + cacheAddress.getName() + "], " + ind + "/" + addRows + " rows...");
-                }
-
-                Pair<String, BinaryObject> addressPair = createAddress(ind);
-                stmr.addData(addressPair.getKey(), addressPair.getValue());
-            }
-        }
-        CacheLoaderUtils.validateCache(cacheAddress, "Address", addRows);
-    }
-
 }

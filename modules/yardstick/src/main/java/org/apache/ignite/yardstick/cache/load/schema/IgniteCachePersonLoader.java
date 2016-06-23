@@ -13,26 +13,20 @@ import java.util.UUID;
 /**
  * Ignite benchmark for performs filling Person cache.
  */
-public class IgniteCachePersonLoader {
+public class IgniteCachePersonLoader extends IgniteCacheBaseLoader{
 
-    public static final String CACHE_NAME = "CLIENT_PERSON";
-
-    private IgniteCache<String, BinaryObject> cachePerson;
-    private LinkedHashMap<String, String> personFields;
-    private Ignite ignite  = Ignition.ignite();
-
-    public IgniteCachePersonLoader() {
-        cachePerson = ignite.cache(CACHE_NAME);
-        if (cachePerson == null) throw new IgniteException("Cache [" + CACHE_NAME + "] is not found, check ignite config file");
-        personFields = CacheLoaderUtils.getFields(cachePerson);
+    /** {@inheritDoc} */
+    public IgniteCachePersonLoader(String cacheName, String valueType, int preloadAmount) {
+        super(cacheName, valueType, preloadAmount);
     }
 
-    public Pair<String, BinaryObject> createPerson(Integer rowId) {
+    /** {@inheritDoc} */
+    @Override public Pair<String, BinaryObject> createBinaryObject(Integer rowId) {
         BinaryObjectBuilder builder = ignite.binary().builder("Person");
         String strId = "" + rowId;
 
-        for (String fieldKey : personFields.keySet()) {
-            String fieldType = personFields.get(fieldKey);
+        for (String fieldKey : cacheFields.keySet()) {
+            String fieldType = cacheFields.get(fieldKey);
             String fieldKeyUpper = fieldKey.toUpperCase();
 
             if ("ID".equals(fieldKeyUpper)) {
@@ -46,19 +40,5 @@ public class IgniteCachePersonLoader {
         }
         Pair<String, BinaryObject> pair = new Pair(strId, builder.build());
         return pair;
-    }
-
-    public void fillCache(int addRows) {
-        try (IgniteDataStreamer<String, BinaryObject> stmr = ignite.dataStreamer(cachePerson.getName())) {
-            for (int ind = 1; ind <= addRows; ind++) {
-                if (ind % 50_000 == 0 || ind == addRows) {
-                    BenchmarkUtils.println("Filling cache[" + cachePerson.getName() + "], " + ind + "/" + addRows + " rows...");
-                }
-
-                Pair<String, BinaryObject> personPair = createPerson(ind);
-                stmr.addData(personPair.getKey(), personPair.getValue());
-            }
-        }
-        CacheLoaderUtils.validateCache(cachePerson, "Person", addRows);
     }
 }

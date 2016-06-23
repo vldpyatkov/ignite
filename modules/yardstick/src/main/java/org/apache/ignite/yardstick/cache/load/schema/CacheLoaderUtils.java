@@ -13,13 +13,11 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Ignite cache utility class used for betchmark tests
+ * Ignite cache utility class, used for betchmark tests.
  */
 public class CacheLoaderUtils {
     /**
-     * Pritnting cache info.
-     *
-     * @param cache Ignite cache.
+     * Validate and pritnt cache info.
      */
     public static <K, V> void validateCache(IgniteCache<K, V> cache, String valueType, int validRows) {
         String querySql = "select count(*) from " + valueType;
@@ -38,15 +36,15 @@ public class CacheLoaderUtils {
 
         StringBuilder sb = new StringBuilder(System.lineSeparator());
         sb.append("------------------------------------------------------------" + System.lineSeparator());
-        sb.append("Size for valueType[" + valueType + "] " + totalRows + " rows" + System.lineSeparator());
-        sb.append(querySql + System.lineSeparator());
+        sb.append("Cache [" + cache.getName() + "], valueType[" + valueType + "] size " + totalRows + " rows");
+        sb.append(System.lineSeparator() + querySql + System.lineSeparator());
         sb.append("Query returns " + cache.size() + " rows" + System.lineSeparator());
         sb.append("------------------------------------------------------------");
         BenchmarkUtils.println(sb.toString());
     }
 
     /**
-     * Cache configured fields
+     * Collect cache configured fields
      *
      * @param cache Ignite cache.
      * @return Cache configured fields.
@@ -81,11 +79,17 @@ public class CacheLoaderUtils {
         return fielsdMap;
     }
 
+    /**
+     * Round value to 2 digits
+     */
     public static double round2(Double val) {
         double res = Math.round(val * 100) / 100;
         return res;
     }
 
+    /**
+     * Generate random value
+     */
     public static Object getRandomValue(String fieldKey, String fieldType) {
         Object value = null;
         int minValue = 1;
@@ -101,30 +105,25 @@ public class CacheLoaderUtils {
             maxValue = 9;
         }
 
-        if ("java.lang.String".equals(fieldType)){
+        if ("java.lang.String".equals(fieldType))
             value = fieldKey + "-" + UUID.randomUUID().toString();
-        }
+        else if ("java.lang.Integer".equals(fieldType))
+            value = ThreadLocalRandom.current().nextInt(minValue, maxValue);
+        else if ("java.lang.Long".equals(fieldType))
+            value = ThreadLocalRandom.current().nextInt(minValue, maxValue);
+        else if ("java.lang.Double".equals(fieldType))
+            value = round2(ThreadLocalRandom.current().nextDouble(minValue, maxValue));
+        else if ("java.lang.Float".equals(fieldType))
+            value = (float)round2(ThreadLocalRandom.current().nextDouble(minValue, maxValue));
         else if ("java.util.Date".equals(fieldType)){
             int randomDays = ThreadLocalRandom.current().nextInt(1, 365*30);
             Calendar cal = Calendar.getInstance();
             cal.add(Calendar.DATE, -randomDays);
             value = cal.getTime();
         }
-        else if ("java.lang.Integer".equals(fieldType)){
-            value = ThreadLocalRandom.current().nextInt(minValue, maxValue);
-        }
-        else if ("java.lang.Long".equals(fieldType)){
-            value = ThreadLocalRandom.current().nextInt(minValue, maxValue);
-        }
-        else if ("java.lang.Double".equals(fieldType)){
-            value = round2(ThreadLocalRandom.current().nextDouble(minValue, maxValue));
-        }
-        else if ("java.lang.Float".equals(fieldType)){
-            value = (float)round2(ThreadLocalRandom.current().nextDouble(minValue, maxValue));
-        }
-        else {
+        else
             throw new IgniteException("Unknown data type [" + fieldType + "] for " + fieldKey);
-        }
+
         return value;
     }
 }

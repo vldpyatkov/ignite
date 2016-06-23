@@ -25,58 +25,33 @@ import java.util.LinkedHashMap;
  */
 public class IgniteCacheSchemaLoader extends IgniteAbstractBenchmark {
 
-    public static void main(String[] args) {
-        String configPath = "modules/yardstick/config/ignite-capitalization-config.xml";
-
-        try (Ignite ignite = Ignition.start(configPath)) {
-            IgniteCacheSchemaLoader bm = new IgniteCacheSchemaLoader();
-            bm.preLoading();
-        } catch (Throwable ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    @Override
-    public boolean test(Map<Object, Object> map) throws Exception {
+    /** {@inheritDoc} */
+    @Override public boolean test(Map<Object, Object> map) throws Exception {
         return false;
     }
 
-    @Override
-    public void setUp(BenchmarkConfiguration cfg) throws Exception {
+    /** {@inheritDoc} */
+    @Override public void setUp(BenchmarkConfiguration cfg) throws Exception {
         super.setUp(cfg);
         preLoading();
     }
 
+    /**
+     * Loading values to cache
+     */
     private void preLoading() throws Exception {
-        final int preloadAmount = args.preloadAmount();
-        final IgniteCacheAddressLoader addr = new IgniteCacheAddressLoader();
-        final IgniteCachePersonLoader pers = new IgniteCachePersonLoader();
-        final IgniteCacheDepositLoader deps = new IgniteCacheDepositLoader();
+        int preloadAmount = args.preloadAmount();
+        IgniteCacheAddressLoader addr = new IgniteCacheAddressLoader("CLIENT_ADDRESS", "Address", preloadAmount);
+        IgniteCachePersonLoader pers = new IgniteCachePersonLoader("CLIENT_PERSON", "Person", preloadAmount);
+        IgniteCacheDepositLoader deps = new IgniteCacheDepositLoader("DEPOSIT_DEPOSIT", "Deposit", preloadAmount);
 
-        Thread addrThread = new Thread() {
-            @Override public void run() {
-                addr.fillCache(preloadAmount);
-            }
-        };
-        addrThread.start();
+        addr.start();
+        pers.start();
+        deps.start();
 
-        Thread persThread = new Thread() {
-            @Override public void run() {
-                pers.fillCache(preloadAmount);
-            }
-        };
-        persThread.start();
-
-        Thread depsThread = new Thread() {
-            @Override public void run() {
-                deps.fillCache(preloadAmount);
-            }
-        };
-        depsThread.start();
-
-        addrThread.join();;
-        persThread.join();;
-        depsThread.join();;
+        addr.join();;
+        pers.join();;
+        deps.join();;
         BenchmarkUtils.println("preLoading completed");
     }
 }
