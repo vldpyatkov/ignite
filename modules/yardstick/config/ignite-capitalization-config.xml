@@ -44,7 +44,7 @@
                 <bean parent="deposit_dcard" />
                 <bean parent="deposit_deposit" />
                 <bean parent="deposit_depohist" />
-				
+
             </list>
         </property>
 
