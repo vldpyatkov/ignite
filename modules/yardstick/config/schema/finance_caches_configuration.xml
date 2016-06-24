@@ -1,0 +1,1008 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans	xmlns="http://www.springframework.org/schema/beans"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xmlns:util="http://www.springframework.org/schema/util"
+		xsi:schemaLocation="
+		        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		        http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd">
+
+	<bean id="deposit-template" abstract="true" class="org.apache.ignite.configuration.CacheConfiguration">
+		<property name="atomicityMode"		value="TRANSACTIONAL"/>
+		<property name="cacheMode"			value="PARTITIONED" />
+		<property name="memoryMode"			value="OFFHEAP_TIERED" />
+		<property name="backups"			value="2" />
+
+		<property name="affinity">
+		   	<bean class="org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction">
+			    <property name="partitions" value="3000"/>
+			</bean>
+ 		</property>
+	</bean>
+
+	<bean id="deposit_deposit" parent="deposit-template">
+		<property name="name" value="DEPOSIT_DEPOSIT" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Deposit" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"					value="java.lang.String" />
+							<entry key="OFFICE"				value="java.lang.Integer" />
+							<entry key="CURRENCY"			value="java.lang.Integer" />
+							<entry key="KIND"				value="java.lang.Integer" />
+							<entry key="SUBKIND"			value="java.lang.Integer" />
+							<entry key="ACCOUNT"			value="java.lang.Integer" />
+							<entry key="OPENDAY"			value="java.util.Date" />
+							<entry key="PROLONGDAY"			value="java.util.Date" />
+							<entry key="STATE"				value="java.lang.Integer" />
+							<entry key="ADDSTATE"			value="java.lang.Integer" />
+							<entry key="UNSEENOPCNT"		value="java.lang.Integer" />
+							<entry key="SBOOKLINENO"		value="java.lang.Integer" />
+							<entry key="LEGACY"				value="java.lang.Double" />
+							<entry key="OPENCASH"			value="java.lang.Double" />
+							<entry key="ASSMINBALANCE"		value="java.lang.Double" />
+							<entry key="EXPMINBALANCE"		value="java.lang.Double" />
+							<entry key="TERMSOK"			value="java.lang.Integer" />
+							<entry key="OPNO"				value="java.lang.Integer" />
+							<entry key="OPDAY"				value="java.util.Date" />
+							<entry key="OPTRANSDAY"			value="java.util.Date" />
+							<entry key="BALANCE"			value="java.lang.Double" />
+							<entry key="BALANCEF"			value="java.lang.Double" />
+							<entry key="INTEREST"			value="java.lang.Double" />
+							<entry key="INTERESTF"			value="java.lang.Double" />
+							<entry key="OPKIND"				value="java.lang.Integer" />
+							<entry key="OPCASH"				value="java.lang.Double" />
+							<entry key="TXOPCNT"			value="java.lang.Integer" />
+							<entry key="TXBRANCHNO"			value="java.lang.Integer" />
+							<entry key="TXOFFICE"			value="java.lang.Integer" />
+							<entry key="TXCLERK"			value="java.lang.Integer" />
+							<entry key="RESIDENT"			value="java.lang.Integer" />
+							<entry key="LASTVISITDAY"		value="java.util.Date" />
+							<entry key="ARRESTBALANCE"		value="java.lang.Double" />
+							<entry key="PAYROLLDAY"			value="java.util.Date" />
+							<entry key="V_SERV"				value="java.lang.Integer" />
+							<entry key="OFFCASHBALANCE"		value="java.lang.Double" />
+							<entry key="OPENKIND"			value="java.lang.Integer" />
+							<entry key="EXPIRATIONDAY"		value="java.util.Date" />
+							<entry key="CAPYEAR"			value="java.lang.Integer" />
+							<entry key="P39DAY"				value="java.util.Date" />
+							<entry key="P39CASH"			value="java.lang.Double" />
+							<entry key="P39CASHPREV"		value="java.lang.Double" />
+							<entry key="P39DAYPREV"			value="java.util.Date" />
+							<entry key="CASHSOURCE"			value="java.lang.Integer" />
+							<entry key="LASTOPNO"			value="java.lang.Integer" />
+							<entry key="DUPSBOOKNO"			value="java.lang.Integer" />
+							<entry key="CAPITALDAY"			value="java.util.Date" />
+							<entry key="OVERDRAFT"			value="java.lang.Double" />
+							<entry key="PRINTABLENO"		value="java.lang.String" />
+							<entry key="PERSON_ID"			value="java.lang.String" />
+							<entry key="LASTKEYKIND"		value="java.lang.Integer" />
+							<entry key="LASTKEY_ID"			value="java.lang.String" />
+							<entry key="BRANCHNO"			value="java.lang.Integer" />
+							<entry key="RSVDEPO_ID"			value="java.lang.String" />
+							<entry key="TERM"				value="java.lang.Integer" />
+							<entry key="PASSWORDNO"			value="java.lang.Integer" />
+							<entry key="DIRTY"				value="java.lang.Integer" />
+							<entry key="OVERDRAFTINT"		value="java.lang.Double" />
+							<entry key="OFFCASHBALANCEB"	value="java.lang.Double" />
+							<entry key="CLIENTKIND"			value="java.lang.Integer" />
+							<entry key="MBRANCHALLOWED"		value="java.lang.Integer" />
+							<entry key="MBRANCHDEFAULT"		value="java.lang.Integer" />
+							<entry key="EXPROVERDRAFT"		value="java.lang.Double" />
+							<entry key="EXPROVERDRAFTINT"	value="java.lang.Double" />
+							<entry key="ALONEOPNO"			value="java.lang.Integer" />
+							<entry key="BOOKINGCASH"		value="java.lang.Double" />
+							<entry key="DEBTFLAG"			value="java.lang.Integer" />
+							<entry key="ALLHISTFLAG"		value="java.lang.Integer" />
+							<entry key="SUBSCRIBERS"		value="java.lang.Integer" />
+							<entry key="DEPOFLAGS"			value="java.lang.Integer" />
+							<entry key="DEPOSITRATE"		value="java.lang.Double" />
+							<entry key="PARTRATE"			value="java.lang.Integer" />
+							<entry key="PRCCAPSROK"			value="java.lang.Double" />
+							<entry key="PERMFLAGS"			value="java.lang.Integer" />
+							<entry key="FIRSTTWODAY"		value="java.util.Date" />
+							</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"				value="java.lang.String" />
+							<entry key="PERSON_ID"		value="java.lang.String" />
+							<entry key="LASTKEY_ID"		value="java.lang.String" />
+							<entry key="RSVDEPO_ID"		value="java.lang.String" />
+							<entry key="OPROW_ID"		value="java.lang.String" />
+						</map>
+					</property>
+					<property name="groups">
+						<map>
+							<entry key="grIndex1">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="OFFICE">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="KIND">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="SUBKIND">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="ACCOUNT">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="CURRENCY">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+							<entry key="grIndex1">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="BRANCHNO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="OFFICE">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="deposit_depohist" parent="deposit-template">
+		<property name="name" value="DEPOSIT_DEPOHIST" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Operation" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="OPKIND"					value="java.lang.Integer" />
+							<entry key="TURNCODE"				value="java.lang.Integer" />
+							<entry key="OPDAY"					value="java.util.Date" />
+							<entry key="OPTRANSDAY"				value="java.util.Date" />
+							<entry key="OPCASH"					value="java.math.BigDecimal" />
+							<entry key="CLERK"					value="java.lang.Integer" />
+							<entry key="OPNO"					value="java.lang.Integer" />
+							<entry key="JRNNO"					value="java.lang.Integer" />
+							<entry key="HEIRNO"					value="java.lang.Integer" />
+							<entry key="OPCODE"					value="java.lang.Integer" />
+							<entry key="STATE"					value="java.lang.Integer" />
+							<entry key="PAYROLLDAY"				value="java.util.Date" />
+							<entry key="BALANCE"				value="java.math.BigDecimal" />
+							<entry key="BALANCEF"				value="java.math.BigDecimal" />
+							<entry key="INTEREST"				value="java.math.BigDecimal" />
+							<entry key="INTERESTF"				value="java.math.BigDecimal" />
+							<entry key="OFFICE"					value="java.lang.Integer" />
+							<entry key="REASON"					value="java.lang.Integer" />
+							<entry key="TERMSOK"				value="java.lang.Integer" />
+							<entry key="SBOOKENDDAY"			value="java.util.Date" />
+							<entry key="V_HZAP2"				value="java.lang.Integer" />
+							<entry key="ASSMINBALANCE"			value="java.math.BigDecimal" />
+							<entry key="EXPMINBALANCE"			value="java.math.BigDecimal" />
+							<entry key="ISMANUAL"				value="java.lang.Integer" />
+							<entry key="ISMOFFICE"				value="java.lang.Integer" />
+							<entry key="OVERDRAFT"				value="java.math.BigDecimal" />
+							<entry key="EXPROVERDRAFT"			value="java.math.BigDecimal" />
+							<entry key="EXPROVERDRAFTINT"		value="java.math.BigDecimal" />
+							<entry key="OFFCASHBALANCE"			value="java.math.BigDecimal" />
+							<entry key="EXPIRATIONDAY"			value="java.util.Date" />
+							<entry key="TAXABLEPROFITCOST"		value="java.math.BigDecimal" />
+							<entry key="TAXABLEPROFIT"			value="java.math.BigDecimal" />
+							<entry key="SUBSYS"					value="java.lang.Integer" />
+							<entry key="GRANT_OPER"				value="java.lang.Integer" />
+							<entry key="ISCASHDISPENSER"		value="java.lang.Integer" />
+							<entry key="CHEQUECNT"				value="java.lang.Integer" />
+							<entry key="CASHSOURCE"				value="java.lang.Integer" />
+							<entry key="CARDRPTDAY"				value="java.util.Date" />
+							<entry key="DEBITACCOUNT"			value="java.lang.String" />
+							<entry key="OPENCASH"				value="java.math.BigDecimal" />
+							<entry key="PROLONGDAY"				value="java.util.Date" />
+							<entry key="CREDITACCOUNT"			value="java.lang.String" />
+							<entry key="BRANCHNO"				value="java.lang.Integer" />
+							<entry key="OPCASHCOST"				value="java.math.BigDecimal" />
+							<entry key="PAIRACCOUNT"			value="java.lang.String" />
+							<entry key="USEDTAXEXEMPTIONS"		value="java.math.BigDecimal" />
+							<entry key="OVERDRAFTINT"			value="java.math.BigDecimal" />
+							<entry key="OFFCASHBALANCEB"		value="java.math.BigDecimal" />
+							<entry key="DEPOSIT_ID"				value="java.lang.String" />
+							<entry key="SOURCEDOCDAY"			value="java.util.Date" />
+							<entry key="SOURCEDOCORIGINATOR"	value="java.lang.String" />
+							<entry key="SOURCEDOCNO"			value="java.lang.String" />
+							<entry key="ASSIGNDAY"				value="java.util.Date" />
+							<entry key="OFFICETRANSDAY"			value="java.util.Date" />
+							<entry key="FLAG_CASH"				value="java.lang.Integer" />
+							<entry key="CONVER_CURRENCY"		value="java.lang.Integer" />
+							<entry key="CONVER_OPCASH"			value="java.lang.Double" />
+							<entry key="PINACCEPTFLAG"			value="java.lang.Integer" />
+							<entry key="PARTRATE"				value="java.lang.Integer" />
+							<entry key="DEPOSITRATE"			value="java.lang.Double" />
+							<entry key="SUMOBNALOPERATION"		value="java.lang.Double" />
+							<entry key="ORDERNO"				value="java.lang.String" />
+							<entry key="EXTERNALKIND"			value="java.lang.Integer" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="DEPOSIT_ID"				value="java.lang.String" />
+						</map>
+					</property>
+					<property name="groups">
+						<map>
+							<entry key="grIndex">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="DEPOSIT_ID">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="OPNO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="deposit_dcard" parent="deposit-template">
+		<property name="name" value="DEPOSIT_DCARD" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Card" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="NUMCONTRCARD"			value="java.lang.Integer" />
+							<entry key="TYPECARD"				value="java.lang.Integer" />
+							<entry key="CODECARD"				value="java.lang.Integer" />
+							<entry key="DEPOSIT_ID"				value="java.lang.String" />
+							<entry key="MARKLOCKDATE"			value="java.util.Date" />
+							<entry key="HELPDATE"				value="java.util.Date" />
+							<entry key="ISSUEDATE"				value="java.util.Date" />
+							<entry key="CARDMADELOADDATE"		value="java.util.Date" />
+							<entry key="CARDMADEENDDATE"		value="java.util.Date" />
+							<entry key="ENDDATE"				value="java.util.Date" />
+							<entry key="RETURNDATE"				value="java.util.Date" />
+							<entry key="BLOCKDATE"				value="java.util.Date" />
+							<entry key="CONTRDATE"				value="java.util.Date" />
+							<entry key="CLAIMDATE"				value="java.util.Date" />
+							<entry key="LIMCARD"				value="java.lang.Double" />
+							<entry key="DAYLIMCARD"				value="java.lang.Double" />
+							<entry key="MONTHLIMCARD"			value="java.lang.Double" />
+							<entry key="INSURCARD"				value="java.lang.Double" />
+							<entry key="TEXTEMBOSE"				value="java.lang.String" />
+							<entry key="OVERDRAFT"				value="java.lang.Double" />
+							<entry key="SUMBANCARD"				value="java.lang.Double" />
+							<entry key="SUMPAYCARD"				value="java.lang.Double" />
+							<entry key="QUAOPERCARD"			value="java.lang.Integer" />
+							<entry key="NUMBANCARD"				value="java.lang.Integer" />
+							<entry key="AUTOPAYMENT_STATE"		value="java.lang.Integer" />
+							<entry key="AUTOPAYMENT_SUMMA"		value="java.lang.Integer" />
+							<entry key="NUMPAYCARD"				value="java.lang.Integer" />
+							<entry key="MARKLOCK"				value="java.lang.Integer" />
+							<entry key="BLOCKCODE"				value="java.lang.Integer" />
+							<entry key="MB_OPERATOR"			value="java.lang.Integer" />
+							<entry key="MB_TYPE"				value="java.lang.Integer" />
+							<entry key="MB_PHONE"				value="java.lang.String" />
+							<entry key="TEXTCONTROL"			value="java.lang.String" />
+							<entry key="DRN"					value="java.lang.String" />
+							<entry key="SIN"					value="java.lang.String" />
+							<entry key="SNILS"					value="java.lang.String" />
+							<entry key="HOLDERCODE"				value="java.lang.Integer" />
+							<entry key="SUBCARD"				value="java.lang.Integer" />
+							<entry key="CURISSUE"				value="java.lang.Integer" />
+							<entry key="PAYISSUE"				value="java.lang.Double" />
+							<entry key="CLIENT"					value="java.lang.Integer" />
+							<entry key="USEPIN"					value="java.lang.Integer" />
+							<entry key="USEBIO"					value="java.lang.Integer" />
+							<entry key="MARKLOCKSTR"			value="java.lang.String" />
+							<entry key="REASONCHANGE"			value="java.lang.Integer" />
+							<entry key="ISCHANGE"				value="java.lang.Integer" />
+							<entry key="PRESENCECLAIM"			value="java.lang.Integer" />
+							<entry key="PRESENCEALLOW"			value="java.lang.Integer" />
+							<entry key="ISSALARY"				value="java.lang.Integer" />
+							<entry key="TARIFFSERVNEXT"			value="java.lang.Double" />
+							<entry key="TARIFFSERVCUR"			value="java.lang.Double" />
+							<entry key="CARDMADENUMBER"			value="java.lang.String" />
+							<entry key="AIRNUMBER"				value="java.lang.String" />
+							<entry key="AIRCODE"				value="java.lang.String" />
+							<entry key="CODETARIFFCHANGE"		value="java.lang.Integer" />
+							<entry key="CODEFORTARIFF"			value="java.lang.Integer" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+							<entry key="BRANCHNO"				value="java.lang.Integer" />
+							<entry key="OFFICE"					value="java.lang.Integer" />
+							<entry key="NUMCARD"				value="java.lang.String" />
+							<entry key="NUMCARDOLD"				value="java.lang.String" />
+							<entry key="NUMCARDCLAIM"			value="java.lang.String" />
+							<entry key="DEPOKIND"				value="java.lang.Integer" />
+							<entry key="DEPOSUBKIND"			value="java.lang.Integer" />
+							<entry key="ENDCONTRDATE"			value="java.util.Date" />
+							<entry key="ISVIP"					value="java.lang.Integer" />
+							<entry key="ISCLNPRESENT"			value="java.lang.Integer" />
+							<entry key="CLAIMIASK"				value="java.lang.Integer" />
+							<entry key="RPTALLOW"				value="java.lang.Integer" />
+							<entry key="RPTPOST"				value="java.lang.Integer" />
+							<entry key="RPTINTERNET"			value="java.lang.Integer" />
+							<entry key="ISSUEBY"				value="java.lang.Integer" />
+							<entry key="UEC_CLAIM_SERIES"		value="java.lang.String" />
+							<entry key="UEC_CLAIM_NUMBER"		value="java.lang.String" />
+							<entry key="TYPE_SBNKD"				value="java.lang.Integer" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="DEPOSIT_ID"				value="java.lang.String" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+							<entry key="NUMCARD"				value="java.lang.String" />
+							<entry key="CARDMADENUMBER"			value="java.lang.String" />
+						</map>
+					</property>
+					<property name="groups">
+						<map>
+							<entry key="grIndex1">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="CODECARD">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="CURISSUE">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="CLIENT">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+							<entry key="grIndex2">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="CODECARD">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="OFFICE">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="NUMCONTRCARD">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="BRANCHNO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+							<entry key="grIndex3">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="CODECARD">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="OFFICE">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="NUMCONTRCARD">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="BRANCHNO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+							<entry key="grIndex4">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="OFFICE">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="BRANCHNO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="deposit_depokey98" parent="deposit-template">
+		<property name="name" value="DEPOSIT_DEPOKEY98" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="DepoKey98" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="ACCOUNT"				value="java.lang.Integer" />
+							<entry key="BRANCH"					value="java.lang.Integer" />
+							<entry key="NO"						value="java.lang.Integer" />
+							<entry key="CURRENCY"				value="java.lang.Integer" />
+							<entry key="DEPOSIT_ID"				value="java.lang.String" />
+							<entry key="TYPE_CH"				value="java.lang.Integer" />
+							<entry key="KEY"					value="java.lang.Integer" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="DEPOSIT_ID"				value="java.lang.String" />
+						</map>
+					</property>
+					<property name="groups">
+						<map>
+							<entry key="grIndex1">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="BRANCH">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="ACCOUNT">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="CURRENCY">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="NO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="client_address" parent="deposit-template">
+		<property name="name" value="CLIENT_ADDRESS" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Address" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="KIND"					value="java.lang.Integer" />
+							<entry key="CHANGE_DAY"				value="java.util.Date" />
+							<entry key="COUNTRY"				value="java.lang.String" />
+							<entry key="ZIP"					value="java.lang.String" />
+							<entry key="REGION"					value="java.lang.String" />
+							<entry key="DISTRICT"				value="java.lang.String" />
+							<entry key="EMAIL"					value="java.lang.String" />
+							<entry key="PHONE"					value="java.lang.String" />
+							<entry key="CITY"					value="java.lang.String" />
+							<entry key="CITY2"					value="java.lang.String" />
+							<entry key="STREET"					value="java.lang.String" />
+							<entry key="HOUSE"					value="java.lang.String" />
+							<entry key="SECTION"				value="java.lang.String" />
+							<entry key="FLAT"					value="java.lang.String" />
+							<entry key="BRANCHNO"				value="java.lang.Integer" />
+							<entry key="OFFICE"					value="java.lang.Integer" />
+							<entry key="CLERK"					value="java.lang.Integer" />
+							<entry key="ISACTUAL"				value="java.lang.Integer" />
+							<entry key="DISTRICTKIND"			value="java.lang.Integer" />
+							<entry key="CITYKIND"				value="java.lang.Integer" />
+							<entry key="CITY2KIND"				value="java.lang.Integer" />
+							<entry key="STREETKIND"				value="java.lang.Integer" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="client_edbo" parent="deposit-template">
+		<property name="name" value="CLIENT_EDBO" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="EdboContract" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="DEPOSIT_ID"				value="java.lang.String" />
+							<entry key="EDBO_BRANCH"			value="java.lang.Integer" />
+							<entry key="EDBO_NO"				value="java.lang.Integer" />
+							<entry key="OPENDAY"				value="java.util.Date" />
+							<entry key="CLOSEDAY"				value="java.util.Date" />
+							<entry key="STATE"					value="java.lang.Integer" />
+							<entry key="EMAIL"					value="java.lang.String" />
+							<entry key="PHONE"					value="java.lang.String" />
+							<entry key="MOBPHONE"				value="java.lang.String" />
+							<entry key="MOBOPER"				value="java.lang.String" />
+							<entry key="TYPE_MESSAGE"			value="java.lang.Integer" />
+							<entry key="BRANCHNO"				value="java.lang.Integer" />
+							<entry key="OFFICE"					value="java.lang.Integer" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+							<entry key="TYPE_SBNKD"				value="java.lang.Integer" />
+							<entry key="CLERK_KOD"				value="java.lang.Integer" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+						</map>
+					</property>
+					<property name="groups">
+						<map>
+							<entry key="grIndex1">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="EDBO_NO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="EDBO_BRANCH">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="client_person" parent="deposit-template">
+		<property name="name" value="CLIENT_PERSON" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Person" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="SEX"					value="java.lang.Integer" />
+							<entry key="SOCIALSTATUS"			value="java.lang.Integer" />
+							<entry key="SURNAME"				value="java.lang.String" />
+							<entry key="BIRTH"					value="java.util.Date" />
+							<entry key="CLIENTKIND"				value="java.lang.Integer" />
+							<entry key="FIRSTNAME"				value="java.lang.String" />
+							<entry key="RESIDENT"				value="java.lang.Integer" />
+							<entry key="UNCHANGEABLE"			value="java.lang.Integer" />
+							<entry key="SECONDNAME"				value="java.lang.String" />
+							<entry key="CHANGEDAY"				value="java.util.Date" />
+							<entry key="CHANGECLERK"			value="java.lang.String" />
+							<entry key="TAXAGENCYID"			value="java.lang.String" />
+							<entry key="TAXPAYERID"				value="java.lang.String" />
+							<entry key="LITERATE"				value="java.lang.Integer" />
+							<entry key="BIRTHPLACE"				value="java.lang.String" />
+							<entry key="CITIZENSHIP"			value="java.lang.String" />
+							<entry key="ACTADDRESS"				value="java.lang.String" />
+							<entry key="EMAIL"					value="java.lang.String" />
+							<entry key="MANUAL"					value="java.lang.Integer" />
+							<entry key="RISKLEVEL"				value="java.lang.Integer" />
+							<entry key="DEATHDAY"				value="java.util.Date" />
+							<entry key="UNTB"					value="java.lang.Integer" />
+							<entry key="MOBPHONE"				value="java.lang.String" />
+							<entry key="UNSEEING"				value="java.lang.String" />
+							<entry key="DATE_UNSEEING"			value="java.util.Date" />
+							<entry key="LIFE_STATE"				value="java.lang.Integer" />
+							<entry key="VIP"					value="java.lang.Integer" />
+							<entry key="REGADDRESS_ID"			value="java.lang.String" />
+							<entry key="WORKSTATE"				value="java.lang.Integer" />
+							<entry key="LIVEADDRESS_ID"			value="java.lang.String" />
+							<entry key="PERSONCARD_ID"			value="java.lang.String" />
+							<entry key="OPTPERSONCARD_ID"		value="java.lang.String" />
+							<entry key="MBVSTATE"				value="java.lang.Integer" />
+							<entry key="MDMREQUEST"				value="java.lang.Integer" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="REGADDRESS_ID"			value="java.lang.String" />
+							<entry key="LIVEADDRESS_ID"			value="java.lang.String" />
+							<entry key="PERSONCARD_ID"			value="java.lang.String" />
+							<entry key="OPTPERSONCARD_ID"		value="java.lang.String" />
+							<entry key="UNTB"					value="java.lang.Integer" />
+						</map>
+					</property>
+					<property name="groups">
+						<map>
+							<entry key="grIndex1">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="SURNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="FIRSTNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="SECONDNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="client_personcard" parent="deposit-template">
+		<property name="name" value="CLIENT_PERSONCARD" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="PersonCard" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="SERIES"					value="java.lang.String" />
+							<entry key="NO"						value="java.lang.String" />
+							<entry key="ISSUEDBY"				value="java.lang.String" />
+							<entry key="ISSUEDAY"				value="java.util.Date" />
+							<entry key="SURNAME"				value="java.lang.String" />
+							<entry key="FIRSTNAME"				value="java.lang.String" />
+							<entry key="SECONDNAME"				value="java.lang.String" />
+							<entry key="ENTRYDAY"				value="java.util.Date" />
+							<entry key="ISACTUAL"				value="java.lang.Integer" />
+							<entry key="DOCUMENTKIND"			value="java.lang.Integer" />
+							<entry key="ISOPTIONAL"				value="java.lang.Integer" />
+							<entry key="SUBDIVISION"			value="java.lang.String" />
+							<entry key="CLERK"					value="java.lang.Integer" />
+							<entry key="BRANCHNO"				value="java.lang.Integer" />
+							<entry key="OFFICE"					value="java.lang.Integer" />
+							<entry key="REASON"					value="java.lang.String" />
+							<entry key="ENDDAY"					value="java.util.Date" />
+							<entry key="UNTB"					value="java.lang.Integer" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+							<entry key="UNTB"					value="java.lang.Integer" />
+						</map>
+					</property>
+					<property name="groups">
+						<map>
+							<entry key="grIndex1">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="DOCUMENTKIND">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="SERIES">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="NO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+							<entry key="grIndex2">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="NO">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="DOCUMENTKIND">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.Integer" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="SURNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="FIRSTNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="SECONDNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="SERIES">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+							<entry key="grIndex2">
+								<util:map map-class="java.util.LinkedHashMap">
+									<entry key="SURNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="FIRSTNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+									<entry key="SECONDNAME">
+										<bean class="org.apache.ignite.lang.IgniteBiTuple">
+											<property name="1" value="java.lang.String" />
+											<property name="2" value="false" />
+										</bean>
+									</entry>
+								</util:map>
+							</entry>
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="client_workplace" parent="deposit-template">
+		<property name="name" value="CLIENT_PERSONWORKPLACE" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Workplace" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="WORKPLACE"				value="java.lang.String" />
+							<entry key="HIGHERAUTH"				value="java.lang.String" />
+							<entry key="FAX"					value="java.lang.String" />
+							<entry key="WORKPLACEPHONE"			value="java.lang.String" />
+							<entry key="ENTRYDAY"				value="java.util.Date" />
+							<entry key="ISACTUAL"				value="java.lang.Integer" />
+							<entry key="JOBT"					value="java.lang.String" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"						value="java.lang.String" />
+							<entry key="PERSON_ID"				value="java.lang.String" />
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="tmp-template" abstract="true" class="org.apache.ignite.configuration.CacheConfiguration">
+		<property name="atomicityMode"		value="ATOMIC"/>
+		<property name="cacheMode"			value="PARTITIONED" />
+		<property name="memoryMode"			value="ONHEAP_TIERED" />
+		<property name="backups"			value="1"/>
+		<property name="atomicWriteOrderMode" value="PRIMARY"/>
+		<property name="writeSynchronizationMode" value="PRIMARY_SYNC"/>
+	</bean>
+
+	<bean id="deposit_capstat" parent="tmp-template">
+		<property name="name" value="DEPOSIT_CAPSTAT" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Capstat" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="ID"					value="java.lang.String" />
+							<entry key="TXT"					value="java.lang.String" />
+							<entry key="DATE"			value="java.util.Date" />
+							<entry key="DATESTART"			value="java.util.Date" />
+							<entry key="DATEEND"			value="java.util.Date" />
+							<entry key="CNTOK"			value="java.lang.Integer" />
+							<entry key="CNTERR"			value="java.lang.Integer" />
+							<entry key="CNTTOTAL"			value="java.lang.Integer" />
+							<entry key="CNTHIST"			value="java.lang.Integer" />
+							<entry key="ERRMAP"		value="java.lang.String" />
+							<entry key="LOGTXT"		value="java.lang.String" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="ID"	   value="java.lang.String" />
+							<entry key="TXT"   value="java.lang.String" />
+							<entry key="DATE"  value="java.lang.String" />
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+	<bean id="deposit_ukostat" parent="tmp-template">
+		<property name="name" value="DEPOSIT_UKOSTAT" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="Ukostat" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="DOCUMENTKIND"		value="java.lang.String" />
+							<entry key="PERSONID"			value="java.lang.String" />
+							<entry key="DOCSERIES"		value="java.lang.String" />
+							<entry key="DOCNO"		value="java.lang.String" />
+							<entry key="SURNAME"		value="java.lang.String" />
+							<entry key="FIRSTNAME"		value="java.lang.String" />
+							<entry key="SECONDNAME"		value="java.lang.String" />
+							<entry key="DEPOSITID"		value="java.lang.String" />
+							<entry key="DEPOSITNO"		value="java.lang.String" />
+							<entry key="BRANCHNO"		value="java.lang.String" />
+							<entry key="OFFICENO"		value="java.lang.String" />
+							<entry key="LOGIN"		value="java.lang.String" />
+							<entry key="OPCODE"		value="java.lang.String" />
+							<entry key="OPNAME"		value="java.lang.String" />
+							<entry key="SUBSYSTEM"		value="java.lang.String" />
+							<entry key="BIRTH"		value="java.lang.String" />
+							<entry key="CARDNO"		value="java.lang.String" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="PERSONID"		value="java.lang.String" />
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="deposit_ukopersonstat" parent="tmp-template">
+		<property name="name" value="DEPOSIT_UKOPERSONSTAT" />
+		<property name="typeMetadata">
+			<list>
+				<bean class="org.apache.ignite.cache.CacheTypeMetadata">
+					<property name="valueType" value="UKOpersonstat" />
+					<property name="keyType" value="java.lang.String" />
+					<property name="queryFields">
+						<map>
+							<entry key="PERSONID"			value="java.lang.String" />
+							<entry key="SURNAME"		value="java.lang.String" />
+							<entry key="FIRSTNAME"		value="java.lang.String" />
+							<entry key="SECONDNAME"		value="java.lang.String" />
+							<entry key="CARDNO"		value="java.lang.String" />
+							<entry key="CARDENDDATE"		value="java.lang.String" />
+							<entry key="BRANCHNO"		value="java.lang.String" />
+							<entry key="OFFICE"		value="java.lang.String" />
+							<entry key="BIRTH"		value="java.lang.String" />
+							<entry key="DEPOSITNO"		value="java.lang.String" />
+							<entry key="HASHCARD"		value="java.lang.String" />
+						</map>
+					</property>
+					<property name="ascendingFields">
+						<map>
+							<entry key="PERSONID"		value="java.lang.String" />
+						</map>
+					</property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+</beans>

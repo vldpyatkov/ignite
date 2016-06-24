@@ -144,6 +144,16 @@ public class IgniteCacheBaseLoader extends Thread {
      * @param validCacheSize  valid cache size
      */
     public void checkCacheSize(int validCacheSize) {
+        checkCacheSize(validCacheSize, true);
+    }
+
+    /**
+     * Check cache size.
+     *
+     * @param validCacheSize  valid cache size
+     * @param showLog flad for print cache size
+     */
+    public void checkCacheSize(int validCacheSize, boolean showLog) {
         String querySql = "select count(*) from " + valueType;
         long totalRows = 0;
 
@@ -155,22 +165,26 @@ public class IgniteCacheBaseLoader extends Thread {
             totalRows = (Long)value;
         }
 
-        StringBuilder sb = new StringBuilder(System.lineSeparator());
-        sb.append("------------------------------------------------" + System.lineSeparator());
-        sb.append("Cache [" + cache.getName() + "], valueType[" + valueType + "] ");
-        sb.append("size " + cache.size() + System.lineSeparator());
-
-
         if (validCacheSize != totalRows || totalRows != cache.size()){
+            StringBuilder sb = new StringBuilder(System.lineSeparator());
+            sb.append("Cache [" + cache.getName() + "], valueType[" + valueType + "] ");
+            sb.append("size " + cache.size() + System.lineSeparator());
+
             sb.append(querySql + " == " + totalRows + " NOT EQUAL cache.size()" + System.lineSeparator());
-            sb.append("------------------------------------------------");
             throw new IgniteException(sb.toString());
         }
 
-        sb.append(querySql + System.lineSeparator());
-        sb.append("Query returns " + cache.size() + " rows" + System.lineSeparator());
-        sb.append("------------------------------------------------");
-        BenchmarkUtils.println(sb.toString());
+        if (showLog) {
+            StringBuilder sb = new StringBuilder(System.lineSeparator());
+            sb.append("------------------------------------------------" + System.lineSeparator());
+            sb.append("Cache [" + cache.getName() + "], valueType[" + valueType + "] ");
+            sb.append("size " + cache.size() + System.lineSeparator());
+
+            sb.append(querySql + System.lineSeparator());
+            sb.append("Query returns " + cache.size() + " rows" + System.lineSeparator());
+            sb.append("------------------------------------------------");
+            BenchmarkUtils.println(sb.toString());
+        }
     }
 
     /**

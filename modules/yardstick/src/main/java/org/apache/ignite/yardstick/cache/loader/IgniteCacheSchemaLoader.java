@@ -41,7 +41,7 @@ public class IgniteCacheSchemaLoader extends IgniteAbstractBenchmark {
         int preloadAmount = args.preloadAmount();
 
         for (IgniteCacheBaseLoader loader: threadList) {
-            loader.checkCacheSize(preloadAmount);
+            loader.checkCacheSize(preloadAmount, false);
         }
 
         return true;
