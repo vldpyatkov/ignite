@@ -288,13 +288,13 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
                     @Override public Object call() throws Exception {
                         BinaryObject deposit = depositCache.get(depositKey);
 
-                        BigDecimal amount = deposit.field("BALANCE");
-                        BigDecimal rate = deposit.field("DEPOSITRATE");
+                        BigDecimal amount = BigDecimal.valueOf((Double)deposit.field("BALANCE"));
+                        BigDecimal rate = BigDecimal.valueOf((Double)deposit.field("DEPOSITRATE"));
 
                         BigDecimal newBalance = amount.multiply(rate.add(BigDecimal.ONE));
 
                         deposit = deposit.toBuilder()
-                            .setField("BALANCE", newBalance)
+                            .setField("BALANCE", newBalance.doubleValue())
                             .build();
 
                         SqlFieldsQuery findDepositHistory = new SqlFieldsQuery(LAST_HISTORY_ROW_SQL).setLocal(true);
@@ -328,11 +328,11 @@ public class IgniteCapitalizationBenchmark extends IgniteAbstractBenchmark {
 
             BinaryObject deposit = depositCache.get(depositKey);
 
-            BigDecimal startBalance = deposit.field("BALANCEF");
+            BigDecimal startBalance = BigDecimal.valueOf((Double)deposit.field("BALANCEF"));
 
-            BigDecimal balance = deposit.field("BALANCE");
+            BigDecimal balance = BigDecimal.valueOf((Double)deposit.field("BALANCE"));
 
-            BigDecimal rate = deposit.field("DEPOSITRATE");
+            BigDecimal rate = BigDecimal.valueOf((Double)deposit.field("DEPOSITRATE"));
 
             BigDecimal expectedBalance;
 

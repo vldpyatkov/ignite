@@ -141,7 +141,7 @@ public class IgniteCacheRandomOperationBenchmark extends IgniteAbstractBenchmark
 
     /** {@inheritDoc} */
     @Override public void onException(Throwable e) {
-        BenchmarkUtils.errorHelp(cfg, "The benchmark of random operation failed.");
+        BenchmarkUtils.error("The benchmark of random operation failed.", e);
         super.onException(e);
     }
 
@@ -883,7 +883,9 @@ public class IgniteCacheRandomOperationBenchmark extends IgniteAbstractBenchmark
                 }
             }
             else {
-                String sql = queries.get(nextRandom(queries.size()));
+                String sql = rendomizeSql();
+
+                BenchmarkUtils.println(sql);
 
                 sq = new SqlFieldsQuery(sql);
             }
@@ -895,6 +897,24 @@ public class IgniteCacheRandomOperationBenchmark extends IgniteAbstractBenchmark
                     }
                 }
         }
+    }
+
+    /**
+     * @return SQL string.
+     */
+    private String rendomizeSql() {
+        String sql = queries.get(nextRandom(queries.size()));
+
+        int count = StringUtils.countOccurrencesOf(sql, "%s");
+
+        Integer[] sub = new Integer[count];
+
+        for (int i=0; i<count; i++)
+            sub[i] = nextRandom(args.range());
+
+        sql = String.format(sql, sub);
+
+        return sql;
     }
 
     /**
