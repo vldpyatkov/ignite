@@ -23,12 +23,7 @@
        http://www.springframework.org/schema/beans
        http://www.springframework.org/schema/beans/spring-beans.xsd">
 
-	<import resource="schema/model-deposit.xml"/>
-
-<!-- 
-    <import resource="schema/model-nsi.xml"/>
-    <import resource="schema/model-pprb.xml"/>
--->		
+	<import resource="schema/finance_caches_configuration.xml"/>
 	
     <bean id="ignite.cfg" class="org.apache.ignite.configuration.IgniteConfiguration">
         <property name="peerClassLoadingEnabled" value="false"/>
@@ -37,23 +32,19 @@
         <property name="cacheConfiguration">
             <list>
                 <!--
-                <bean parent="client_address" />
-                <bean parent="client_edbo" />
-                <bean parent="client_person" />
                 <bean parent="client_personcard" />
                 <bean parent="client_workplace" />
-                <bean parent="deposit_dcard" />
-                <bean parent="deposit_depokey98" />
-
                 <bean parent="client_personcard" />
-                <bean parent="client_edbo" />
-				<bean parent="deposit_deposit"/>
                 -->
 
-                <bean parent="deposit_depohist" />
-                <bean parent="client_person" />
+                <bean parent="client_edbo" />
                 <bean parent="client_address" />
+                <bean parent="client_person" />
+
+                <bean parent="deposit_dcard" />
                 <bean parent="deposit_deposit" />
+                <bean parent="deposit_depohist" />
+
             </list>
         </property>
 
