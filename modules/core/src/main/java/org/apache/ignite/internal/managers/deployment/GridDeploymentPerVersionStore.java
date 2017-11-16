@@ -374,42 +374,9 @@ public class GridDeploymentPerVersionStore extends GridDeploymentStoreAdapter {
                     if (dep == null) {
                         checkRedeploy(meta);
 
-                        // Find existing deployments that need to be checked
-                        // whether they should be reused for this request.
-                        for (SharedDeployment d : deps) {
-                            if (!d.pendingUndeploy() && !d.undeployed()) {
-                                Map<UUID, IgniteUuid> parties = d.participants();
+                        dep = createNewDeployment(meta, false);
 
-                                if (parties != null) {
-                                    IgniteUuid ldrId = parties.get(meta.senderNodeId());
-
-                                    if (ldrId != null) {
-                                        assert !ldrId.equals(meta.classLoaderId());
-
-                                        if (log.isDebugEnabled())
-                                            log.debug("Skipping deployment (loaders on remote node are different) " +
-                                                "[dep=" + d + ", meta=" + meta + ']');
-
-                                        continue;
-                                    }
-                                }
-
-                                if (depsToCheck == null)
-                                    depsToCheck = new LinkedList<>();
-
-                                if (log.isDebugEnabled())
-                                    log.debug("Adding deployment to check: " + d);
-
-                                depsToCheck.add(d);
-                            }
-                        }
-
-                        // If no deployment can be reused, create a new one.
-                        if (depsToCheck == null) {
-                            dep = createNewDeployment(meta, false);
-
-                            deps.add(dep);
-                        }
+                        deps.add(dep);
                     }
                 }
                 else {
@@ -420,174 +387,17 @@ public class GridDeploymentPerVersionStore extends GridDeploymentStoreAdapter {
                 }
             }
 
-            if (dep != null) {
-                if (log.isDebugEnabled())
-                    log.debug("Found SHARED or CONTINUOUS deployment after first check: " + dep);
+            if (log.isDebugEnabled())
+                log.debug("Found SHARED or CONTINUOUS deployment after first check: " + dep);
 
-                // Cache the deployed class.
-                Class<?> cls = dep.deployedClass(meta.className(), meta.alias());
+            // Cache the deployed class.
+            Class<?> cls = dep.deployedClass(meta.className(), meta.alias());
 
-                if (cls == null) {
-                    U.warn(log, "Failed to load peer class (ignore if class got undeployed during preloading) [alias=" +
-                        meta.alias() + ", dep=" + dep + ']');
+            if (cls == null) {
+                U.warn(log, "Failed to load peer class (ignore if class got undeployed during preloading) [alias=" +
+                    meta.alias() + ", dep=" + dep + ']');
 
-                    return null;
-                }
-
-                return dep;
-            }
-
-            assert meta.parentLoader() == null;
-            assert depsToCheck != null;
-            assert !depsToCheck.isEmpty();
-
-            /*
-             * Logic below must be performed outside of synchronization
-             * because it involves network calls.
-             */
-
-            // Check if class can be loaded from existing nodes.
-            // In most cases this loop will find something.
-            for (SharedDeployment d : depsToCheck) {
-                // Load class. Note, that remote node will not load this class.
-                // The class will only be loaded on this node.
-                Class<?> cls = d.deployedClass(meta.className(), meta.alias());
-
-                if (cls != null) {
-                    synchronized (mux) {
-                        if (!d.undeployed() && !d.pendingUndeploy()) {
-                            if (!addParticipant(d, meta))
-                                return null;
-
-                            if (log.isDebugEnabled())
-                                log.debug("Acquired deployment after verifying it's availability on " +
-                                    "existing nodes [depCls=" + cls + ", dep=" + d + ", meta=" + meta + ']');
-
-                            return d;
-                        }
-                    }
-                }
-                else if (log.isDebugEnabled()) {
-                    log.debug("Deployment cannot be reused (class does not exist on participating nodes) [dep=" + d +
-                        ", meta=" + meta + ']');
-                }
-            }
-
-            // We are here either because all participant nodes failed
-            // or the class indeed should have a separate deployment.
-            for (SharedDeployment d : depsToCheck) {
-                // We check if any random class from existing deployment can be
-                // loaded from sender node. If it can, then we reuse existing
-                // deployment.
-                if (meta.participants() != null || checkLoadRemoteClass(d.sampleClassName(), meta)) {
-                    synchronized (mux) {
-                        if (d.undeployed() || d.pendingUndeploy())
-                            continue;
-
-                        // Add new node prior to loading the class, so we attempt
-                        // to load the class from the latest node.
-                        if (!addParticipant(d, meta)) {
-                            if (log.isDebugEnabled())
-                                log.debug("Failed to add participant to deployment " +
-                                    "[meta=" + meta + ", dep=" + dep + ']');
-
-                            return null;
-                        }
-                    }
-
-                    Class<?> depCls = d.deployedClass(meta.className(), meta.alias());
-
-                    if (depCls == null) {
-                        U.error(log, "Failed to peer load class after loading it as a resource [alias=" +
-                            meta.alias() + ", dep=" + dep + ']');
-
-                        return null;
-                    }
-
-                    if (log.isDebugEnabled())
-                        log.debug("Acquired deployment class after verifying other class " +
-                            "availability on sender node [depCls=" + depCls + ", rndCls=" + d.sampleClassName() +
-                            ", sampleClsName=" + d.sampleClassName() + ", meta=" + meta + ']');
-
-                    return d;
-                }
-                else if (log.isDebugEnabled())
-                    log.debug("Deployment cannot be reused (random class could not be loaded from sender node) [dep=" +
-                        d + ", meta=" + meta + ']');
-            }
-
-            synchronized (mux) {
-                if (log.isDebugEnabled())
-                    log.debug("None of the existing class-loaders fits (will try to create a new one): " + meta);
-
-                // Check obsolete request.
-                if (isDeadClassLoader(meta))
-                    return null;
-
-                // Check that deployment picture has not changed.
-                List<SharedDeployment> deps = cache.get(meta.userVersion());
-
-                if (deps != null) {
-                    assert !deps.isEmpty();
-
-                    boolean retry = false;
-
-                    for (SharedDeployment d : deps) {
-                        // Double check if sender was already added.
-                        if (d.hasParticipant(meta.senderNodeId(), meta.classLoaderId())) {
-                            dep = d;
-
-                            retry = false;
-
-                            break;
-                        }
-
-                        // New deployment was added while outside of synchronization.
-                        // Need to recheck it again.
-                        if (!d.pendingUndeploy() && !d.undeployed() && !depsToCheck.contains(d)) {
-                            Map<UUID, IgniteUuid> parties = d.participants();
-
-                            if (parties == null || parties.get(meta.senderNodeId()) == null)
-                                retry = true;
-                        }
-                    }
-
-                    if (retry) {
-                        if (log.isDebugEnabled())
-                            log.debug("Retrying due to concurrency issues: " + meta);
-
-                        // Outer while loop.
-                        continue;
-                    }
-
-                    if (dep == null) {
-                        // No new deployments were added, so we can safely add ours.
-                        dep = createNewDeployment(meta, false);
-
-                        deps.add(dep);
-
-                        if (log.isDebugEnabled())
-                            log.debug("Adding new deployment within second check [dep=" + dep + ", meta=" + meta + ']');
-                    }
-                }
-                else {
-                    dep = createNewDeployment(meta, true);
-
-                    if (log.isDebugEnabled())
-                        log.debug("Created new deployment within second check [dep=" + dep + ", meta=" + meta + ']');
-                }
-            }
-
-            if (dep != null) {
-                // Cache the deployed class.
-                Class<?> cls = dep.deployedClass(meta.className(), meta.alias());
-
-                if (cls == null) {
-                    U.warn(log, "Failed to load peer class (ignore if class got undeployed during preloading) [alias=" +
-                        meta.alias() + ", dep=" + dep + ']');
-
-                    return null;
-                }
+                return null;
             }
 
             return dep;
