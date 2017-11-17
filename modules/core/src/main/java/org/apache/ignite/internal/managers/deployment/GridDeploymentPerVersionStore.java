@@ -363,7 +363,8 @@ public class GridDeploymentPerVersionStore extends GridDeploymentStoreAdapter {
 
                     for (SharedDeployment d : deps) {
                         if (d.hasParticipant(meta.senderNodeId(), meta.classLoaderId()) ||
-                            meta.senderNodeId().equals(ctx.localNodeId())) {
+                            meta.senderNodeId().equals(ctx.localNodeId())
+                            || (d.deployMode() == CONTINUOUS && d.hasName(meta.className()))) {
                             // Done.
                             dep = d;
 
