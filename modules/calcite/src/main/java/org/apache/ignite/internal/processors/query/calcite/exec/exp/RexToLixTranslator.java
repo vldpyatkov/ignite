@@ -1277,7 +1277,7 @@ public class RexToLixTranslator implements RexVisitor<RexToLixTranslator.Result>
 
     /** {@inheritDoc} */
     @Override public Result visitOver(RexOver over) {
-        throw new RuntimeException("cannot translate expression " + over);
+        throw new RuntimeException("cannot translate expression 11" + over);
     }
 
     /** {@inheritDoc} */

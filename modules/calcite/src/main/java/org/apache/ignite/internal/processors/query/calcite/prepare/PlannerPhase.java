@@ -55,6 +55,7 @@ import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMerge
 import org.apache.ignite.internal.processors.query.calcite.rule.FilterSpoolMergeToSortedIndexSpoolRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.HashAggregateConverterRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.HashJoinConverterRule;
+import org.apache.ignite.internal.processors.query.calcite.rule.logical.IgniteLogicalWindowRewriteRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexCountRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.IndexMinMaxRule;
 import org.apache.ignite.internal.processors.query.calcite.rule.LogicalScanConverterRule;
@@ -93,6 +94,20 @@ public enum PlannerPhase {
                     CoreRules.PROJECT_SUB_QUERY_TO_CORRELATE,
                     CoreRules.JOIN_SUB_QUERY_TO_CORRELATE
                 )
+            );
+        }
+
+        /** {@inheritDoc} */
+        @Override public Program getProgram(PlanningContext ctx) {
+            return hep(getRules(ctx));
+        }
+    },
+
+    HEP_REWRITE_WINDOWS("Heuristic phase to rewrite window functions") {
+        /** {@inheritDoc} */
+        @Override public RuleSet getRules(PlanningContext ctx) {
+            return ctx.rules(RuleSets.ofList(
+                IgniteLogicalWindowRewriteRule.INSTANCE)
             );
         }
 
