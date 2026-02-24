@@ -107,6 +107,7 @@ public enum PlannerPhase {
         /** {@inheritDoc} */
         @Override public RuleSet getRules(PlanningContext ctx) {
             return ctx.rules(RuleSets.ofList(
+                CoreRules.PROJECT_TO_LOGICAL_PROJECT_AND_WINDOW,
                 IgniteLogicalWindowRewriteRule.INSTANCE)
             );
         }

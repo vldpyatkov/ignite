@@ -33,11 +33,16 @@ import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalWindow;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.rex.RexWindowBound;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
@@ -50,7 +55,7 @@ import org.immutables.value.Value;
 @Value.Enclosing
 public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowRewriteRule.Config> {
     /** Rule instance. */
-    public static final RelOptRule INSTANCE = new IgniteLogicalWindowRewriteRule(Config.DEFAULT);
+    public static final RelOptRule INSTANCE = Config.DEFAULT.toRule();
 
     /**
      * Constructor.
@@ -76,21 +81,25 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
 
         RelNode input = win.getInput();
         RexBuilder rexBuilder = win.getCluster().getRexBuilder();
+        RelDataTypeFactory typeFactory = win.getCluster().getTypeFactory();
 
         List<AggregateCall> aggCalls = new ArrayList<>(group.aggCalls.size());
 
         for (Window.RexWinAggCall winAggCall : group.aggCalls) {
-            aggCalls.add(toAggregateCall(winAggCall));
+            aggCalls.add(toAggregateCall(winAggCall, typeFactory));
         }
+
+        ImmutableBitSet groupSet = group.keys;
 
         RelNode agg = LogicalAggregate.create(
             input,
-            ImmutableBitSet.of(),
+            groupSet,
             null,
             aggCalls
         );
 
-        RexNode condition = rexBuilder.makeLiteral(true);
+//        RexNode condition = rexBuilder.makeLiteral(true);
+        RexNode condition = buildPartitionJoinCondition(rexBuilder, input, groupSet);
 
         RelNode join = LogicalJoin.create(
             input,
@@ -105,7 +114,7 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         RelNode project = LogicalProject.create(
             join,
             List.of(),
-            buildProjection(join, win),
+            buildProjection(join, win, group),
             win.getRowType().getFieldNames(),
             ImmutableSet.of()
         );
@@ -114,12 +123,36 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
     }
 
     /** */
-    private void validateSupported(LogicalWindow.Group group) {
-        if (!group.keys.isEmpty()) {
-            throw new IgniteSQLException("PARTITION BY in OVER() is not supported yet.",
-                IgniteQueryErrorCode.UNSUPPORTED_OPERATION);
+    private static RexNode buildPartitionJoinCondition(
+        RexBuilder rexBuilder,
+        RelNode input,
+        ImmutableBitSet groupSet
+    ) {
+        if (groupSet.isEmpty())
+            return rexBuilder.makeLiteral(true);
+
+        int inputFieldCnt = input.getRowType().getFieldCount();
+        List<Integer> keys = groupSet.asList();
+
+        List<RexNode> conditions = new ArrayList<>(keys.size());
+
+        for (int i = 0; i < keys.size(); i++) {
+            int keyIdx = keys.get(i);
+
+            RexNode left = rexBuilder.makeInputRef(input, keyIdx);
+            RexNode right = rexBuilder.makeInputRef(
+                input.getCluster().getTypeFactory().builder().build(),
+                inputFieldCnt + i
+            );
+
+            conditions.add(rexBuilder.makeCall(SqlStdOperatorTable.IS_NOT_DISTINCT_FROM, left, right));
         }
 
+        return RexUtil.composeConjunction(rexBuilder, conditions);
+    }
+
+    /** */
+    private void validateSupported(LogicalWindow.Group group) {
         if (!group.orderKeys.getKeys().isEmpty()) {
             throw new IgniteSQLException("ORDER BY in OVER() is not supported yet.",
                 IgniteQueryErrorCode.UNSUPPORTED_OPERATION);
@@ -142,7 +175,10 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             && upper.isUnbounded() && upper.isFollowing();
     }
 
-    private static AggregateCall toAggregateCall(Window.RexWinAggCall winAggCall) {
+    private static AggregateCall toAggregateCall(
+        Window.RexWinAggCall winAggCall,
+        RelDataTypeFactory typeFactory
+    ) {
         List<RexNode> rexList = new ArrayList<>(winAggCall.getOperands().size());
         List<Integer> argList = new ArrayList<>(winAggCall.getOperands().size());
 
@@ -160,35 +196,61 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
 
         SqlAggFunction agg = (SqlAggFunction)winAggCall.getOperator();
 
+        SqlKind kind = winAggCall.getKind();
+        boolean nullable = kind != SqlKind.COUNT;
+
+        RelDataType type = typeFactory.createTypeWithNullability(winAggCall.getType(), nullable);
+
+//        if (type == null)
+//            type = typeFactory.createTypeWithNullability(type, true);
+
         return AggregateCall.create(
             agg,
-            false, // winAggCall.isDistinct(),
+            winAggCall.distinct,
             false,
-            false,
+            winAggCall.ignoreNulls,
             rexList,
             argList,
             -1,
             null,
             RelCollations.EMPTY,
-            winAggCall.getType(),
+            type, //winAggCall.getType(),
             null
         );
     }
 
-    private static List<RexNode> buildProjection(RelNode join, LogicalWindow win) {
+    /** */
+    private static List<RexNode> buildProjection(RelNode join, LogicalWindow win, LogicalWindow.Group group) {
         RexBuilder rexBuilder = win.getCluster().getRexBuilder();
         int inputFieldCnt = win.getInput().getRowType().getFieldCount();
-        int aggFieldCnt = join.getRowType().getFieldCount() - inputFieldCnt;
+
+        int groupKeyCnt = group.keys.cardinality();
+        int aggFieldCnt = group.aggCalls.size();
 
         List<RexNode> projects = new ArrayList<>(inputFieldCnt + aggFieldCnt);
 
         for (int i = 0; i < inputFieldCnt; i++)
             projects.add(rexBuilder.makeInputRef(join, i));
 
-        for (int i = 0; i < aggFieldCnt; i++)
-            projects.add(rexBuilder.makeInputRef(join, inputFieldCnt + i));
+        // skip group keys from aggregate output
+        for (int i = 0; i < aggFieldCnt; i++) {
+            RexNode ref = rexBuilder.makeInputRef(join, inputFieldCnt + groupKeyCnt + i);
+
+            RelDataType targetType = windowAggType(win, i);
+
+            if (!targetType.equals(ref.getType()))
+                ref = rexBuilder.makeCast(targetType, ref);
+
+            projects.add(ref);
+//            projects.add(rexBuilder.makeInputRef(join, inputFieldCnt + groupKeyCnt + i));
+        }
 
         return projects;
+    }
+
+    private static RelDataType windowAggType(LogicalWindow win, int aggIdx) {
+        int inputFieldCnt = win.getInput().getRowType().getFieldCount();
+        return win.getRowType().getFieldList().get(inputFieldCnt + aggIdx).getType();
     }
 
     /** Rule configuration. */
