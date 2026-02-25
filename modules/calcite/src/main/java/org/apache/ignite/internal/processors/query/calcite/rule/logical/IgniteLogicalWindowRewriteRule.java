@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.query.calcite.rule.logical;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -40,8 +41,9 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.rex.RexWindowBound;
+import org.apache.calcite.sql.ExplicitOperatorBinding;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlOperatorBinding;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
@@ -49,8 +51,8 @@ import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.immutables.value.Value;
 
 /**
- * Rewrites {@link LogicalWindow} with unbounded OVER() into
- * (Aggregate over all rows) + (Cross Join) + (Project).
+ * Rule that rewrites LogicalWindow to LogicalAggregate LogicalJoin LogicalProject.
+ * This approach is valid only for unbounded frame.
  */
 @Value.Enclosing
 public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowRewriteRule.Config> {
@@ -98,8 +100,7 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             aggCalls
         );
 
-//        RexNode condition = rexBuilder.makeLiteral(true);
-        RexNode condition = buildPartitionJoinCondition(rexBuilder, input, groupSet);
+        RexNode condition = buildPartitionJoinCondition(rexBuilder, typeFactory, input, agg, groupSet);
 
         RelNode join = LogicalJoin.create(
             input,
@@ -110,7 +111,6 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             JoinRelType.INNER
         );
 
-        // 5) Project: input fields + aggregates.
         RelNode project = LogicalProject.create(
             join,
             List.of(),
@@ -122,10 +122,22 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         call.transformTo(project);
     }
 
-    /** */
+    /**
+     * Builds a join condition between input and aggregate results using partition keys.
+     * Returns TRUE for an empty partition set (cross join).
+     *
+     * @param rexBuilder Rex builder.
+     * @param typeFactory Type factory.
+     * @param input Input relation.
+     * @param agg Aggregate relation.
+     * @param groupSet Partition keys.
+     * @return Join a condition expression.
+     */
     private static RexNode buildPartitionJoinCondition(
         RexBuilder rexBuilder,
+        RelDataTypeFactory typeFactory,
         RelNode input,
+        RelNode agg,
         ImmutableBitSet groupSet
     ) {
         if (groupSet.isEmpty())
@@ -134,16 +146,18 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         int inputFieldCnt = input.getRowType().getFieldCount();
         List<Integer> keys = groupSet.asList();
 
+        RelDataType joinRowType = typeFactory.builder()
+            .addAll(input.getRowType().getFieldList())
+            .addAll(agg.getRowType().getFieldList())
+            .build();
+
         List<RexNode> conditions = new ArrayList<>(keys.size());
 
         for (int i = 0; i < keys.size(); i++) {
             int keyIdx = keys.get(i);
 
-            RexNode left = rexBuilder.makeInputRef(input, keyIdx);
-            RexNode right = rexBuilder.makeInputRef(
-                input.getCluster().getTypeFactory().builder().build(),
-                inputFieldCnt + i
-            );
+            RexNode left = rexBuilder.makeInputRef(joinRowType, keyIdx);
+            RexNode right = rexBuilder.makeInputRef(joinRowType, inputFieldCnt + i);
 
             conditions.add(rexBuilder.makeCall(SqlStdOperatorTable.IS_NOT_DISTINCT_FROM, left, right));
         }
@@ -151,19 +165,34 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         return RexUtil.composeConjunction(rexBuilder, conditions);
     }
 
-    /** */
+    /**
+     * Validates that the window definition is supported by this rule:
+     * only unbounded frames are allowed, and ORDER BY is supported only with a full unbounded frame.
+     *
+     * @param group Window group to validate.
+     */
     private void validateSupported(LogicalWindow.Group group) {
-        if (!group.orderKeys.getKeys().isEmpty()) {
-            throw new IgniteSQLException("ORDER BY in OVER() is not supported yet.",
+        boolean hasOrderBy = !group.orderKeys.getKeys().isEmpty();
+        boolean fullFrame = isUnbounded(group.lowerBound, group.upperBound);
+
+        if (hasOrderBy && !fullFrame) {
+            throw new IgniteSQLException("ORDER BY with bounded frame is not supported yet.",
                 IgniteQueryErrorCode.UNSUPPORTED_OPERATION);
         }
 
-        if (!isUnbounded(group.lowerBound, group.upperBound)) {
+        if (!fullFrame) {
             throw new IgniteSQLException("Window frame bounds are not supported yet.",
                 IgniteQueryErrorCode.UNSUPPORTED_OPERATION);
         }
     }
 
+    /**
+     * Checks whether the window frame is fully unbounded (UNBOUNDED PRECEDING ... UNBOUNDED FOLLOWING).
+     *
+     * @param lower Lower frame bound.
+     * @param upper Upper frame bound.
+     * @return {@code true} if the frame is unbounded.
+     */
     private static boolean isUnbounded(RexWindowBound lower, RexWindowBound upper) {
         if (lower == null && upper == null)
             return true;
@@ -175,17 +204,23 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             && upper.isUnbounded() && upper.isFollowing();
     }
 
+    /**
+     * Converts a window aggregate call to a regular AggregateCall,
+     * inferring the result type from the aggregate function.
+     *
+     * @param winAggCall Window aggregate call.
+     * @param typeFactory Type factory.
+     * @return AggregateCall for LogicalAggregate.
+     */
     private static AggregateCall toAggregateCall(
         Window.RexWinAggCall winAggCall,
         RelDataTypeFactory typeFactory
     ) {
-        List<RexNode> rexList = new ArrayList<>(winAggCall.getOperands().size());
         List<Integer> argList = new ArrayList<>(winAggCall.getOperands().size());
 
         for (RexNode operand : winAggCall.getOperands()) {
             if (operand instanceof RexInputRef) {
                 RexInputRef ref = (RexInputRef)operand;
-                rexList.add(ref);
                 argList.add(ref.getIndex());
             }
             else {
@@ -194,32 +229,38 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             }
         }
 
-        SqlAggFunction agg = (SqlAggFunction)winAggCall.getOperator();
+        List<RelDataType> operandTypes = winAggCall.getOperands().stream()
+            .map(RexNode::getType)
+            .collect(Collectors.toList());
 
-        SqlKind kind = winAggCall.getKind();
-        boolean nullable = kind != SqlKind.COUNT;
+        SqlAggFunction agg = (SqlAggFunction) winAggCall.getOperator();
 
-        RelDataType type = typeFactory.createTypeWithNullability(winAggCall.getType(), nullable);
+        SqlOperatorBinding binding = new ExplicitOperatorBinding(typeFactory, agg, operandTypes);
 
-//        if (type == null)
-//            type = typeFactory.createTypeWithNullability(type, true);
+        RelDataType inferredType = agg.inferReturnType(binding);
 
         return AggregateCall.create(
             agg,
             winAggCall.distinct,
             false,
             winAggCall.ignoreNulls,
-            rexList,
             argList,
             -1,
-            null,
             RelCollations.EMPTY,
-            type, //winAggCall.getType(),
+            inferredType,
             null
         );
     }
 
-    /** */
+    /**
+     * Builds projection expressions for the final Project node:
+     * all input fields followed by aggregate results, with casts if needed.
+     *
+     * @param join Join node.
+     * @param win Original window node.
+     * @param group Window group.
+     * @return List of projection expressions.
+     */
     private static List<RexNode> buildProjection(RelNode join, LogicalWindow win, LogicalWindow.Group group) {
         RexBuilder rexBuilder = win.getCluster().getRexBuilder();
         int inputFieldCnt = win.getInput().getRowType().getFieldCount();
@@ -232,7 +273,6 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         for (int i = 0; i < inputFieldCnt; i++)
             projects.add(rexBuilder.makeInputRef(join, i));
 
-        // skip group keys from aggregate output
         for (int i = 0; i < aggFieldCnt; i++) {
             RexNode ref = rexBuilder.makeInputRef(join, inputFieldCnt + groupKeyCnt + i);
 
@@ -242,12 +282,18 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
                 ref = rexBuilder.makeCast(targetType, ref);
 
             projects.add(ref);
-//            projects.add(rexBuilder.makeInputRef(join, inputFieldCnt + groupKeyCnt + i));
         }
 
         return projects;
     }
 
+    /**
+     * Returns the expected type of the window aggregate from the window row type.
+     *
+     * @param win Window node.
+     * @param aggIdx Aggregate index.
+     * @return Aggregate result type.
+     */
     private static RelDataType windowAggType(LogicalWindow win, int aggIdx) {
         int inputFieldCnt = win.getInput().getRowType().getFieldCount();
         return win.getRowType().getFieldList().get(inputFieldCnt + aggIdx).getType();
@@ -266,6 +312,11 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             })
             .build();
 
+        /**
+         * Returns the rule factory for this configuration.
+         *
+         * @return Rule factory.
+         */
         @Override @Value.Default
         default java.util.function.Function<Config, RelOptRule> ruleFactory() {
             return IgniteLogicalWindowRewriteRule::new;
