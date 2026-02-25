@@ -58,3 +58,57 @@ ORDER BY emp_id;
 2	2	300
 6	2	500
 7	2	500
+
+# multiple window groups in one SELECT (different partitions)
+query IIII
+SELECT emp_id,
+       dept_id,
+       SUM(salary) OVER (PARTITION BY dept_id) AS sum_by_dept,
+       COUNT(*) OVER () AS total_cnt
+FROM win_emp
+ORDER BY emp_id;
+----
+1	10	300	7
+2	10	300	7
+3	20	200	7
+4	20	200	7
+5	20	200	7
+6	NULL	500	7
+7	NULL	500	7
+
+# Update to getting a fractional average value for average salary
+statement ok
+UPDATE win_emp SET salary = 60 WHERE emp_id = 7;
+
+# another multiple-group example (partition + no partition)
+query III
+SELECT emp_id,
+       COUNT(*) OVER (PARTITION BY dept_id) AS cnt_by_dept,
+       AVG(salary) OVER () AS avg_salary_all
+FROM win_emp
+ORDER BY emp_id;
+----
+1	2	176
+2	2	176
+3	3	176
+4	3	176
+5	3	176
+6	2	176
+7	2	176
+
+# multiple window groups with different PARTITION BY
+query IIII
+SELECT emp_id,
+       dept_id,
+       SUM(salary) OVER (PARTITION BY dept_id) AS sum_by_dept,
+       COUNT(*) OVER (PARTITION BY emp_id % 2) AS cnt_by_parity
+FROM win_emp
+ORDER BY emp_id;
+----
+1	10	300	4
+2	10	300	3
+3	20	200	4
+4	20	200	3
+5	20	200	4
+6	NULL	560	3
+7	NULL	560	4

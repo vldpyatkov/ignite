@@ -72,9 +72,27 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
     @Override public void onMatch(RelOptRuleCall call) {
         LogicalWindow win = call.rel(0);
 
-        if (win.groups.size() != 1) {
-            throw new IgniteSQLException("Only a single window group is supported.",
-                IgniteQueryErrorCode.UNSUPPORTED_OPERATION);
+        if (win.groups.size() > 1) {
+            RelNode input = win.getInput();
+            RelDataTypeFactory typeFactory = win.getCluster().getTypeFactory();
+
+            for (LogicalWindow.Group grp : win.groups) {
+                RelDataType joinRowType = buildWindowRowType(typeFactory, input, grp);
+
+                LogicalWindow single = LogicalWindow.create(
+                    input.getTraitSet(),
+                    input,
+                    win.getConstants(),
+                    joinRowType,
+                    List.of(grp)
+                );
+
+                input = single;
+            }
+
+            call.transformTo(input);
+
+            return;
         }
 
         LogicalWindow.Group group = win.groups.get(0);
@@ -120,6 +138,32 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         );
 
         call.transformTo(project);
+    }
+
+    private static RelDataType buildWindowRowType(
+        RelDataTypeFactory typeFactory,
+        RelNode input,
+        LogicalWindow.Group group
+    ) {
+        RelDataTypeFactory.Builder builder = typeFactory.builder();
+
+        // 1) Все входные поля
+        builder.addAll(input.getRowType().getFieldList());
+
+        // 2) Поля агрегатов текущей группы
+        for (int i = 0; i < group.aggCalls.size(); i++) {
+            Window.RexWinAggCall winAggCall = group.aggCalls.get(i);
+
+            // Имя поля (если нет — сгенерировать)
+            String name = "agg$" + i;
+
+            // Тип агрегата (можно использовать winAggCall.getType())
+            RelDataType type = winAggCall.getType();
+
+            builder.add(name, type);
+        }
+
+        return builder.build();
     }
 
     /**
