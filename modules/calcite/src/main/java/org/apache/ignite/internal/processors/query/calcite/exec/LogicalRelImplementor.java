@@ -27,21 +27,33 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Intersect;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Minus;
 import org.apache.calcite.rel.core.Spool;
+import org.apache.calcite.rel.core.Window;
+import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
+import org.apache.calcite.sql.ExplicitOperatorBinding;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlOperatorBinding;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.mapping.IntPair;
+import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
 import org.apache.ignite.internal.processors.failure.FailureProcessor;
+import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.QueryUtils;
 import org.apache.ignite.internal.processors.query.calcite.exec.RowHandler.RowFactory;
 import org.apache.ignite.internal.processors.query.calcite.exec.exp.ExpressionFactory;
@@ -65,6 +77,7 @@ import org.apache.ignite.internal.processors.query.calcite.exec.rel.NestedLoopJo
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.Node;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.Outbox;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.ProjectNode;
+import org.apache.ignite.internal.processors.query.calcite.exec.rel.RowsUnboundedToCurrentWindowNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.ScanNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.ScanStorageNode;
 import org.apache.ignite.internal.processors.query.calcite.exec.rel.ScanTableRowNode;
@@ -104,6 +117,7 @@ import org.apache.ignite.internal.processors.query.calcite.rel.IgniteTrimExchang
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteUncollect;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteUnionAll;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteValues;
+import org.apache.ignite.internal.processors.query.calcite.rel.IgniteWindow;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteColocatedHashAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteColocatedSortAggregate;
 import org.apache.ignite.internal.processors.query.calcite.rel.agg.IgniteMapHashAggregate;
@@ -1018,6 +1032,86 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
             rowTransformer,
             filterColMapping,
             otherColMapping
+        );
+    }
+
+    /** {@inheritDoc} */
+    @Override public Node<Row> visit(IgniteWindow rel) {
+        LogicalWindow.Group grp = rel.groups.get(0); // пока один group
+
+        RelDataType rowType = rel.getRowType();
+        RelDataType inputType = rel.getInput().getRowType();
+
+        List<AggregateCall> aggCalls = new ArrayList<>(grp.aggCalls.size());
+
+        for (Window.RexWinAggCall winAggCall : grp.aggCalls) {
+            aggCalls.add(toAggregateCall(winAggCall, ctx.getTypeFactory()));
+        }
+
+        Supplier<List<AccumulatorWrapper<Row>>> accFactory =
+            expressionFactory.accumulatorsFactory(AggregateType.SINGLE, aggCalls, inputType);
+
+        RowFactory<Row> rowFactory = ctx.rowHandler().factory(ctx.getTypeFactory(), rowType);
+
+        RowsUnboundedToCurrentWindowNode<Row> node = new RowsUnboundedToCurrentWindowNode<>(
+            ctx,
+            rowType,
+            grp.keys, // partition keys
+            accFactory,
+            rowFactory
+        );
+
+        Node<Row> input = visit(rel.getInput());
+        node.register(List.of(input));
+
+        return node;
+    }
+
+    /**
+     * Converts a window aggregate call to a regular AggregateCall,
+     * inferring the result type from the aggregate function.
+     *
+     * @param winAggCall Window aggregate call.
+     * @param typeFactory Type factory.
+     * @return AggregateCall for LogicalAggregate.
+     */
+    private static AggregateCall toAggregateCall(
+        Window.RexWinAggCall winAggCall,
+        RelDataTypeFactory typeFactory
+    ) {
+        List<Integer> argList = new ArrayList<>(winAggCall.getOperands().size());
+
+        for (RexNode operand : winAggCall.getOperands()) {
+            if (operand instanceof RexInputRef) {
+                RexInputRef ref = (RexInputRef)operand;
+                argList.add(ref.getIndex());
+            }
+            else {
+                throw new IgniteSQLException("Window aggregate arguments must be input references.",
+                    IgniteQueryErrorCode.UNSUPPORTED_OPERATION);
+            }
+        }
+
+        List<RelDataType> operandTypes = winAggCall.getOperands().stream()
+            .map(RexNode::getType)
+            .collect(Collectors.toList());
+
+        SqlAggFunction agg = (SqlAggFunction)winAggCall.getOperator();
+
+        SqlOperatorBinding binding = new ExplicitOperatorBinding(typeFactory, agg, operandTypes);
+
+        RelDataType inferredType = agg.inferReturnType(binding);
+
+        return AggregateCall.create(
+            agg,
+            winAggCall.distinct,
+            false,
+            winAggCall.ignoreNulls,
+            argList,
+            -1,
+            RelCollations.EMPTY,
+            inferredType,
+            null
         );
     }
 }

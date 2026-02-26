@@ -196,4 +196,11 @@ public interface IgniteRelVisitor<T> {
      * @return Visit result.
      */
     T visit(IgniteRel rel);
+
+    /**
+     * Visits a window.
+     * @param rel Window.
+     * @return Visit result.
+     */
+    T visit(IgniteWindow rel);
 }

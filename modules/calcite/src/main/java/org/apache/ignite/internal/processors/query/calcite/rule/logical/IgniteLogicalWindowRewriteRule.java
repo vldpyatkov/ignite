@@ -72,6 +72,10 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
     @Override public void onMatch(RelOptRuleCall call) {
         LogicalWindow win = call.rel(0);
 
+        // Do not transform ROWS windows: they will be processed by the physical IgniteWindow operator.
+        if (win.groups.stream().anyMatch(g -> g.isRows))
+            return;
+
         if (win.groups.size() > 1) {
             RelNode input = win.getInput();
             RelDataTypeFactory typeFactory = win.getCluster().getTypeFactory();
