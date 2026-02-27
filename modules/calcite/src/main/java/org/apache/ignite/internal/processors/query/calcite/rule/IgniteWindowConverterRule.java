@@ -77,9 +77,21 @@ public class IgniteWindowConverterRule extends AbstractIgniteConverterRule<Logic
     }
 
     private static boolean isRowsUnboundedToCurrent(LogicalWindow.Group grp) {
-        return grp.isRows
-            && grp.lowerBound != null && grp.lowerBound.isUnbounded() && grp.lowerBound.isPreceding()
-            && grp.upperBound != null && grp.upperBound.isCurrentRow();
+        return grp.isRows && isUnboundedPreceding(grp.lowerBound) && isCurrentRow(grp.upperBound);
+    }
+
+    /**
+     * Lower frame bound defaults to UNBOUNDED PRECEDING when omitted.
+     */
+    private static boolean isUnboundedPreceding(org.apache.calcite.rex.RexWindowBound bnd) {
+        return bnd == null || (bnd.isUnbounded() && bnd.isPreceding());
+    }
+
+    /**
+     * Upper frame bound defaults to CURRENT ROW when omitted.
+     */
+    private static boolean isCurrentRow(org.apache.calcite.rex.RexWindowBound bnd) {
+        return bnd == null || bnd.isCurrentRow();
     }
 
     private static RelCollation buildWindowCollation(LogicalWindow.Group grp) {

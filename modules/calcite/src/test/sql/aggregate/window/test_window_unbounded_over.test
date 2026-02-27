@@ -112,3 +112,23 @@ ORDER BY emp_id;
 5	20	200	4
 6	NULL	560	3
 7	NULL	560	4
+
+# ROWS UNBOUNDED PRECEDING .. CURRENT ROW frame support (running aggregate)
+query III
+SELECT emp_id,
+       dept_id,
+       SUM(salary) OVER (
+           PARTITION BY dept_id
+           ORDER BY emp_id
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       ) AS running_sum
+FROM win_emp
+ORDER BY emp_id;
+----
+1	10	100
+2	10	300
+3	20	50
+4	20	200
+5	20	200
+6	NULL	500
+7	NULL	560
