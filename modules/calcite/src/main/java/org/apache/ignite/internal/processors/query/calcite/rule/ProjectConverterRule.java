@@ -33,6 +33,7 @@ import org.apache.ignite.internal.processors.query.calcite.trait.CorrelationTrai
 import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 import org.apache.ignite.internal.processors.query.calcite.trait.RewindabilityTrait;
 import org.apache.ignite.internal.processors.query.calcite.util.RexUtils;
+import org.jetbrains.annotations.NotNull;
 
 /**
  *
@@ -52,7 +53,7 @@ public class ProjectConverterRule extends AbstractIgniteConverterRule<LogicalPro
 
         RelTraitSet traits = cluster
             .traitSetOf(IgniteConvention.INSTANCE)
-            .replace(IgniteDistributions.single());
+            /*.replace(IgniteDistributions.single())*/;
 
         Set<CorrelationId> corrIds = RexUtils.extractCorrelationIds(rel.getProjects());
 

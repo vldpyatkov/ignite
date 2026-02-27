@@ -27,11 +27,16 @@ import org.apache.calcite.rel.PhysicalNode;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.logical.LogicalWindow;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteConvention;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteWindow;
+import org.apache.ignite.internal.processors.query.calcite.trait.IgniteDistributions;
 
 import static org.apache.calcite.rel.RelFieldCollation.Direction.ASCENDING;
 import static org.apache.calcite.rel.RelFieldCollation.NullDirection.LAST;
@@ -56,24 +61,61 @@ public class IgniteWindowConverterRule extends AbstractIgniteConverterRule<Logic
 
     @Override public PhysicalNode convert(RelOptPlanner planner, RelMetadataQuery mq, LogicalWindow win) {
         RelOptCluster cluster = win.getCluster();
+        RelNode input = win.getInput();
 
-        LogicalWindow.Group grp = win.groups.get(0);
+        for (int grpIdx = 0; grpIdx < win.groups.size(); grpIdx++) {
+            LogicalWindow.Group grp = win.groups.get(grpIdx);
 
-        RelCollation collation = buildWindowCollation(grp);
+            RelCollation collation = buildWindowCollation(grp);
 
-        RelTraitSet desiredTraits = cluster
-            .traitSetOf(IgniteConvention.INSTANCE)
-//            .replace(IgniteDistributions.single())
-            .replace(collation);
+            RelTraitSet desiredTraits = cluster
+                .traitSetOf(IgniteConvention.INSTANCE)
+                .replace(IgniteDistributions.single())
+                .replace(collation);
 
-        return new IgniteWindow(
-            win.getCluster(),
-            win.getTraitSet().merge(desiredTraits),
-            convert(win.getInput(), desiredTraits),
-            win.getConstants(),
-            win.getRowType(),
-            win.groups
-        );
+            RelDataType dataType = buildWindowRowType(cluster.getTypeFactory(), input, grp);
+
+            input = new IgniteWindow(
+                win.getCluster(),
+                win.getTraitSet().merge(desiredTraits),
+                convert(win.getInput(), desiredTraits),
+                win.getConstants(),
+                dataType,
+                grp
+            );
+        }
+
+        return (PhysicalNode) input;
+    }
+
+    /**
+     * Builds a row type for a window with aggregate calls.
+     *
+     * @param typeFactory Type factory.
+     * @param input Input relation.
+     * @param grp Window group.
+     * @return A row type combining the input fields and windowed aggregate results.
+     */
+    private static RelDataType buildWindowRowType(
+        RelDataTypeFactory typeFactory,
+        RelNode input,
+        LogicalWindow.Group grp
+    ) {
+        RelDataTypeFactory.Builder builder = typeFactory.builder();
+
+        builder.addAll(input.getRowType().getFieldList());
+
+        for (int i = 0; i < grp.aggCalls.size(); i++) {
+            Window.RexWinAggCall winAggCall = grp.aggCalls.get(i);
+
+            String name = "agg$" + i;
+
+            RelDataType type = winAggCall.getType();
+
+            builder.add(name, type);
+        }
+
+        return builder.build();
     }
 
     private static boolean isRowsUnboundedToCurrent(LogicalWindow.Group grp) {

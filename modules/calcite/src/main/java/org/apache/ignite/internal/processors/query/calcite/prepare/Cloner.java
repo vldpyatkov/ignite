@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.processors.query.calcite.prepare;
 
-import java.util.List;
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.ignite.internal.processors.query.calcite.rel.IgniteCollect;
@@ -281,6 +280,6 @@ public class Cloner implements IgniteRelVisitor<IgniteRel> {
     }
 
     @Override public IgniteRel visit(IgniteWindow rel) {
-        return rel.clone(cluster, List.of());
+        return rel.clone(cluster, F.asList(visit((IgniteRel)rel.getInput())));
     }
 }

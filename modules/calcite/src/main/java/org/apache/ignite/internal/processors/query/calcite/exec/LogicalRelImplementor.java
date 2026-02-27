@@ -1037,10 +1037,9 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
 
     /** {@inheritDoc} */
     @Override public Node<Row> visit(IgniteWindow rel) {
-        LogicalWindow.Group grp = rel.groups.get(0); // пока один group
-
         RelDataType rowType = rel.getRowType();
         RelDataType inputType = rel.getInput().getRowType();
+        LogicalWindow.Group grp = rel.group();
 
         List<AggregateCall> aggCalls = new ArrayList<>(grp.aggCalls.size());
 
@@ -1062,7 +1061,8 @@ public class LogicalRelImplementor<Row> implements IgniteRelVisitor<Node<Row>> {
         );
 
         Node<Row> input = visit(rel.getInput());
-        node.register(List.of(input));
+
+        node.register(input);
 
         return node;
     }
