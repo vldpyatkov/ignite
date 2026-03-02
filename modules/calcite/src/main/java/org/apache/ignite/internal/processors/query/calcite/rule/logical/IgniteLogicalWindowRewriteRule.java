@@ -68,12 +68,33 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         super(config);
     }
 
+    /**
+     * Checks whether the window frame is UNBOUNDED PRECEDING .. CURRENT ROW.
+     *
+     * @param group Window group.
+     * @return {@code true} if frame is unbounded-to-current.
+     */
+    private static boolean isUnboundedToCurrent(LogicalWindow.Group group) {
+        return isUnboundedPreceding(group.lowerBound) && isCurrentRow(group.upperBound);
+    }
+
+    /** */
+    private static boolean isUnboundedPreceding(RexWindowBound lower) {
+        return lower == null || (lower.isUnbounded() && lower.isPreceding());
+    }
+
+    /** */
+    private static boolean isCurrentRow(RexWindowBound upper) {
+        return upper == null || upper.isCurrentRow();
+    }
+
     /** {@inheritDoc} */
     @Override public void onMatch(RelOptRuleCall call) {
         LogicalWindow win = call.rel(0);
 
-        // Do not transform ROWS windows: they will be processed by the physical IgniteWindow operator.
-        if (win.groups.stream().anyMatch(g -> g.isRows))
+        // Do not transform running windows (UNBOUNDED PRECEDING .. CURRENT ROW):
+        // they are processed by the physical IgniteWindow operator.
+        if (win.groups.stream().anyMatch(IgniteLogicalWindowRewriteRule::isUnboundedToCurrent))
             return;
 
         if (win.groups.size() > 1) {

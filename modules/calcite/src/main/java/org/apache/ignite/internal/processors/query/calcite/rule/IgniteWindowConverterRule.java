@@ -119,7 +119,7 @@ public class IgniteWindowConverterRule extends AbstractIgniteConverterRule<Logic
     }
 
     private static boolean isRowsUnboundedToCurrent(LogicalWindow.Group grp) {
-        return grp.isRows && isUnboundedPreceding(grp.lowerBound) && isCurrentRow(grp.upperBound);
+        return isUnboundedPreceding(grp.lowerBound) && isCurrentRow(grp.upperBound);
     }
 
     /**
