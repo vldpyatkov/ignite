@@ -300,11 +300,6 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
 
         SqlAggFunction agg = (SqlAggFunction)winAggCall.getOperator();
 
-        // Use the type resolved for the window call itself. It already includes correct
-        // nullability (for example AVG over constant expressions), while direct inference
-        // from operands can return a different nullability and break AggregateCall checks.
-        RelDataType inferredType = winAggCall.getType();
-
         return AggregateCall.create(
             agg,
             winAggCall.distinct,
@@ -313,7 +308,7 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             argList,
             -1,
             RelCollations.EMPTY,
-            inferredType,
+            null,
             null
         );
     }
