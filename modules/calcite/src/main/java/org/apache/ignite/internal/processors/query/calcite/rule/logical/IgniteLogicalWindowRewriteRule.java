@@ -20,12 +20,14 @@ package org.apache.ignite.internal.processors.query.calcite.rule.logical;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelRule;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Window;
@@ -102,13 +104,13 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         RelDataTypeFactory typeFactory = win.getCluster().getTypeFactory();
         RelNode aggInput = appendConstants(input, win.getConstants());
 
+        ImmutableBitSet grpSet = grp.keys;
+
         List<AggregateCall> aggCalls = new ArrayList<>(grp.aggCalls.size());
 
         for (Window.RexWinAggCall winAggCall : grp.aggCalls) {
-            aggCalls.add(toAggregateCall(winAggCall));
+            aggCalls.add(toAggregateCall(winAggCall, typeFactory, grpSet.cardinality()));
         }
-
-        ImmutableBitSet grpSet = grp.keys;
 
         RelNode agg = LogicalAggregate.create(
             aggInput,
@@ -282,9 +284,15 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
      * inferring the result type from the aggregate function.
      *
      * @param winAggCall Window aggregate call.
+     * @param typeFactory Type factory.
+     * @param grpKeyCnt Partition key count.
      * @return AggregateCall for LogicalAggregate.
      */
-    private static AggregateCall toAggregateCall(Window.RexWinAggCall winAggCall) {
+    private static AggregateCall toAggregateCall(
+        Window.RexWinAggCall winAggCall,
+        RelDataTypeFactory typeFactory,
+        int grpKeyCnt
+    ) {
         List<Integer> argList = new ArrayList<>(winAggCall.getOperands().size());
 
         for (RexNode operand : winAggCall.getOperands()) {
@@ -300,6 +308,14 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
 
         SqlAggFunction agg = (SqlAggFunction)winAggCall.getOperator();
 
+        List<RelDataType> operandTypes = winAggCall.getOperands().stream()
+            .map(RexNode::getType)
+            .collect(Collectors.toList());
+
+        RelDataType inferredType = agg.inferReturnType(
+            new Aggregate.AggCallBinding(typeFactory, agg, operandTypes, grpKeyCnt, false)
+        );
+
         return AggregateCall.create(
             agg,
             winAggCall.distinct,
@@ -308,7 +324,7 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             argList,
             -1,
             RelCollations.EMPTY,
-            null,
+            inferredType,
             null
         );
     }
