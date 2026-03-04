@@ -20,7 +20,6 @@ package org.apache.ignite.internal.processors.query.calcite.rule.logical;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -42,9 +41,7 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.rex.RexWindowBound;
-import org.apache.calcite.sql.ExplicitOperatorBinding;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.apache.calcite.sql.SqlOperatorBinding;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.ignite.internal.processors.cache.query.IgniteQueryErrorCode;
@@ -108,7 +105,7 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
         List<AggregateCall> aggCalls = new ArrayList<>(grp.aggCalls.size());
 
         for (Window.RexWinAggCall winAggCall : grp.aggCalls) {
-            aggCalls.add(toAggregateCall(winAggCall, typeFactory));
+            aggCalls.add(toAggregateCall(winAggCall));
         }
 
         ImmutableBitSet grpSet = grp.keys;
@@ -173,7 +170,6 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
     /**
      * Builds a row type for a window with aggregate calls.
      *
-     * @param typeFactory Type factory.
      * @param input Input relation.
      * @param grp Window group.
      * @return A row type combining the input fields and windowed aggregate results.
@@ -205,7 +201,6 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
      * Returns TRUE for an empty partition set (cross join).
      *
      * @param rexBuilder Rex builder.
-     * @param typeFactory Type factory.
      * @param input Input relation.
      * @param agg Aggregate relation.
      * @param groupSet Partition keys.
@@ -287,13 +282,9 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
      * inferring the result type from the aggregate function.
      *
      * @param winAggCall Window aggregate call.
-     * @param typeFactory Type factory.
      * @return AggregateCall for LogicalAggregate.
      */
-    private static AggregateCall toAggregateCall(
-        Window.RexWinAggCall winAggCall,
-        RelDataTypeFactory typeFactory
-    ) {
+    private static AggregateCall toAggregateCall(Window.RexWinAggCall winAggCall) {
         List<Integer> argList = new ArrayList<>(winAggCall.getOperands().size());
 
         for (RexNode operand : winAggCall.getOperands()) {
@@ -307,15 +298,12 @@ public class IgniteLogicalWindowRewriteRule extends RelRule<IgniteLogicalWindowR
             }
         }
 
-        List<RelDataType> operandTypes = winAggCall.getOperands().stream()
-            .map(RexNode::getType)
-            .collect(Collectors.toList());
-
         SqlAggFunction agg = (SqlAggFunction)winAggCall.getOperator();
 
-        SqlOperatorBinding binding = new ExplicitOperatorBinding(typeFactory, agg, operandTypes);
-
-        RelDataType inferredType = agg.inferReturnType(binding);
+        // Use the type resolved for the window call itself. It already includes correct
+        // nullability (for example AVG over constant expressions), while direct inference
+        // from operands can return a different nullability and break AggregateCall checks.
+        RelDataType inferredType = winAggCall.getType();
 
         return AggregateCall.create(
             agg,
