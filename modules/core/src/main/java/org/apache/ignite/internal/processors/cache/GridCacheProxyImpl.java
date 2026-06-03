@@ -1271,6 +1271,60 @@ public class GridCacheProxyImpl<K, V> implements IgniteInternalCache<K, V>, Exte
     }
 
     /** {@inheritDoc} */
+    @Override public boolean lock(CacheEntry<K, V> entry, long timeout) throws IgniteCheckedException {
+        CacheOperationContext prev = gate.enter(opCtx);
+
+        try {
+            return delegate.lock(entry, timeout);
+        }
+        finally {
+            gate.leave(prev);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteInternalFuture<Boolean> lockAsync(CacheEntry<K, V> entry, long timeout) {
+        CacheOperationContext prev = gate.enter(opCtx);
+
+        try {
+            return delegate.lockAsync(entry, timeout);
+        }
+        finally {
+            gate.leave(prev);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public Map<CacheEntry<K, V>, Boolean> lockEntries(
+        CacheEntry<K, V> entry,
+        long timeout
+    ) throws IgniteCheckedException {
+        CacheOperationContext prev = gate.enter(opCtx);
+
+        try {
+            return delegate.lockEntries(entry, timeout);
+        }
+        finally {
+            gate.leave(prev);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> lockEntriesAsync(
+        Collection<CacheEntry<K, V>> entries,
+        long timeout
+    ) {
+        CacheOperationContext prev = gate.enter(opCtx);
+
+        try {
+            return delegate.lockEntriesAsync(entries, timeout);
+        }
+        finally {
+            gate.leave(prev);
+        }
+    }
+
+    /** {@inheritDoc} */
     @Override public IgniteInternalFuture<Boolean> lockAsync(K key, long timeout) {
         CacheOperationContext prev = gate.enter(opCtx);
 

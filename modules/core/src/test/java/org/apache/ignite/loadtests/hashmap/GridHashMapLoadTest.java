@@ -86,6 +86,7 @@ public class GridHashMapLoadTest extends GridCommonAbstractTest {
 
             map.put(key, new GridCacheMapEntry(ctx, ctx.toCacheKeyObject(key)) {
                 @Override public boolean tmLock(IgniteInternalTx tx,
+                    GridCacheVersion entryVer,
                     long timeout,
                     @Nullable GridCacheVersion serOrder,
                     GridCacheVersion serReadVer,

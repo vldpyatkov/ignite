@@ -222,7 +222,8 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
      * @param tx Tx flag.
      * @param implicitSingle Implicit flag.
      * @param read Read lock flag.
-     * @return New candidate.
+     * @param entryVer Expected entry version or {@code null} if an enty vertion ought not be checked.
+     * @return New candidate or {@code null} if lock was not acquired.
      * @throws GridCacheEntryRemovedException If entry has been removed.
      * @throws GridDistributedLockCancelledException If lock was cancelled.
      */
@@ -237,7 +238,9 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
         boolean reenter,
         boolean tx,
         boolean implicitSingle,
-        boolean read)
+        boolean read,
+        GridCacheVersion entryVer
+    )
         throws GridCacheEntryRemovedException, GridDistributedLockCancelledException {
         assert !reenter || serOrder == null;
 
@@ -255,6 +258,9 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
             checkRemoved(nearVer);
 
             checkObsolete();
+
+            if (entryVer != null && !entryVer.equals(this.ver))
+                return null;
 
             GridCacheMvcc mvcc = mvccExtras();
 
@@ -318,6 +324,7 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
 
     /** {@inheritDoc} */
     @Override public boolean tmLock(IgniteInternalTx tx,
+        GridCacheVersion entryVer,
         long timeout,
         @Nullable GridCacheVersion serOrder,
         GridCacheVersion serReadVer,
@@ -338,7 +345,9 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
                 /*reenter*/false,
                 /*tx*/true,
                 tx.implicitSingle(),
-                read) != null;
+                read,
+                entryVer
+            ) != null;
         }
 
         try {

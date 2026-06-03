@@ -409,6 +409,20 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
      */
     @Nullable public GridCacheMvccCandidate addEntry(GridDhtCacheEntry entry)
         throws GridCacheEntryRemovedException, GridDistributedLockCancelledException {
+        return addEntry(entry, null);
+    }
+
+    /**
+     * Adds entry to future.
+     *
+     * @param entry Entry to add.
+     * @param expVer Expected entry version.
+     * @return Lock candidate.
+     * @throws GridCacheEntryRemovedException If entry was removed.
+     * @throws GridDistributedLockCancelledException If lock is canceled.
+     */
+    @Nullable public GridCacheMvccCandidate addEntry(GridDhtCacheEntry entry, @Nullable GridCacheVersion expVer)
+        throws GridCacheEntryRemovedException, GridDistributedLockCancelledException {
         if (log.isDebugEnabled())
             log.debug("Adding entry: " + entry);
 
@@ -431,7 +445,8 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
             /*reenter*/false,
             inTx(),
             implicitSingle(),
-            false
+            false,
+            expVer
         );
 
         if (c == null && timeout < 0) {
@@ -442,6 +457,9 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
 
             return null;
         }
+
+        if (c == null && expVer != null)
+            return null;
 
         synchronized (this) {
             entries.add(c == null || c.reentry() ? null : entry);

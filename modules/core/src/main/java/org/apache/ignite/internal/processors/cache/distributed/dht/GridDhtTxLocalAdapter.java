@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache.distributed.dht;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -563,6 +564,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
      * @param skipStore Skip store flag.
      * @param keepBinary Keep binary flag.
      * @param nearCache {@code True} if near cache enabled on originating node.
+     * @param expVers Expected versions or {@code null} if no expectation about versions.
      * @return Lock future.
      */
     @SuppressWarnings("ForLoopReplaceableByForEach")
@@ -577,7 +579,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         boolean skipStore,
         boolean skipReadThrough,
         boolean keepBinary,
-        boolean nearCache
+        boolean nearCache,
+        GridCacheVersion[] expVers
     ) {
         try {
             checkValid();
@@ -602,6 +605,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
                 return finishFuture(enlistFut, timedOut() ? timeoutException() : rollbackException(), false);
 
             Set<KeyCacheObject> skipped = null;
+            Map<KeyCacheObject, GridCacheVersion> expVerByKey = null;
 
             try {
                 AffinityTopologyVersion topVer = topologyVersion();
@@ -613,6 +617,17 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
                     GridCacheEntryEx entry = entries.get(i);
 
                     KeyCacheObject key = entry.key();
+
+                    if (expVers != null) {
+                        if (expVerByKey == null)
+                            expVerByKey = new HashMap<>();
+
+                        GridCacheVersion expVer = expVers[i];
+
+                        assert expVer != null : "Expected version is not mapped for lock key: " + key;
+
+                        expVerByKey.put(key, expVer);
+                    }
 
                     IgniteTxEntry txEntry = entry(entry.txKey());
 
@@ -687,6 +702,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
             return obtainLockAsync(cacheCtx,
                 ret,
                 passedKeys,
+                expVerByKey,
                 read,
                 needRetVal,
                 createTtl,
@@ -706,6 +722,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
      * @param cacheCtx Context.
      * @param ret Return value.
      * @param passedKeys Passed keys.
+     * @param expVerByKey Expected versions by key.
      * @param read {@code True} if read.
      * @param needRetVal Return value flag.
      * @param createTtl TTL for create operation.
@@ -718,6 +735,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         final GridCacheContext cacheCtx,
         GridCacheReturn ret,
         final Collection<KeyCacheObject> passedKeys,
+        @Nullable Map<KeyCacheObject, GridCacheVersion> expVerByKey,
         final boolean read,
         final boolean needRetVal,
         final long createTtl,
@@ -745,6 +763,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
             return new GridFinishedFuture<>(rollbackException());
 
         IgniteInternalFuture<Boolean> fut = dhtCache.lockAllAsyncInternal(passedKeys,
+            expVerByKey,
             timeout,
             this,
             isInvalidate(),
@@ -764,8 +783,11 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
                     if (log.isDebugEnabled())
                         log.debug("Acquired transaction lock on keys: " + passedKeys);
 
+                    Collection<KeyCacheObject> lockedKeys = expVerByKey == null ?
+                        passedKeys : F.view(passedKeys, expVerByKey::containsKey);
+
                     postLockWrite(cacheCtx,
-                        passedKeys,
+                        lockedKeys,
                         ret,
                         /*remove*/false,
                         /*retval*/false,

@@ -2303,7 +2303,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
                         }
                     }
                     else {
-                        assert txEntry.op() == TRANSFORM;
+                        assert txEntry.op() == TRANSFORM : txEntry.op();
 
                         while (true) {
                             try {
@@ -4236,6 +4236,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
             return new GridFinishedFuture<>(timeoutException());
 
         IgniteInternalFuture<Boolean> fut = cacheCtx.colocated().lockAllAsyncInternal(keys,
+            null,
             timeout,
             this,
             isInvalidate(),

@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.cache.distributed.dht.colocated;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -179,6 +180,12 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
     /** */
     private final boolean recovery;
 
+    /** Expected versions. */
+    @Nullable private final Map<KeyCacheObject, GridCacheVersion> expVers;
+
+    /** Per-key lock results. */
+    @Nullable private final Map<KeyCacheObject, Boolean> lockRes;
+
     /** */
     private int miniId;
 
@@ -198,6 +205,10 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
      * @param createTtl TTL for create operation.
      * @param accessTtl TTL for read operation.
      * @param skipStore Skip store flag.
+     * @param skipReadThrough Skip read-through cache store flag.
+     * @param keepBinary Keep binary.
+     * @param recovery Recovery.
+     * @param expVers Expected versions.
      */
     public GridDhtColocatedLockFuture(
         GridCacheContext<?, ?> cctx,
@@ -211,7 +222,8 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
         boolean skipStore,
         boolean skipReadThrough,
         boolean keepBinary,
-        boolean recovery
+        boolean recovery,
+        @Nullable Map<KeyCacheObject, GridCacheVersion> expVers
     ) {
         super(CU.boolReducer());
 
@@ -229,6 +241,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
         this.skipReadThrough = skipReadThrough;
         this.keepBinary = keepBinary;
         this.recovery = recovery;
+        this.expVers = expVers;
 
         ignoreInterrupts();
 
@@ -244,6 +257,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
         }
 
         valMap = new ConcurrentHashMap<>();
+        lockRes = expVers != null ? new ConcurrentHashMap<>() : null;
 
         if (tx != null && !tx.updateLockFuture(null, this)) {
             onError(tx.timedOut() ? tx.timeoutException() : tx.rollbackException());
@@ -267,6 +281,13 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
      */
     @Override public IgniteUuid futureId() {
         return futId;
+    }
+
+    /**
+     * @return Per-key lock results.
+     */
+    public Map<KeyCacheObject, Boolean> lockResults() {
+        return lockRes != null ? lockRes : Collections.emptyMap();
     }
 
     /** {@inheritDoc} */
@@ -1099,10 +1120,22 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
                                 if (tx != null)
                                     tx.addKeyMapping(txKey, mapping.node());
 
+                                GridCacheVersion expVer = null;
+
+                                if (expVers != null) {
+                                    expVer = expVers.get(key);
+
+                                    if (expVer == null) {
+                                        throw new IgniteCheckedException("Expected version is not mapped for lock key: "
+                                            + key);
+                                    }
+                                }
+
                                 req.addKeyBytes(
                                     key,
                                     retval,
-                                    dhtVer); // Include DHT version to match remote DHT entry.
+                                    dhtVer,
+                                    expVer);
                             }
 
                             explicit = inTx() && cand == null;
@@ -1284,12 +1317,20 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
                         ", mappedKeys=" + keys + ", fut=" + this + ']');
 
                 if (inTx()) {
-                    for (KeyCacheObject key : keys)
+                    for (KeyCacheObject key : keys) {
                         tx.entry(cctx.txKey(key)).markLocked();
+
+                        if (lockRes != null)
+                            lockRes.put(key, true);
+                    }
                 }
                 else {
-                    for (KeyCacheObject key : keys)
+                    for (KeyCacheObject key : keys) {
                         cctx.mvcc().markExplicitOwner(cctx.txKey(key), threadId);
+
+                        if (lockRes != null)
+                            lockRes.put(key, true);
+                    }
                 }
 
                 try {
@@ -1684,6 +1725,15 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
             int i = 0;
 
             for (KeyCacheObject k : keys) {
+                if (!res.lockResult(i)) {
+                    if (lockRes != null)
+                        lockRes.put(k, false);
+
+                    i++;
+
+                    continue;
+                }
+
                 IgniteBiTuple<GridCacheVersion, CacheObject> oldValTup = valMap.get(k);
 
                 CacheObject newVal = res.value(i);
@@ -1724,6 +1774,9 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
                 }
                 else
                     cctx.mvcc().markExplicitOwner(cctx.txKey(k), threadId);
+
+                if (lockRes != null)
+                    lockRes.put(k, true);
 
                 if (retval && cctx.events().isRecordable(EVT_CACHE_OBJECT_READ)) {
                     cctx.events().addEvent(cctx.affinity().partition(k),

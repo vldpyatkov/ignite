@@ -1504,10 +1504,7 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
      * @return {@code True} if transaction read entries should be unlocked.
      */
     private boolean unlockReadEntries(IgniteInternalTx tx) {
-        if (tx.pessimistic())
-            return !tx.readCommitted();
-        else
-            return tx.serializable();
+        return tx.pessimistic() || tx.serializable();
     }
 
     /**
@@ -1928,7 +1925,7 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
 
                     entry1.unswap();
 
-                    if (!entry1.tmLock(tx, timeout, serOrder, serReadVer, read)) {
+                    if (!entry1.tmLock(tx, null, timeout, serOrder, serReadVer, read)) {
                         // Unlock locks locked so far.
                         for (IgniteTxEntry txEntry2 : entries) {
                             if (txEntry2 == txEntry1)
@@ -2011,8 +2008,12 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
      * @param entries Entries to unlock.
      */
     private void unlockMultiple(IgniteInternalTx tx, Iterable<IgniteTxEntry> entries) {
-        for (IgniteTxEntry txEntry : entries)
+        for (IgniteTxEntry txEntry : entries) {
+            if (txEntry.isRead() && tx.pessimistic() && tx.readCommitted() && !txEntry.locked())
+                continue;
+
             txUnlock(tx, txEntry);
+        }
     }
 
     /**

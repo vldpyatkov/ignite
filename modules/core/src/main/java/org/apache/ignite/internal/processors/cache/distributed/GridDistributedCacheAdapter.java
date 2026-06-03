@@ -112,7 +112,7 @@ public abstract class GridDistributedCacheAdapter<K, V> extends GridCacheAdapter
     ) {
         assert tx != null;
 
-        return lockAllAsync(keys, timeout, tx, isInvalidate, isRead, retval, isolation, createTtl, accessTtl);
+        return lockAllAsync(keys, null, timeout, tx, isInvalidate, isRead, retval, isolation, createTtl, accessTtl);
     }
 
     /** {@inheritDoc} */
@@ -121,6 +121,7 @@ public abstract class GridDistributedCacheAdapter<K, V> extends GridCacheAdapter
 
         // Return value flag is true because we choose to bring values for explicit locks.
         return lockAllAsync(ctx.cacheKeysView(keys),
+            null,
             timeout,
             tx,
             false,
@@ -133,6 +134,7 @@ public abstract class GridDistributedCacheAdapter<K, V> extends GridCacheAdapter
 
     /**
      * @param keys Keys to lock.
+     * @param expVers Expected versions or {@code null} If there is no need to check the versions.
      * @param timeout Timeout.
      * @param tx Transaction
      * @param isInvalidate Invalidation flag.
@@ -144,6 +146,7 @@ public abstract class GridDistributedCacheAdapter<K, V> extends GridCacheAdapter
      * @return Future for locks.
      */
     protected abstract IgniteInternalFuture<Boolean> lockAllAsync(Collection<KeyCacheObject> keys,
+        @Nullable Map<KeyCacheObject, GridCacheVersion> expVers,
         long timeout,
         @Nullable IgniteTxLocalEx tx,
         boolean isInvalidate,

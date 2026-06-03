@@ -814,6 +814,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
     /** {@inheritDoc} */
     @Override protected IgniteInternalFuture<Boolean> lockAllAsync(Collection<KeyCacheObject> keys,
+        @Nullable Map<KeyCacheObject, GridCacheVersion> expVers,
         long timeout,
         @Nullable IgniteTxLocalEx tx,
         boolean isInvalidate,

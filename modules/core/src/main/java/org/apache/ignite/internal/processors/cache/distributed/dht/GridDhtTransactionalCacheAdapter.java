@@ -720,6 +720,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
     /** {@inheritDoc} */
     @Override public IgniteInternalFuture<Boolean> lockAllAsync(
         @Nullable Collection<KeyCacheObject> keys,
+        Map<KeyCacheObject, GridCacheVersion> expVers,
         long timeout,
         IgniteTxLocalEx txx,
         boolean isInvalidate,
@@ -732,6 +733,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
 
         return lockAllAsyncInternal(
             keys,
+            expVers,
             timeout,
             txx,
             isInvalidate,
@@ -749,6 +751,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
      * Acquires locks in partitioned cache.
      *
      * @param keys Keys to lock.
+     * @param expVers Expected versions or {@code null} if not required.
      * @param timeout Lock timeout.
      * @param txx Transaction.
      * @param isInvalidate Invalidate flag.
@@ -762,6 +765,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
      * @return Lock future.
      */
     public GridDhtFuture<Boolean> lockAllAsyncInternal(@Nullable Collection<KeyCacheObject> keys,
+        @Nullable Map<KeyCacheObject, GridCacheVersion> expVers,
         long timeout,
         IgniteTxLocalEx txx,
         boolean isInvalidate,
@@ -804,9 +808,18 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
             try {
                 while (true) {
                     GridDhtCacheEntry entry = entryExx(key, tx.topologyVersion());
+                    GridCacheVersion expVer = expVers != null ? expVers.get(key) : null;
 
                     try {
-                        fut.addEntry(entry);
+                        GridCacheMvccCandidate cand = fut.addEntry(entry, expVer);
+
+                        // TODO: It looks odd.
+                        if (expVer != null && cand == null) {
+                            expVers.remove(key);
+                            tx.clearEntry(ctx.txKey(key));
+
+                            break;
+                        }
 
                         // Possible in case of cancellation or time out or rollback.
                         if (fut.isDone())
@@ -1052,7 +1065,9 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                     req.skipStore(),
                     req.skipReadThrough(),
                     req.keepBinary(),
-                    req.nearCache());
+                    req.nearCache(),
+                    req.expectedVersions()
+                );
 
                 final GridDhtTxLocal t = tx;
 
@@ -1064,8 +1079,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                             if (e != null)
                                 e = U.unwrap(e);
 
-                            // Transaction can be emptied by asynchronous rollback.
-                            assert e != null || !t.empty();
+                            // Transaction can be emptied by asynchronous rollback or by failed version checks.
+                            assert e != null || !t.empty() || req.hasExpectedVersions();
 
                             // Create response while holding locks.
                             final GridNearLockResponse resp = createLockReply(nearNode,
@@ -1231,6 +1246,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                 res.completedVersions(versPair.get1(), versPair.get2());
 
                 int i = 0;
+                boolean checkVers = req.hasExpectedVersions();
 
                 for (ListIterator<GridCacheEntryEx> it = entries.listIterator(); it.hasNext(); ) {
                     GridCacheEntryEx e = it.next();
@@ -1244,6 +1260,18 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                                 GridCacheVersion dhtVer = req.dhtVersion(i);
 
                                 GridCacheVersion ver = e.version();
+
+                                boolean locked = !checkVers || e.lockedBy(mappedVer) ||
+                                    ctx.mvcc().isRemoved(e.context(), mappedVer);
+
+                                res.lockResult(i, locked);
+
+                                //TODO: Suspicious
+                                if (!locked) {
+                                    res.addValueBytes(null, false, ver, null);
+
+                                    break;
+                                }
 
                                 boolean ret = req.returnValue(i) || dhtVer == null || !dhtVer.equals(ver);
 

@@ -1246,6 +1246,19 @@ public interface IgniteInternalCache<K, V> extends Iterable<Cache.Entry<K, V>> {
         throws IgniteCheckedException;
 
     /**
+     * Acquires transactional lock for a cached object represented by the given entry only if a current entry version
+     * is equal to the entry version.
+     *
+     * @param entry Entry whose key, value and version should be used.
+     * @param timeout Timeout in milliseconds to wait for lock to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      lock cannot be acquired immediately).
+     * @return {@code True} if lock was acquired with the same entry version.
+     * @throws IgniteCheckedException If lock acquisition resulted in an error.
+     */
+    public boolean lock(CacheEntry<K, V> entry, long timeout) throws IgniteCheckedException;
+
+    /**
      * Asynchronously acquires lock on a cached object with given
      * key only if the passed in filter (if any) passes. This method
      * together with filter check will be executed as one atomic operation.
@@ -1264,6 +1277,19 @@ public interface IgniteInternalCache<K, V> extends Iterable<Cache.Entry<K, V>> {
      *      {@code false} otherwise.
      */
     public IgniteInternalFuture<Boolean> lockAsync(K key, long timeout);
+
+    /**
+     * Acquires transactional lock for a cached object represented by the given entry only if a current entry version
+     * is equal to the entry version.
+     *
+     * @param entry Entry whose key, value and version should be used.
+     * @param timeout Timeout in milliseconds to wait for lock to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      lock cannot be acquired immediately).
+     * @return {@code True} if lock was acquired with the same entry version.
+     * @throws IgniteCheckedException If lock acquisition resulted in an error.
+     */
+    public IgniteInternalFuture<Boolean> lockAsync(CacheEntry<K, V> entry, long timeout);
 
     /**
      * All or nothing synchronous lock for passed in keys. This method
@@ -1302,6 +1328,36 @@ public interface IgniteInternalCache<K, V> extends Iterable<Cache.Entry<K, V>> {
      *      timeout has expired, {@code false} otherwise.
      */
     public IgniteInternalFuture<Boolean> lockAllAsync(@Nullable Collection<? extends K> keys, long timeout);
+
+    /**
+     * Acquires transactional lock for a cached object represented by the given entry only if a current entry version
+     * is equal to the entry version.
+     *
+     * @param entry Entry whose key, value and version should be used.
+     * @param timeout Timeout in milliseconds to wait for lock to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      lock cannot be acquired immediately).
+     * @return Lock result for the entry.
+     * @throws IgniteCheckedException If lock acquisition resulted in an error.
+     */
+    public Map<CacheEntry<K, V>, Boolean> lockEntries(CacheEntry<K, V> entry, long timeout)
+        throws IgniteCheckedException;
+
+    /**
+     * Asynchronously acquires transactional locks for cached objects represented by the given entries only if current
+     * entry versions are equal to the entry versions. Entry values are enlisted into the local transaction state as
+     * previously read values before lock requests are sent to primary nodes. If lock is not acquired for a particular
+     * entry, only this entry is removed from the local transaction state.
+     *
+     * @param entries Entries whose keys, values and versions should be used.
+     * @param timeout Timeout in milliseconds to wait for locks to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      locks cannot be acquired immediately).
+     * @return Future that will return per-entry lock results.
+     */
+    public IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> lockEntriesAsync(
+        Collection<CacheEntry<K, V>> entries,
+        long timeout);
 
     /**
      * Unlocks given key only if current thread owns the lock. If optional filter

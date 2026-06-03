@@ -636,6 +636,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
      */
     @Override public IgniteInternalFuture<Boolean> lockAllAsync(
         Collection<KeyCacheObject> keys,
+        Map<KeyCacheObject, GridCacheVersion> expVers,
         long timeout,
         @Nullable IgniteTxLocalEx tx,
         boolean isInvalidate,
@@ -662,7 +663,8 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
             opCtx != null && opCtx.skipStore(),
             opCtx != null && opCtx.skipReadThrough(),
             opCtx != null && opCtx.isKeepBinary(),
-            opCtx != null && opCtx.recovery());
+            opCtx != null && opCtx.recovery(),
+            expVers);
 
         // Future will be added to mvcc only if it was mapped to remote nodes.
         fut.map();

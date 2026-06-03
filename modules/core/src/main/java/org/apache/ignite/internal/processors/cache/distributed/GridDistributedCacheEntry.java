@@ -77,7 +77,8 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
      * @param tx Transaction flag.
      * @param implicitSingle Implicit flag.
      * @param read Read lock flag.
-     * @return New candidate.
+     * @param entryVer Expected entry version or {@code null} if an enty vertion ought not be checked.
+     * @return New candidate or {@code null} if lock was not acquired.
      * @throws GridCacheEntryRemovedException If entry has been removed.
      */
     @Nullable public GridCacheMvccCandidate addLocal(
@@ -88,7 +89,9 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
         boolean reenter,
         boolean tx,
         boolean implicitSingle,
-        boolean read) throws GridCacheEntryRemovedException {
+        boolean read,
+        GridCacheVersion entryVer
+    ) throws GridCacheEntryRemovedException {
         GridCacheMvccCandidate cand;
         CacheLockCandidates prev;
         CacheLockCandidates owner;
@@ -99,6 +102,9 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
 
         try {
             checkObsolete();
+
+            if (entryVer != null && !entryVer.equals(ver))
+                return null;
 
             GridCacheMvcc mvcc = mvccExtras();
 
@@ -694,6 +700,7 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
 
     /** {@inheritDoc} */
     @Override public boolean tmLock(IgniteInternalTx tx,
+        @Nullable GridCacheVersion entryVer,
         long timeout,
         @Nullable GridCacheVersion serOrder,
         GridCacheVersion serReadVer,
@@ -709,7 +716,10 @@ public class GridDistributedCacheEntry extends GridCacheMapEntry {
                 /*reenter*/false,
                 /*tx*/true,
                 tx.implicitSingle(),
-                read) != null;
+                read,
+                entryVer) != null;
+
+        assert entryVer == null : "Only local entries can be acquired with explicit version: " + entryVer;
 
         try {
             addRemote(

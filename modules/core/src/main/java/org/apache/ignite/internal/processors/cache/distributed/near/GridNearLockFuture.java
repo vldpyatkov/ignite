@@ -20,6 +20,7 @@ package org.apache.ignite.internal.processors.cache.distributed.near;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -170,6 +171,12 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
     /** Recovery mode context flag. */
     private final boolean recovery;
 
+    /** Expected versions. */
+    @Nullable private final Map<KeyCacheObject, GridCacheVersion> expVers;
+
+    /** Per-key lock results. */
+    @Nullable private final Map<KeyCacheObject, Boolean> lockRes;
+
     /** */
     private int miniId;
 
@@ -185,6 +192,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
      * @param skipStore skipStore
      * @param keepBinary Keep binary flag.
      * @param recovery Recovery flag.
+     * @param expVers Expected versions.
      */
     public GridNearLockFuture(
         GridCacheContext<?, ?> cctx,
@@ -198,7 +206,8 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
         boolean skipStore,
         boolean skipReadThrough,
         boolean keepBinary,
-        boolean recovery
+        boolean recovery,
+        @Nullable Map<KeyCacheObject, GridCacheVersion> expVers
     ) {
         super(CU.boolReducer());
 
@@ -217,6 +226,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
         this.skipReadThrough = skipReadThrough;
         this.keepBinary = keepBinary;
         this.recovery = recovery;
+        this.expVers = expVers;
 
         ignoreInterrupts();
 
@@ -232,6 +242,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
             log = U.logger(cctx.kernalContext(), logRef, GridNearLockFuture.class);
 
         valMap = new ConcurrentHashMap<>();
+        lockRes = expVers != null ? new ConcurrentHashMap<>() : null;
 
         if (tx != null && !tx.updateLockFuture(null, this)) {
             err = tx.timedOut() ? tx.timeoutException() : tx.rollbackException();
@@ -1083,10 +1094,22 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                                         if (tx != null)
                                             tx.addKeyMapping(txKey, mapping.node());
 
+                                        GridCacheVersion expVer = null;
+
+                                        if (expVers != null) {
+                                            expVer = expVers.get(key);
+
+                                            if (expVer == null) {
+                                                throw new IgniteCheckedException("Expected version is not mapped for " +
+                                                    "lock key: " + key);
+                                            }
+                                        }
+
                                         req.addKeyBytes(
                                             key,
                                             retval && dhtVer == null,
-                                            dhtVer); // Include DHT version to match remote DHT entry.
+                                            dhtVer,
+                                            expVer);
 
                                     }
 
@@ -1157,6 +1180,13 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
     }
 
     /**
+     * @return Per-key lock results.
+     */
+    public Map<KeyCacheObject, Boolean> lockResults() {
+        return lockRes != null ? lockRes : Collections.emptyMap();
+    }
+
+    /**
      * Gets next near lock mapping and either acquires dht locks locally or sends near lock request to
      * remote primary node.
      *
@@ -1220,6 +1250,15 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                             int i = 0;
 
                             for (KeyCacheObject k : mappedKeys) {
+                                if (!res.lockResult(i)) {
+                                    if (lockRes != null)
+                                        lockRes.put(k, false);
+
+                                    i++;
+
+                                    continue;
+                                }
+
                                 while (true) {
                                     GridNearCacheEntry entry = cctx.near().entryExx(k, req.topologyVersion());
 
@@ -1282,6 +1321,9 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                                         if (log.isDebugEnabled())
                                             log.debug("Processed response for entry [res=" + res +
                                                 ", entry=" + entry + ']');
+
+                                        if (lockRes != null)
+                                            lockRes.put(k, true);
 
                                         break; // Inner while loop.
                                     }
@@ -1622,6 +1664,15 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
             AffinityTopologyVersion topVer = GridNearLockFuture.this.topVer;
 
             for (KeyCacheObject k : keys) {
+                if (!res.lockResult(i)) {
+                    if (lockRes != null)
+                        lockRes.put(k, false);
+
+                    i++;
+
+                    continue;
+                }
+
                 while (true) {
                     GridNearCacheEntry entry = cctx.near().entryExx(k, topVer);
 
@@ -1702,6 +1753,9 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
 
                         if (log.isDebugEnabled())
                             log.debug("Processed response for entry [res=" + res + ", entry=" + entry + ']');
+
+                        if (lockRes != null)
+                            lockRes.put(k, true);
 
                         break; // Inner while loop.
                     }

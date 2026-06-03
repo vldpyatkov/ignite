@@ -17,6 +17,7 @@
 
 package org.apache.ignite.internal.processors.cache.distributed.near;
 
+import java.util.Arrays;
 import java.util.Collection;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.Order;
@@ -67,6 +68,10 @@ public class GridNearLockResponse extends GridDistributedLockResponse {
      */
     @Order(6)
     boolean compatibleRemapVer;
+
+    /** Per-key lock results. */
+    @Order(7)
+    boolean[] lockRes;
 
     /**
      * Empty constructor.
@@ -122,6 +127,35 @@ public class GridNearLockResponse extends GridDistributedLockResponse {
     /** @return Flag, indicating whether remap version is compatible with current version. */
     public boolean compatibleRemapVersion() {
         return compatibleRemapVer;
+    }
+
+    /**
+     * @param idx Index.
+     * @return {@code True} if lock was acquired for key at the given index.
+     */
+    public boolean lockResult(int idx) {
+        return lockRes == null || lockRes[idx];
+    }
+
+    /**
+     * @param idx Index.
+     * @param res Lock result.
+     */
+    public void lockResult(int idx, boolean res) {
+        if (res) {
+            if (lockRes != null)
+                lockRes[idx] = true;
+
+            return;
+        }
+
+        if (lockRes == null) {
+            lockRes = new boolean[dhtVers.length];
+
+            Arrays.fill(lockRes, true);
+        }
+
+        lockRes[idx] = res;
     }
 
     /**

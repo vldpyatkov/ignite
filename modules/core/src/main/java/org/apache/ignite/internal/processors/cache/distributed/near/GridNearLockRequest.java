@@ -79,6 +79,11 @@ public class GridNearLockRequest extends GridDistributedLockRequest {
     @Order(7)
     String txLbl;
 
+    /** Expected entry versions. */
+    @Order(8)
+    @GridToStringInclude
+    GridCacheVersion[] expVers;
+
     /**
      * Empty constructor.
      */
@@ -261,7 +266,31 @@ public class GridNearLockRequest extends GridDistributedLockRequest {
      * @param dhtVer DHT version.
      */
     public void addKeyBytes(KeyCacheObject key, boolean retVal, @Nullable GridCacheVersion dhtVer) {
+        addKeyBytes(key, retVal, dhtVer, null);
+    }
+
+    /**
+     * Adds a key.
+     *
+     * @param key Key.
+     * @param retVal Flag indicating whether value should be returned.
+     * @param dhtVer DHT version.
+     * @param expVer Expected entry version.
+     */
+    public void addKeyBytes(
+        KeyCacheObject key,
+        boolean retVal,
+        @Nullable GridCacheVersion dhtVer,
+        @Nullable GridCacheVersion expVer
+    ) {
         dhtVers[idx] = dhtVer;
+
+        if (expVer != null) {
+            if (expVers == null)
+                expVers = new GridCacheVersion[dhtVers.length];
+
+            expVers[idx] = expVer;
+        }
 
         // Delegate to super.
         addKeyBytes(key, retVal);
@@ -273,6 +302,36 @@ public class GridNearLockRequest extends GridDistributedLockRequest {
      */
     public GridCacheVersion dhtVersion(int idx) {
         return dhtVers[idx];
+    }
+
+    /**
+     * @param idx Index of the key.
+     * @return Expected version for key at given index.
+     */
+    @Nullable public GridCacheVersion expectedVersion(int idx) {
+        return expVers == null ? null : expVers[idx];
+    }
+
+    /**
+     * @return {@code True} if request contains expected versions.
+     */
+    public boolean hasExpectedVersions() {
+        if (expVers == null)
+            return false;
+
+        for (GridCacheVersion expVer : expVers) {
+            if (expVer != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return Expected versions.
+     */
+    public GridCacheVersion[] expectedVersions() {
+        return expVers;
     }
 
     /**

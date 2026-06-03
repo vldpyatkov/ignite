@@ -538,6 +538,7 @@ public class GridCacheTestEntryEx extends GridMetadataAwareAdapter implements Gr
 
     /** @inheritDoc */
     @Override public boolean tmLock(IgniteInternalTx tx,
+        GridCacheVersion entryVer,
         long timeout,
         @Nullable GridCacheVersion serOrder,
         GridCacheVersion serReadVer,

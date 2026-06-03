@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -86,11 +87,18 @@ import org.apache.ignite.internal.cluster.IgniteClusterEx;
 import org.apache.ignite.internal.managers.discovery.IgniteClusterNode;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.affinity.GridCacheAffinityImpl;
+import org.apache.ignite.internal.processors.cache.distributed.GridDistributedCacheEntry;
+import org.apache.ignite.internal.processors.cache.distributed.GridDistributedLockCancelledException;
 import org.apache.ignite.internal.processors.cache.distributed.IgniteExternalizableExpiryPolicy;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtCacheAdapter;
+import org.apache.ignite.internal.processors.cache.distributed.dht.colocated.GridDhtColocatedCache;
+import org.apache.ignite.internal.processors.cache.distributed.dht.colocated.GridDhtColocatedLockFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtInvalidPartitionException;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtLocalPartition;
 import org.apache.ignite.internal.processors.cache.distributed.dht.topology.GridDhtPartitionTopology;
+import org.apache.ignite.internal.processors.cache.distributed.near.GridNearCacheAdapter;
+import org.apache.ignite.internal.processors.cache.distributed.near.GridNearLockFuture;
+import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTransactionalCache;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxLocal;
 import org.apache.ignite.internal.processors.cache.distributed.near.consistency.GridCompoundReadRepairFuture;
 import org.apache.ignite.internal.processors.cache.distributed.near.consistency.IgniteAtomicConsistencyViolationException;
@@ -98,6 +106,7 @@ import org.apache.ignite.internal.processors.cache.distributed.near.consistency.
 import org.apache.ignite.internal.processors.cache.dr.GridCacheDrInfo;
 import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
+import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxLocalAdapter;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxLocalEx;
@@ -119,6 +128,7 @@ import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
 import org.apache.ignite.internal.transactions.TransactionCheckedException;
 import org.apache.ignite.internal.util.GridSerializableMap;
+import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.future.GridEmbeddedFuture;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
@@ -3002,13 +3012,506 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
     }
 
     /** {@inheritDoc} */
+    @Override public boolean lock(CacheEntry<K, V> entry, long timeout) throws IgniteCheckedException {
+        return lockFutureResult(lockAsync(entry, timeout));
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteInternalFuture<Boolean> lockAsync(K key, long timeout) {
+        A.notNull(key, "key");
+
+        return lockAllAsync(Collections.singletonList(key), timeout);
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteInternalFuture<Boolean> lockAsync(CacheEntry<K, V> entry, long timeout) {
+        return lockEntriesAsync(Collections.singleton(entry), timeout)
+            .chain(new CX1<IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>>, Boolean>() {
+                @Override public Boolean applyx(
+                    IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> fut
+                ) throws IgniteCheckedException {
+                    return Boolean.TRUE.equals(fut.get().get(entry));
+                }
+            });
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean lockAll(@Nullable Collection<? extends K> keys, long timeout)
         throws IgniteCheckedException {
         if (F.isEmpty(keys))
             return true;
 
-        IgniteInternalFuture<Boolean> fut = lockAllAsync(keys, timeout);
+        return lockFutureResult(lockAllAsync(keys, timeout));
+    }
 
+    /** {@inheritDoc} */
+    @Override public Map<CacheEntry<K, V>, Boolean> lockEntries(
+        CacheEntry<K, V> entry,
+        long timeout
+    ) throws IgniteCheckedException {
+        return lockEntriesFutureResult(lockEntriesAsync(Collections.singleton(entry), timeout));
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> lockEntriesAsync(
+        Collection<CacheEntry<K, V>> entries,
+        long timeout
+    ) {
+        if (F.isEmpty(entries))
+            return new GridFinishedFuture<>(Collections.emptyMap());
+
+        GridNearTxLocal tx = ctx.tm().threadLocalTx(ctx);
+
+        if (tx == null || tx.implicit() || tx.optimistic()) {
+            return new GridFinishedFuture<>(
+                new IgniteCheckedException("Failed to acquire transactional locks without active pessimistic " +
+                    "transaction."));
+        }
+
+        if (!tx.init()) {
+            return new GridFinishedFuture<>(
+                new IgniteCheckedException("Failed to acquire transactional locks because transaction has " +
+                    "been completed."));
+        }
+
+        tx.txState().awaitLastFuture();
+
+        GridFutureAdapter<Map<CacheEntry<K, V>, Boolean>> enlistFut = new GridFutureAdapter<>();
+
+        if (!tx.updateLockFuture(null, enlistFut)) {
+            return tx.finishFuture(enlistFut, tx.timedOut() ? tx.timeoutException() : tx.rollbackException(), false);
+        }
+
+        GridCompoundFuture<Map<CacheEntry<K, V>, Boolean>, Map<CacheEntry<K, V>, Boolean>> fut =
+            new GridCompoundFuture<>(CU.mapsReducer(entries.size()));
+        Collection<VersionedLockEntry> nearMapped = new ArrayList<>();
+        Collection<VersionedLockEntry> mapped = new ArrayList<>();
+
+        try {
+            CacheOperationContext opCtx = ctx.operationContextPerCall();
+
+            tx.addActiveCache(ctx, opCtx != null && opCtx.recovery());
+
+            GridCacheAdapter<K, V> nearCache = this;
+            GridCacheAdapter<K, V> cache = this;
+
+            if (ctx.isNear())
+                cache = ((GridNearCacheAdapter<K, V>)cache).dht();
+
+            for (CacheEntry<K, V> entry : entries) {
+                VersionedLockEntry lockEntry = versionedLockEntry(entry, nearCache);
+
+                if (tx.entry(lockEntry.txKey) != null) {
+                    fut.add(new GridFinishedFuture<>(Collections.singletonMap(lockEntry.entry, true)));
+
+                    continue;
+                }
+
+                if (nearCache.context().isNear()) {
+                    nearMapped.add(lockEntry);
+
+                    continue;
+                }
+
+                if (!cache.context().affinity().primaryByKey(
+                    cache.context().localNode(),
+                    lockEntry.cacheKey,
+                    tx.topologyVersion())
+                ) {
+                    mapped.add(lockEntry);
+
+                    continue;
+                }
+
+                fut.add(lockLocalEntryAsync(lockEntry, timeout, tx, cache));
+            }
+
+            /*
+             * Remote lock futures register themselves as active transaction lock futures. Complete the enlist
+             * future before constructing them, otherwise they observe an unfinished previous future and roll back.
+             */
+            if (!enlistFut.isDone())
+                tx.finishFuture(enlistFut, null, true);
+
+            if (!nearMapped.isEmpty())
+                fut.add(lockNearMappedEntriesAsync(nearCache, nearMapped, tx, timeout));
+
+            if (!mapped.isEmpty())
+                fut.add(lockMappedEntriesAsync(cache, tx, mapped, timeout));
+        }
+        catch (IgniteCheckedException e) {
+            tx.finishFuture(enlistFut, e, true);
+
+            return new GridFinishedFuture<>(e);
+        }
+        finally {
+            if (!enlistFut.isDone())
+                tx.finishFuture(enlistFut, null, true);
+        }
+
+        fut.markInitialized();
+
+        return fut;
+    }
+
+    /**
+     * @param entry Entry to lock.
+     * @param cache Cache.
+     * @return Versioned lock entry.
+     * @throws IgniteCheckedException If failed.
+     */
+    private VersionedLockEntry versionedLockEntry(
+        CacheEntry<K, V> entry,
+        GridCacheAdapter<K, V> cache
+    ) throws IgniteCheckedException {
+        A.notNull(entry, "entry");
+        A.notNull(entry.getKey(), "entry.key");
+        A.notNull(entry.version(), "entry.version");
+
+        if (!(entry.version() instanceof GridCacheVersion)) {
+            throw new IgniteCheckedException("Failed to acquire transactional lock for entry with unsupported " +
+                "version type [entry=" + entry + ", version=" + entry.version() + ']');
+        }
+
+        KeyCacheObject cacheKey = cache.context().toCacheKeyObject(entry.getKey());
+
+        return new VersionedLockEntry(
+            entry,
+            cacheKey,
+            cache.context().txKey(cacheKey),
+            cache.context().toCacheObject(entry.getValue()),
+            (GridCacheVersion)entry.version());
+    }
+
+    /**
+     * @param lockEntry Entry to lock.
+     * @param timeout Lock timeout.
+     * @param tx Transaction.
+     * @param cache Cache.
+     * @return Lock future.
+     */
+    private IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> lockLocalEntryAsync(
+        VersionedLockEntry lockEntry,
+        long timeout,
+        GridNearTxLocal tx,
+        GridCacheAdapter<K, V> cache
+    ) throws IgniteCheckedException {
+        while (true) {
+            GridCacheEntryEx cacheEntry = cache.entryEx(lockEntry.cacheKey);
+            boolean entryEnlisted = false;
+
+            try {
+                cacheEntry.unswap();
+
+                IgniteTxEntry txEntry = tx.addEntry(GridCacheOperation.READ,
+                    lockEntry.val,
+                    null,
+                    null,
+                    cacheEntry,
+                    null,
+                    null,
+                    true,
+                    -1L,
+                    -1L,
+                    null,
+                    false,
+                    false,
+                    false,
+                    CU.isNearEnabled(ctx));
+
+                entryEnlisted = true;
+
+                GridDistributedCacheEntry distributedEntry = (GridDistributedCacheEntry)cacheEntry;
+                boolean locked = distributedEntry.tmLock(tx, lockEntry.expVer, timeout, null, null, false);
+
+                if (!locked || distributedEntry.readyLock(tx.xidVersion()) == null) {
+                    tx.clearEntry(lockEntry.txKey);
+
+                    if (locked)
+                        cacheEntry.txUnlock(tx);
+
+                    return new GridFinishedFuture<>(Collections.singletonMap(lockEntry.entry, false));
+                }
+
+                tx.colocatedLocallyMapped(true);
+                tx.addKeyMapping(lockEntry.txKey, cache.context().localNode());
+                tx.markExplicit(cache.context().localNodeId());
+                txEntry.markLocked();
+
+                return new GridFinishedFuture<>(Collections.singletonMap(lockEntry.entry, true));
+            }
+            catch (GridCacheEntryRemovedException ignored) {
+                if (entryEnlisted)
+                    tx.clearEntry(lockEntry.txKey);
+
+                if (log.isDebugEnabled())
+                    log.debug("Got removed entry while acquiring transactional lock by version (will retry): " +
+                        lockEntry.entry.getKey());
+            }
+            catch (GridDistributedLockCancelledException e) {
+                return new GridFinishedFuture<>(new IgniteCheckedException("Failed to acquire transactional lock " +
+                    "because lock was cancelled [key=" + lockEntry.entry.getKey() +
+                    ", expected=" + lockEntry.expVer + ", tx=" +
+                    tx.xidVersion() + ']', e));
+            }
+        }
+    }
+
+    /**
+     * @param cache Near cache.
+     * @param entries Entries.
+     * @param tx Transaction.
+     * @param timeout Lock timeout.
+     * @return Lock future.
+     */
+    private IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> lockNearMappedEntriesAsync(
+        GridCacheAdapter<K, V> cache,
+        Collection<VersionedLockEntry> entries,
+        GridNearTxLocal tx,
+        long timeout
+    ) {
+        Collection<KeyCacheObject> keys = new ArrayList<>(entries.size());
+        Map<KeyCacheObject, GridCacheVersion> expVers = new HashMap<>(entries.size());
+        Map<KeyCacheObject, VersionedLockEntry> entriesByKey = new HashMap<>(entries.size());
+        GridNearTransactionalCache<K, V> nearCache = (GridNearTransactionalCache<K, V>)cache;
+
+        for (VersionedLockEntry lockEntry : entries) {
+            GridCacheEntryEx entry = nearCache.entryEx(lockEntry.cacheKey);
+
+            lockEntry.txEntry = tx.addEntry(GridCacheOperation.READ,
+                lockEntry.val,
+                null,
+                null,
+                entry,
+                null,
+                null,
+                true,
+                -1L,
+                -1L,
+                null,
+                false,
+                false,
+                false,
+                true);
+
+            keys.add(lockEntry.cacheKey);
+            expVers.put(lockEntry.cacheKey, lockEntry.expVer);
+            entriesByKey.put(lockEntry.cacheKey, lockEntry);
+        }
+
+        GridNearLockFuture lockFut = (GridNearLockFuture)nearCache.lockAllAsync(
+            keys,
+            expVers,
+            timeout,
+            tx,
+            tx.isInvalidate(),
+            true,
+            false,
+            tx.isolation(),
+            -1L,
+            -1L);
+
+        return lockFut
+            .chain(new CX1<IgniteInternalFuture<Boolean>, Map<CacheEntry<K, V>, Boolean>>() {
+                @Override public Map<CacheEntry<K, V>, Boolean> applyx(
+                    IgniteInternalFuture<Boolean> fut
+                ) throws IgniteCheckedException {
+                    Map<CacheEntry<K, V>, Boolean> res = new LinkedHashMap<>(entries.size());
+                    Map<KeyCacheObject, Boolean> lockRes = lockFut.lockResults();
+                    boolean allLocked = versionedLockResult(fut);
+
+                    for (Map.Entry<KeyCacheObject, VersionedLockEntry> e : entriesByKey.entrySet()) {
+                        VersionedLockEntry lockEntry = e.getValue();
+                        Boolean locked = lockRes.get(e.getKey());
+
+                        if (locked == null)
+                            locked = allLocked;
+
+                        if (locked) {
+                            tx.markExplicit(lockEntry.txEntry.nodeId());
+                            lockEntry.txEntry.markLocked();
+                        }
+                        else
+                            tx.clearEntry(lockEntry.txKey);
+
+                        res.put(lockEntry.entry, locked);
+                    }
+
+                    return res;
+                }
+            });
+    }
+
+    /**
+     * @param cache Cache.
+     * @param entries Entries.
+     * @param tx Transaction.
+     * @param timeout Lock timeout.
+     * @return Lock future.
+     */
+    private IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> lockMappedEntriesAsync(
+        GridCacheAdapter<K, V> cache,
+        GridNearTxLocal tx,
+        Collection<VersionedLockEntry> entries,
+        long timeout
+    ) {
+        Collection<KeyCacheObject> keys = new ArrayList<>(entries.size());
+        Map<KeyCacheObject, GridCacheVersion> expVers = new HashMap<>(entries.size());
+        GridDhtColocatedCache<K, V> colocatedCache = (GridDhtColocatedCache<K, V>)cache;
+
+        for (VersionedLockEntry lockEntry : entries) {
+            GridDistributedCacheEntry entry = colocatedCache.entryExx(lockEntry.cacheKey, tx.topologyVersion(), true);
+
+            lockEntry.txEntry = tx.addEntry(GridCacheOperation.READ,
+                lockEntry.val,
+                null,
+                null,
+                entry,
+                null,
+                null,
+                true,
+                -1L,
+                -1L,
+                null,
+                false,
+                false,
+                false,
+                CU.isNearEnabled(ctx));
+
+            keys.add(lockEntry.cacheKey);
+            expVers.put(lockEntry.cacheKey, lockEntry.expVer);
+        }
+
+        GridDhtColocatedLockFuture lockFut = (GridDhtColocatedLockFuture) colocatedCache.lockAllAsync(
+            keys,
+            expVers,
+            timeout,
+            tx,
+            tx.isInvalidate(),
+            true,
+            false,
+            tx.isolation(),
+            -1L,
+            -1L
+        );
+
+        return lockFut.chain(new CX1<IgniteInternalFuture<Boolean>, Map<CacheEntry<K, V>, Boolean>>() {
+                @Override public Map<CacheEntry<K, V>, Boolean> applyx(
+                    IgniteInternalFuture<Boolean> fut
+                ) throws IgniteCheckedException {
+                    boolean allLocked = versionedLockResult(fut);
+                    Map<KeyCacheObject, Boolean> lockRes = lockFut.lockResults();
+                    Map<CacheEntry<K, V>, Boolean> res = new LinkedHashMap<>(entries.size());
+
+                    for (VersionedLockEntry lockEntry : entries) {
+                        Boolean locked0 = lockRes.get(lockEntry.cacheKey);
+                        boolean locked = locked0 != null ? locked0 : allLocked;
+
+                        if (locked) {
+                            tx.markExplicit(lockEntry.txEntry.nodeId());
+                            lockEntry.txEntry.markLocked();
+                        }
+                        else
+                            tx.clearEntry(lockEntry.txKey);
+
+                        res.put(lockEntry.entry, locked);
+                    }
+
+                    return res;
+                }
+            });
+    }
+
+    /**
+     * @param fut Lock future.
+     * @return {@code True} if all locks were acquired.
+     * @throws IgniteCheckedException If failed.
+     */
+    private boolean versionedLockResult(IgniteInternalFuture<Boolean> fut) throws IgniteCheckedException {
+        try {
+            return fut.get();
+        }
+        catch (IgniteTxTimeoutCheckedException e) {
+            return false;
+        }
+        catch (IgniteCheckedException e) {
+            if (CU.isLockTimeoutOrCancelled(e))
+                return false;
+
+            throw e;
+        }
+    }
+
+    /**
+     * Entry prepared for versioned lock.
+     */
+    private class VersionedLockEntry {
+        /** Entry. */
+        private final CacheEntry<K, V> entry;
+
+        /** Key. */
+        private final KeyCacheObject cacheKey;
+
+        /** Transaction key. */
+        private final IgniteTxKey txKey;
+
+        /** Value. */
+        private final CacheObject val;
+
+        /** Expected version. */
+        private final GridCacheVersion expVer;
+
+        /** Transaction entry. */
+        private IgniteTxEntry txEntry;
+
+        /**
+         * @param entry Entry.
+         * @param cacheKey Key.
+         * @param txKey Transaction key.
+         * @param val Value.
+         * @param expVer Expected version.
+         */
+        private VersionedLockEntry(
+            CacheEntry<K, V> entry,
+            KeyCacheObject cacheKey,
+            IgniteTxKey txKey,
+            CacheObject val,
+            GridCacheVersion expVer
+        ) {
+            this.entry = entry;
+            this.cacheKey = cacheKey;
+            this.txKey = txKey;
+            this.val = val;
+            this.expVer = expVer;
+        }
+    }
+
+    /**
+     * @param fut Lock future.
+     * @return Lock result.
+     * @throws IgniteCheckedException If failed.
+     */
+    private boolean lockFutureResult(IgniteInternalFuture<Boolean> fut) throws IgniteCheckedException {
+        return lockFutureResult0(fut);
+    }
+
+    /**
+     * @param fut Lock future.
+     * @return Lock result.
+     * @throws IgniteCheckedException If failed.
+     */
+    private Map<CacheEntry<K, V>, Boolean> lockEntriesFutureResult(
+        IgniteInternalFuture<Map<CacheEntry<K, V>, Boolean>> fut
+    ) throws IgniteCheckedException {
+        return lockFutureResult0(fut);
+    }
+
+    /**
+     * @param fut Lock future.
+     * @return Lock result.
+     * @throws IgniteCheckedException If failed.
+     */
+    private <T> T lockFutureResult0(IgniteInternalFuture<T> fut) throws IgniteCheckedException {
         boolean isInterrupted = false;
 
         try {
@@ -3042,13 +3545,6 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
             if (isInterrupted)
                 Thread.currentThread().interrupt();
         }
-    }
-
-    /** {@inheritDoc} */
-    @Override public IgniteInternalFuture<Boolean> lockAsync(K key, long timeout) {
-        A.notNull(key, "key");
-
-        return lockAllAsync(Collections.singletonList(key), timeout);
     }
 
     /** {@inheritDoc} */

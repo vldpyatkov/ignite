@@ -498,7 +498,9 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
         boolean reenter,
         boolean tx,
         boolean implicitSingle,
-        boolean read) throws GridCacheEntryRemovedException {
+        boolean read,
+        GridCacheVersion entryVer
+    ) throws GridCacheEntryRemovedException {
         return addNearLocal(
             null,
             threadId,

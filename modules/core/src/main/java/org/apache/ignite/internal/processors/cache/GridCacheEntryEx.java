@@ -489,6 +489,7 @@ public interface GridCacheEntryEx {
      * for optimistic transactions.
      *
      * @param tx Cache transaction.
+     * @param entryVer Expected entry to verify or {@code null} if no version check is required.
      * @param timeout Timeout for lock acquisition.
      * @param serOrder Version for serializable transactions ordering.
      * @param serReadVer Optional read entry version for optimistic serializable transaction.
@@ -498,6 +499,7 @@ public interface GridCacheEntryEx {
      * @throws GridDistributedLockCancelledException If lock has been cancelled.
      */
     public boolean tmLock(IgniteInternalTx tx,
+        GridCacheVersion entryVer,
         long timeout,
         @Nullable GridCacheVersion serOrder,
         @Nullable GridCacheVersion serReadVer,
