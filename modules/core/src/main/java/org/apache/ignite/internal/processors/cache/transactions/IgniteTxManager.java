@@ -2008,12 +2008,8 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
      * @param entries Entries to unlock.
      */
     private void unlockMultiple(IgniteInternalTx tx, Iterable<IgniteTxEntry> entries) {
-        for (IgniteTxEntry txEntry : entries) {
-            if (txEntry.isRead() && tx.pessimistic() && tx.readCommitted() && !txEntry.locked())
-                continue;
-
+        for (IgniteTxEntry txEntry : entries)
             txUnlock(tx, txEntry);
-        }
     }
 
     /**

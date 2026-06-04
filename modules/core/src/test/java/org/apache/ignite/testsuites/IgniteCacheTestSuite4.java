@@ -51,6 +51,7 @@ import org.apache.ignite.internal.processors.cache.CacheStoreUsageMultinodeStati
 import org.apache.ignite.internal.processors.cache.CacheVersionedEntryTransactionalLockTest;
 import org.apache.ignite.internal.processors.cache.CacheTxNotAllowReadFromBackupTest;
 import org.apache.ignite.internal.processors.cache.CrossCacheLockTest;
+import org.apache.ignite.internal.processors.cache.EntryLockTest;
 import org.apache.ignite.internal.processors.cache.GridCacheMarshallingNodeJoinSelfTest;
 import org.apache.ignite.internal.processors.cache.GridCacheMultinodeUpdateAtomicNearEnabledSelfTest;
 import org.apache.ignite.internal.processors.cache.GridCacheMultinodeUpdateAtomicSelfTest;
@@ -302,6 +303,7 @@ public class IgniteCacheTestSuite4 {
 
         // Versioned entry tests
         GridTestUtils.addTestIfNeeded(suite, CacheVersionedEntryTransactionalLockTest.class, ignoredTests);
+        GridTestUtils.addTestIfNeeded(suite, EntryLockTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, CacheVersionedEntryPartitionedAtomicSelfTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, CacheVersionedEntryPartitionedTransactionalSelfTest.class, ignoredTests);
         GridTestUtils.addTestIfNeeded(suite, CacheVersionedEntryReplicatedAtomicSelfTest.class, ignoredTests);

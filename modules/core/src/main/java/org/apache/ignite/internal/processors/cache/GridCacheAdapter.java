@@ -3235,7 +3235,6 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
                 tx.colocatedLocallyMapped(true);
                 tx.addKeyMapping(lockEntry.txKey, cache.context().localNode());
-                tx.markExplicit(cache.context().localNodeId());
                 txEntry.markLocked();
 
                 return new GridFinishedFuture<>(Collections.singletonMap(lockEntry.entry, true));
@@ -3328,7 +3327,6 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                             locked = allLocked;
 
                         if (locked) {
-                            tx.markExplicit(lockEntry.txEntry.nodeId());
                             lockEntry.txEntry.markLocked();
                         }
                         else
@@ -3382,7 +3380,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
             expVers.put(lockEntry.cacheKey, lockEntry.expVer);
         }
 
-        GridDhtColocatedLockFuture lockFut = (GridDhtColocatedLockFuture) colocatedCache.lockAllAsync(
+        GridDhtColocatedLockFuture lockFut = (GridDhtColocatedLockFuture)colocatedCache.lockAllAsync(
             keys,
             expVers,
             timeout,
@@ -3408,7 +3406,6 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                         boolean locked = locked0 != null ? locked0 : allLocked;
 
                         if (locked) {
-                            tx.markExplicit(lockEntry.txEntry.nodeId());
                             lockEntry.txEntry.markLocked();
                         }
                         else

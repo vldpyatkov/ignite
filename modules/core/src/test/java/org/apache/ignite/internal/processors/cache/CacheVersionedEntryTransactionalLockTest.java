@@ -33,6 +33,7 @@ import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -152,36 +153,36 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
     public void testLockBeforePutLocalKeyTest() throws Exception {
         IgniteCache<Integer, Integer> cache = transactionalCache(ignite0);
 
-        int primaryKey = primaryKey(cache);
+        int key = primaryKey(cache);
 
-        checkLockBeforePut(cache, primaryKey, READ_COMMITTED);
+        checkLockBeforePut(cache, key, READ_COMMITTED);
     }
 
     @Test
     public void testLockBeforePutRemoteKeyTest() throws Exception {
         IgniteCache<Integer, Integer> cache = transactionalCache(ignite0);
 
-        int primaryKey = primaryKey(ignite1.cache(DEFAULT_CACHE_NAME));
+        int key = primaryKey(ignite1.cache(DEFAULT_CACHE_NAME));
 
-        checkLockBeforePut(cache, primaryKey, REPEATABLE_READ);
+        checkLockBeforePut(cache, key, REPEATABLE_READ);
     }
 
     @Test
     public void testLockBeforePutLocalKeyRepeatableReadTest() throws Exception {
         IgniteCache<Integer, Integer> cache = transactionalCache(ignite0);
 
-        int primaryKey = primaryKey(cache);
+        int key = primaryKey(cache);
 
-        checkLockBeforePut(cache, primaryKey, REPEATABLE_READ);
+        checkLockBeforePut(cache, key, REPEATABLE_READ);
     }
 
     @Test
     public void testLockBeforePutRemoteKeyRepeatableReadTest() throws Exception {
         IgniteCache<Integer, Integer> cache = transactionalCache(ignite0);
 
-        int primaryKey = primaryKey(ignite1.cache(DEFAULT_CACHE_NAME));
+        int key = primaryKey(ignite1.cache(DEFAULT_CACHE_NAME));
 
-        checkLockBeforePut(cache, primaryKey, REPEATABLE_READ);
+        checkLockBeforePut(cache, key, REPEATABLE_READ);
     }
 
     @Test
@@ -198,24 +199,58 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
         CacheEntry<Integer, Integer> remoteEntry = cache.getEntry(remoteKey);
 
         try (Transaction tx = ignite0.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
-            acquireLockForEntry(cache, localEntry, 0);
-            acquireLockForEntry(cache, remoteEntry, 0);
+            assertTrue(acquireLockForEntry(cache, localEntry, 0));
+            assertTrue(acquireLockForEntry(cache, remoteEntry, 0));
 
-//            tx.commit();
+            tx.commit();
         }
 
         assertEquals(localEntry.version(), cache.getEntry(localKey).version());
         assertEquals(remoteEntry.version(), cache.getEntry(remoteKey).version());
 
         try (Transaction tx = ignite0.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
-            acquireLockForEntry(cache, localEntry, 0);
-            acquireLockForEntry(cache, remoteEntry, 0);
+            assertTrue(acquireLockForEntry(cache, localEntry, 0));
+            assertTrue(acquireLockForEntry(cache, remoteEntry, 0));
 
             tx.rollback();
         }
 
         assertEquals(localEntry.version(), cache.getEntry(localKey).version());
         assertEquals(remoteEntry.version(), cache.getEntry(remoteKey).version());
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    @Test
+    @Ignore
+    public void testVersionedEntryLockReturnsFalseWhenEntryIsLockedByAnotherTransaction() throws Exception {
+        Ignite holder = grid(0);
+        Ignite initiator = grid(1);
+
+        IgniteCache<Integer, Integer> holderCache = transactionalCache(holder);
+        IgniteCache<Integer, Integer> cache = initiator.cache(DEFAULT_CACHE_NAME);
+
+        int primaryKey = primaryKey(holderCache);
+
+        holderCache.put(primaryKey, 0);
+
+        CacheEntry<Integer, Integer> entry = holderCache.getEntry(primaryKey);
+
+        try (Transaction holderTx = holder.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
+            holderCache.put(primaryKey, 42);
+
+            try (Transaction tx = initiator.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
+                assertFalse(acquireLockForEntry(cache, entry, 10));
+
+                tx.rollback();
+            }
+
+            holderTx.rollback();
+        }
+
+        assertEquals(0, holderCache.get(primaryKey).intValue());
+        assertEquals(0, cache.get(primaryKey).intValue());
     }
 
     private void checkLockBeforePut(IgniteCache<Integer, Integer> cache, int key, TransactionIsolation txIsolation) throws IgniteCheckedException {
@@ -249,6 +284,7 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
         }
 
         assertEquals(1, cache.get(key).intValue());
+        assertTrue(cache.getEntry(key).version().compareTo(entry.version()) > 0);
     }
 
     @SuppressWarnings("unchecked")
