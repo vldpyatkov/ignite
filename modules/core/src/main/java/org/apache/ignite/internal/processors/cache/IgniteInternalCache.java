@@ -1346,6 +1346,33 @@ public interface IgniteInternalCache<K, V> extends Iterable<Cache.Entry<K, V>> {
     public boolean isLocked(K key);
 
     /**
+     * Acquires transactional lock for a cached object represented by the given entry only if a current entry version
+     * is equal to the entry version. This method works only in {@link TransactionConcurrency#PESSIMISTIC} transaction.
+     *
+     * @param entry Entry whose key, value and version should be used.
+     * @param waitTimeout Timeout in milliseconds to wait for lock to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      lock cannot be acquired immediately).
+     * @return {@code True} if lock was acquired with the same entry version.
+     * @throws IgniteCheckedException If lock acquisition resulted in an error.
+     */
+    public boolean lockTxEntry(CacheEntry<K, V> entry, long waitTimeout) throws IgniteCheckedException;
+
+    /**
+     * Asynchronously transactional lock for a cached object represented by the given entry only if a current entry
+     * version is equal to the entry version. This method works only in
+     * {@link TransactionConcurrency#PESSIMISTIC} transaction.
+     *
+     * @param entry Entry whose key, value and version should be used.
+     * @param waitTimeout Timeout in milliseconds to wait for lock to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      lock cannot be acquired immediately).
+     * @return {@code True} if lock was acquired with the same entry version.
+     * @throws IgniteCheckedException If lock acquisition resulted in an error.
+     */
+    public IgniteInternalFuture<Boolean> lockTxEntryAsync(CacheEntry<K, V> entry, long waitTimeout);
+
+    /**
      * Checks if current thread owns a lock on this key.
      * <p>
      * This is a local in-VM operation and does not involve any network trips
