@@ -20,22 +20,28 @@ package org.apache.ignite.internal.processors.cache;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheEntry;
+import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.configuration.CacheConfiguration;
+import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionTimeoutException;
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
+import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
 import static org.apache.ignite.transactions.TransactionConcurrency.PESSIMISTIC;
 import static org.apache.ignite.transactions.TransactionIsolation.READ_COMMITTED;
@@ -46,8 +52,14 @@ import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_REA
  */
 @RunWith(Parameterized.class)
 public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
+    @ClassRule
+    public static Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+
     /** */
     private static final int KEY = 1;
+
+    /** */
+    private static final int INIT_VAL = 1;
 
     /** */
     private static Ignite ignite;
@@ -56,6 +68,14 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
     @Parameterized.Parameter(0)
     public boolean commit;
 
+    /** */
+    @Parameterized.Parameter(1)
+    public boolean useNearCache;
+
+    /** */
+    @Parameterized.Parameter(2)
+    public CacheMode cacheMode;
+
     /** Cache. */
     private IgniteCache<Integer, Integer> cache;
 
@@ -63,11 +83,17 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
      * Returns data for test.
      * @return Test parameters.
      */
-    @Parameterized.Parameters(name = "commit={0}")
+    @Parameterized.Parameters(name = "commit={0}, useNearCache={1}, cacheMode={2}")
     public static Collection<Object[]> testData() {
         return List.of(new Object[][] {
-            {false},
-            {true}
+            {false, false, PARTITIONED},
+            {false, false, REPLICATED},
+            {true, false, PARTITIONED},
+            {true, false, REPLICATED},
+            {false, true, PARTITIONED},
+            {false, true, REPLICATED},
+            {false, false, PARTITIONED},
+            {false, false, REPLICATED},
         });
     }
 
@@ -90,17 +116,17 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
     @Override protected void beforeTest() throws Exception {
         super.beforeTest();
 
-        cache = ignite.getOrCreateCache(new CacheConfiguration<Integer, Integer>(DEFAULT_CACHE_NAME)
+        cache = ignite.createCache(new CacheConfiguration<Integer, Integer>(DEFAULT_CACHE_NAME)
             .setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL)
-            .setCacheMode(PARTITIONED));
+            .setNearConfiguration(useNearCache ? new NearCacheConfiguration<>() : null)
+            .setCacheMode(cacheMode));
 
-        cache.put(KEY, KEY);
+        cache.put(KEY, INIT_VAL);
     }
 
     /** {@inheritDoc} */
     @Override protected void afterTest() throws Exception {
-//        ignite.destroyCache(DEFAULT_CACHE_NAME);
-        ignite.cache(DEFAULT_CACHE_NAME).clear();
+        ignite.destroyCache(DEFAULT_CACHE_NAME);
 
         super.afterTest();
     }
@@ -119,10 +145,11 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
 
             checkInaccessInOtherTx(cache);
 
-            tx.commit();
+            if (commit)
+                tx.commit();
         }
 
-        assertEquals(KEY, cache.get(KEY).intValue());
+        assertEquals(INIT_VAL, cache.get(KEY).intValue());
     }
 
     /**
@@ -141,7 +168,8 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
 
             checkAccessInOtherTx(cache);
 
-            tx.commit();
+            if (commit)
+                tx.commit();
         }
 
         assertEquals(2, cache.get(KEY).intValue());
@@ -159,16 +187,17 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
 
             checkInaccessInOtherTx(cache);
 
-            assertEquals(1, cache.get(KEY).intValue());
+            assertEquals(entry.getValue(), cache.get(KEY));
 
             cache.put(KEY, 2);
 
             assertEquals(2, cache.get(KEY).intValue());
 
-            tx.commit();
+            if (commit)
+                tx.commit();
         }
 
-        assertEquals(2, cache.get(KEY).intValue());
+        assertEquals(commit ? 2 : INIT_VAL, cache.get(KEY).intValue());
     }
 
     /**
