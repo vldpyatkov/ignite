@@ -3162,8 +3162,11 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                 if (ex != null)
                     return new GridFinishedFuture<>(ex);
 
-                if (!locked)
+                if (!locked) {
+                    tx.removeAndUnlockTxEntry(txEntry);
+
                     return new GridFinishedFuture<>(false);
+                }
 
                 try {
                     GridCacheEntryEx cached = txEntry.cached();
@@ -3178,9 +3181,16 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                         false,
                         null);
 
-                    return new GridFinishedFuture<>(getRes != null && expVer.equals(getRes.version()));
+                    if (getRes != null && expVer.equals(getRes.version()))
+                        return new GridFinishedFuture<>(true);
+
+                    tx.removeAndUnlockTxEntry(txEntry);
+
+                    return new GridFinishedFuture<>(false);
                 }
                 catch (IgniteCheckedException | GridCacheEntryRemovedException e) {
+                    tx.removeAndUnlockTxEntry(txEntry);
+
                     return new GridFinishedFuture<>(e);
                 }
             }

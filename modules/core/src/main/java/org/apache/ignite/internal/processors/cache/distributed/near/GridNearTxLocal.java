@@ -3212,6 +3212,17 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
     }
 
     /**
+     * Removes transaction entry and releases its acquired transactional lock.
+     *
+     * @param entry Entry to remove and unlock.
+     */
+    public void removeAndUnlockTxEntry(IgniteTxEntry entry) {
+        txState().removeEntry(entry.txKey());
+        removeEntryMappings(entry);
+        unlockTxEntries(Collections.singleton(entry));
+    }
+
+    /**
      * @param entry Entry.
      */
     private void removeEntryFromMappings(IgniteTxEntry entry) {
