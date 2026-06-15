@@ -773,7 +773,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
 
             set = cctx.tm().setTxTopologyHint(tx.topologyVersionSnapshot());
 
-            if (success)
+            if (success || !rollback)
                 tx.clearLockFuture(this);
         }
 

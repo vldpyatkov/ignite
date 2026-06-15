@@ -864,6 +864,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
         // Set message into thread context.
         GridDhtTxLocal tx = null;
 
+        boolean txCreated = false;
+
         try {
             int cnt = keys.size();
 
@@ -937,6 +939,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                             req.taskNameHash(),
                             req.txLabel(),
                             null);
+
+                        txCreated = true;
 
                         if (req.syncCommit())
                             tx.syncMode(FULL_SYNC);
@@ -1047,6 +1051,21 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                 if (log.isDebugEnabled())
                     log.debug("Performing DHT lock [tx=" + tx + ", entries=" + entries + ']');
 
+                Collection<IgniteTxKey> addedTxKeys = null;
+
+                if (!txCreated) {
+                    for (GridCacheEntryEx entry : entries) {
+                        IgniteTxKey txKey = entry.txKey();
+
+                        if (tx.entry(txKey) == null) {
+                            if (addedTxKeys == null)
+                                addedTxKeys = new ArrayList<>(entries.size());
+
+                            addedTxKeys.add(txKey);
+                        }
+                    }
+                }
+
                 IgniteInternalFuture<GridCacheReturn> txFut = tx.lockAllAsync(
                     cacheCtx,
                     entries,
@@ -1058,9 +1077,12 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                     req.skipStore(),
                     req.skipReadThrough(),
                     req.keepBinary(),
+                    req.waitTimeout(),
                     req.nearCache());
 
                 final GridDhtTxLocal t = tx;
+                final boolean txCreated0 = txCreated;
+                final Collection<IgniteTxKey> addedTxKeys0 = addedTxKeys;
 
                 return new GridDhtEmbeddedFuture<>(
                     txFut,
@@ -1069,6 +1091,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                             GridCacheReturn o, Exception e) {
                             if (e != null)
                                 e = U.unwrap(e);
+                            else if (o != null && !o.success())
+                                e = new GridCacheLockTimeoutException(req.version());
 
                             // Transaction can be emptied by asynchronous rollback.
                             assert e != null || !t.empty();
@@ -1083,6 +1107,28 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
 
                             assert !t.implicit() : t;
                             assert !t.onePhaseCommit() : t;
+
+                            if (e instanceof GridCacheLockTimeoutException) {
+                                IgniteInternalFuture<IgniteInternalTx> rollbackFut =
+                                    cleanupDhtTxAfterLockTimeout(t, txCreated0, addedTxKeys0);
+
+                                return new GridDhtEmbeddedFuture<>(
+                                    rollbackFut,
+                                    new C2<IgniteInternalTx, Exception, IgniteInternalFuture<GridNearLockResponse>>() {
+                                        @Override public IgniteInternalFuture<GridNearLockResponse> apply(
+                                            IgniteInternalTx ignored,
+                                            Exception e
+                                        ) {
+                                            if (e != null)
+                                                U.error(log, "Failed to rollback DHT transaction after lock timeout: " + t, e);
+
+                                            sendLockReply(nearNode, t, req, resp);
+
+                                            return new GridFinishedFuture<>(resp);
+                                        }
+                                    }
+                                );
+                            }
 
                             sendLockReply(nearNode, t, req, resp);
 
@@ -1188,6 +1234,30 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
         }
 
         return res;
+    }
+
+    /**
+     * Cleans up DHT transaction state after separate lock wait timeout.
+     *
+     * @param tx DHT transaction.
+     * @param txCreated {@code True} if transaction was created by current lock request.
+     * @param addedTxKeys Keys enlisted by current lock request into a pre-existing transaction.
+     * @return Cleanup future.
+     */
+    private IgniteInternalFuture<IgniteInternalTx> cleanupDhtTxAfterLockTimeout(
+        GridDhtTxLocal tx,
+        boolean txCreated,
+        @Nullable Collection<IgniteTxKey> addedTxKeys
+    ) {
+        if (txCreated)
+            return tx.rollbackDhtLocalAsync();
+
+        if (!F.isEmpty(addedTxKeys)) {
+            for (IgniteTxKey txKey : addedTxKeys)
+                tx.clearEntry(txKey);
+        }
+
+        return tx.empty() ? tx.rollbackDhtLocalAsync() : new GridFinishedFuture<>(tx);
     }
 
     /**

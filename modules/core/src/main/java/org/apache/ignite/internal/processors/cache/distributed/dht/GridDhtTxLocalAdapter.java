@@ -52,6 +52,7 @@ import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
+import org.apache.ignite.internal.util.typedef.C2;
 import org.apache.ignite.internal.util.typedef.CX1;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -562,6 +563,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
      * @param needRetVal Return value flag.
      * @param skipStore Skip store flag.
      * @param keepBinary Keep binary flag.
+     * @param waitTimeout Lock wait timeout.
      * @param nearCache {@code True} if near cache enabled on originating node.
      * @return Lock future.
      */
@@ -577,6 +579,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         boolean skipStore,
         boolean skipReadThrough,
         boolean keepBinary,
+        long waitTimeout,
         boolean nearCache
     ) {
         try {
@@ -693,7 +696,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
                 accessTtl,
                 skipStore,
                 skipReadThrough,
-                keepBinary);
+                keepBinary,
+                waitTimeout);
         }
         catch (IgniteCheckedException e) {
             setRollbackOnly();
@@ -712,6 +716,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
      * @param accessTtl TTL for read operation.
      * @param skipStore Skip store flag.
      * @param skipReadThrough Skip read-through cache store flag.
+     * @param waitTimeout Lock wait timeout.
      * @return Future for lock acquisition.
      */
     private IgniteInternalFuture<GridCacheReturn> obtainLockAsync(
@@ -724,7 +729,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         final long accessTtl,
         boolean skipStore,
         boolean skipReadThrough,
-        boolean keepBinary) {
+        boolean keepBinary,
+        long waitTimeout) {
         if (log.isDebugEnabled())
             log.debug("Before acquiring transaction lock on keys [keys=" + passedKeys + ']');
 
@@ -746,7 +752,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
 
         IgniteInternalFuture<Boolean> fut = dhtCache.lockAllAsyncInternal(passedKeys,
             timeout,
-            timeout,
+            waitTimeout == 0 ? timeout : waitTimeout,
             this,
             isInvalidate(),
             read,
@@ -757,6 +763,41 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
             skipStore,
             skipReadThrough,
             keepBinary);
+
+        if (waitTimeoutExpiresFirst(waitTimeout, timeout)) {
+            return new GridEmbeddedFuture<>(
+                fut,
+                new C2<Boolean, Exception, IgniteInternalFuture<GridCacheReturn>>() {
+                    @Override public IgniteInternalFuture<GridCacheReturn> apply(Boolean locked, Exception e) {
+                        if (e != null)
+                            return new GridFinishedFuture<>(e);
+
+                        if (!locked)
+                            return new GridFinishedFuture<>(ret);
+
+                        try {
+                            if (log.isDebugEnabled())
+                                log.debug("Acquired transaction lock on keys: " + passedKeys);
+
+                            postLockWrite(cacheCtx,
+                                passedKeys,
+                                ret,
+                                /*remove*/false,
+                                /*retval*/false,
+                                /*read*/read,
+                                accessTtl,
+                                CU.empty0(),
+                                /*computeInvoke*/false);
+
+                            return new GridFinishedFuture<>(ret);
+                        }
+                        catch (IgniteCheckedException ex) {
+                            return new GridFinishedFuture<>(ex);
+                        }
+                    }
+                }
+            );
+        }
 
         return new GridEmbeddedFuture<>(
             fut,
@@ -779,6 +820,17 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
                 }
             }
         );
+    }
+
+    /**
+     * Cheacks if a wait timeout expires before a transaction timeout.
+     *
+     * @param waitTimeout Lock wait timeout.
+     * @param timeout Transaction timeout.
+     * @return {@code True} if separate lock wait timeout expires before transaction timeout.
+     */
+    private static boolean waitTimeoutExpiresFirst(long waitTimeout, long timeout) {
+        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
     }
 
     /** {@inheritDoc} */
