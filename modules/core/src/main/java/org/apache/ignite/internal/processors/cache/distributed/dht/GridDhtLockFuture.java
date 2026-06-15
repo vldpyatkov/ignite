@@ -470,8 +470,9 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
      * Undoes all locks.
      *
      * @param dist If {@code true}, then remove locks from remote nodes as well.
+     * @param rollback {@code True} if should rollback tx.
      */
-    private void undoLocks(boolean dist) {
+    private void undoLocks(boolean dist, boolean rollback) {
         // Transactions will undo during rollback.
         Collection<GridDhtCacheEntry> entriesCp = entriesCopy();
 
@@ -480,7 +481,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
                 (C1<GridDhtCacheEntry, KeyCacheObject>)GridCacheMapEntry::key), false);
         }
         else {
-            if (tx != null) {
+            if (rollback && tx != null) {
                 if (tx.setRollbackOnly()) {
                     if (log.isDebugEnabled())
                         log.debug("Marked transaction as rollback only because locks could not be acquired: " + tx);
@@ -518,7 +519,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
      *
      */
     private void onFailed() {
-        undoLocks(false);
+        undoLocks(false, true);
 
         onComplete(false, false, true);
     }
@@ -746,11 +747,24 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
      * @return {@code True} if complete by this operation.
      */
     private synchronized boolean onComplete(boolean success, boolean stopping, boolean unlock) {
+        return onComplete(success, stopping, unlock, !success);
+    }
+
+    /**
+     * Completeness callback.
+     *
+     * @param success {@code True} if lock was acquired.
+     * @param stopping {@code True} if node is stopping.
+     * @param unlock {@code True} if locks should be released.
+     * @param rollback {@code True} if should rollback tx on failure.
+     * @return {@code True} if complete by this operation.
+     */
+    private synchronized boolean onComplete(boolean success, boolean stopping, boolean unlock, boolean rollback) {
         if (log.isDebugEnabled())
             log.debug("Received onComplete(..) callback [success=" + success + ", fut=" + this + ']');
 
         if (!success && !stopping && unlock)
-            undoLocks(true);
+            undoLocks(true, rollback);
 
         boolean set = false;
 
@@ -1182,7 +1196,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
 
             boolean releaseLocks = waitTimeoutExpiresFirst() || !(inTx() && cctx.tm().deadlockDetectionEnabled());
 
-            onComplete(false, false, releaseLocks);
+            onComplete(false, false, releaseLocks, !waitTimeoutExpiresFirst());
         }
 
         /** {@inheritDoc} */
