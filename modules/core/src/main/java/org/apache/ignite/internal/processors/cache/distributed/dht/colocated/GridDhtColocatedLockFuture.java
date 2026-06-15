@@ -1274,6 +1274,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
             read,
             retval,
             timeout,
+            waitTimeout,
             createTtl,
             accessTtl,
             skipStore,

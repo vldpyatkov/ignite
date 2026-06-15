@@ -901,6 +901,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
      * @param txRead Tx read.
      * @param retval Return value flag.
      * @param timeout Lock timeout.
+     * @param waitTimeout Lock wait timeout.
      * @param createTtl TTL for create operation.
      * @param accessTtl TTL for read operation.
      * @param skipStore Skip store flag.
@@ -917,6 +918,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
         final boolean txRead,
         final boolean retval,
         final long timeout,
+        final long waitTimeout,
         final long createTtl,
         final long accessTtl,
         final boolean skipStore,
@@ -942,6 +944,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                 txRead,
                 retval,
                 timeout,
+                waitTimeout,
                 createTtl,
                 accessTtl,
                 skipStore,
@@ -964,6 +967,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                             txRead,
                             retval,
                             timeout,
+                            waitTimeout,
                             createTtl,
                             accessTtl,
                             skipStore,
@@ -985,6 +989,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
      * @param txRead Tx read.
      * @param retval Return value flag.
      * @param timeout Lock timeout.
+     * @param waitTimeout Lock wait timeout.
      * @param createTtl TTL for create operation.
      * @param accessTtl TTL for read operation.
      * @param skipStore Skip store flag.
@@ -1000,6 +1005,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
         final boolean txRead,
         boolean retval,
         final long timeout,
+        final long waitTimeout,
         final long createTtl,
         final long accessTtl,
         boolean skipStore,
@@ -1016,7 +1022,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                 txRead,
                 retval,
                 timeout,
-                timeout,
+                waitTimeout == 0 ? timeout : waitTimeout,
                 tx,
                 threadId,
                 createTtl,
@@ -1092,6 +1098,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                 accessTtl,
                 skipStore,
                 skipReadThrough,
+                waitTimeout,
                 keepBinary);
 
             return new GridDhtEmbeddedFuture<>(
@@ -1101,7 +1108,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                         if (e != null)
                             e = U.unwrap(e);
 
-                        assert !tx.empty();
+                        assert e != null || !tx.empty();
 
                         return e;
                     }
