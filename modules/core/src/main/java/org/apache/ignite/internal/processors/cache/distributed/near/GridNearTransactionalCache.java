@@ -287,6 +287,7 @@ public class GridNearTransactionalCache<K, V> extends GridNearCacheAdapter<K, V>
     @Override protected IgniteInternalFuture<Boolean> lockAllAsync(
         Collection<KeyCacheObject> keys,
         long timeout,
+        long waitTimeout,
         IgniteTxLocalEx tx,
         boolean isInvalidate,
         boolean isRead,
@@ -303,6 +304,7 @@ public class GridNearTransactionalCache<K, V> extends GridNearCacheAdapter<K, V>
             isRead,
             retval,
             timeout,
+            waitTimeout,
             createTtl,
             accessTtl,
             opCtx != null && opCtx.skipStore(),

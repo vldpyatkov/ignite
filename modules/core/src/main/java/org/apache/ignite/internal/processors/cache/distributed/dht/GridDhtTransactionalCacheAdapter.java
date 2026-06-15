@@ -721,6 +721,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
     @Override public IgniteInternalFuture<Boolean> lockAllAsync(
         @Nullable Collection<KeyCacheObject> keys,
         long timeout,
+        long waitTimeout,
         IgniteTxLocalEx txx,
         boolean isInvalidate,
         boolean isRead,
@@ -733,6 +734,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
         return lockAllAsyncInternal(
             keys,
             timeout,
+            waitTimeout,
             txx,
             isInvalidate,
             isRead,
@@ -749,7 +751,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
      * Acquires locks in partitioned cache.
      *
      * @param keys Keys to lock.
-     * @param timeout Lock timeout.
+     * @param timeout Transaction timeout.
+     * @param waitTimeout Lock wait timeout.
      * @param txx Transaction.
      * @param isInvalidate Invalidate flag.
      * @param isRead Read flag.
@@ -763,6 +766,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
      */
     public GridDhtFuture<Boolean> lockAllAsyncInternal(@Nullable Collection<KeyCacheObject> keys,
         long timeout,
+        long waitTimeout,
         IgniteTxLocalEx txx,
         boolean isInvalidate,
         boolean isRead,
@@ -789,6 +793,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
             isRead,
             retval,
             timeout,
+            waitTimeout,
             tx,
             tx.threadId(),
             createTtl,
@@ -972,6 +977,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                         req.txRead(),
                         req.needReturnValue(),
                         req.timeout(),
+                        req.waitTimeout(),
                         tx,
                         req.threadId(),
                         req.createTtl(),

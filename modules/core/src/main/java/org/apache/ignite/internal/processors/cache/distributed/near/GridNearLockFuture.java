@@ -124,12 +124,18 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
     /** Timed out flag. */
     private volatile boolean timedOut;
 
+    /** Transaction lock timeout flag. */
+    private volatile boolean txLockTimedOut;
+
     /** Timeout object. */
     @GridToStringExclude
     private volatile LockTimeoutObject timeoutObj;
 
-    /** Lock timeout. */
+    /** Transaction timeout. */
     private final long timeout;
+
+    /** Lock wait timeout. */
+    private final long waitTimeout;
 
     /** Transaction. */
     @GridToStringExclude
@@ -179,7 +185,8 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
      * @param tx Transaction.
      * @param read Read flag.
      * @param retval Flag to return value or not.
-     * @param timeout Lock acquisition timeout.
+     * @param timeout Transaction timeout.
+     * @param waitTimeout Lock wait timeout.
      * @param createTtl TTL for create operation.
      * @param accessTtl TTL for read operation.
      * @param skipStore skipStore
@@ -193,6 +200,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
         boolean read,
         boolean retval,
         long timeout,
+        long waitTimeout,
         long createTtl,
         long accessTtl,
         boolean skipStore,
@@ -211,6 +219,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
         this.read = read;
         this.retval = retval;
         this.timeout = timeout;
+        this.waitTimeout = waitTimeout;
         this.createTtl = createTtl;
         this.accessTtl = accessTtl;
         this.skipStore = skipStore;
@@ -689,7 +698,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
             log.debug("Received onDone(..) callback [success=" + success + ", err=" + err + ", fut=" + this + ']');
 
         if (inTx() && cctx.tm().deadlockDetectionEnabled() &&
-            (this.err instanceof IgniteTxTimeoutCheckedException || timedOut))
+            (this.err instanceof IgniteTxTimeoutCheckedException || txLockTimedOut))
             return false;
 
         // If locks were not acquired yet, delay completion.
@@ -791,7 +800,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
         if (isDone()) // Possible due to async rollback.
             return;
 
-        if (timeout > 0) {
+        if (lockTimeout() > 0) {
             timeoutObj = new LockTimeoutObject();
 
             cctx.time().addTimeoutObject(timeoutObj);
@@ -1062,6 +1071,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                                                 isolation(),
                                                 isInvalidate(),
                                                 timeout,
+                                                waitTimeout,
                                                 mappedKeys.size(),
                                                 inTx() ? tx.size() : mappedKeys.size(),
                                                 inTx() && tx.syncMode() == FULL_SYNC,
@@ -1390,6 +1400,20 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
     }
 
     /**
+     * @return Timeout value for this lock future.
+     */
+    private long lockTimeout() {
+        return waitTimeoutExpiresFirst() ? waitTimeout : timeout;
+    }
+
+    /**
+     * @return {@code True} if separate lock wait timeout expires before transaction timeout.
+     */
+    private boolean waitTimeoutExpiresFirst() {
+        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+    }
+
+    /**
      * Lock request timeout object.
      */
     private class LockTimeoutObject extends GridTimeoutObjectAdapter {
@@ -1397,7 +1421,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
          * Default constructor.
          */
         LockTimeoutObject() {
-            super(timeout);
+            super(lockTimeout());
         }
 
         /** Requested keys. */
@@ -1409,6 +1433,22 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                 log.debug("Timed out waiting for lock response: " + this);
 
             timedOut = true;
+
+            if (waitTimeoutExpiresFirst()) {
+                synchronized (GridNearLockFuture.this) {
+                    requestedKeys = requestedKeys0();
+
+                    clear(); // Stop response processing.
+                }
+
+                synchronized (this) {
+                    onComplete(false, true);
+                }
+
+                return;
+            }
+
+            txLockTimedOut = true;
 
             if (inTx()) {
                 if (cctx.tm().deadlockDetectionEnabled()) {

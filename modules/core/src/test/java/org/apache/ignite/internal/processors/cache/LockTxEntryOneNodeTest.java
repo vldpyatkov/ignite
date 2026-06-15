@@ -179,6 +179,39 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     @Test
+    public void testLockTxEntryReturnsFalseOnTimeoutWhenLockedInOtherTransaction() throws Exception {
+        CacheEntry<Integer, Integer> entry = cache.getEntry(KEY);
+
+        try (Transaction tx = ignite.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
+            assertTrue(acquireLockForEntry(entry, 0));
+
+            IgniteInternalFuture<Boolean> lockFut = GridTestUtils.runAsync(new Callable<Boolean>() {
+                @Override public Boolean call() throws Exception {
+                    try (Transaction tx = ignite.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
+                        boolean locked = acquireLockForEntry(entry, 100);
+
+                        assertFalse(locked);
+
+                        tx.commit();
+
+                        return locked;
+                    }
+                }
+            });
+
+            assertFalse(lockFut.get(10_000));
+
+            if (commit)
+                tx.commit();
+        }
+
+        assertEquals(INIT_VAL, cache.get(KEY).intValue());
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    @Test
     public void testUpdateAfterLock() throws Exception {
         CacheEntry<Integer, Integer> entry = cache.getEntry(KEY);
 

@@ -637,6 +637,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
     @Override public IgniteInternalFuture<Boolean> lockAllAsync(
         Collection<KeyCacheObject> keys,
         long timeout,
+        long waitTimeout,
         @Nullable IgniteTxLocalEx tx,
         boolean isInvalidate,
         boolean isRead,
@@ -657,6 +658,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
             isRead,
             retval,
             timeout,
+            waitTimeout,
             createTtl,
             accessTtl,
             opCtx != null && opCtx.skipStore(),
@@ -1013,6 +1015,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                 cnt,
                 txRead,
                 retval,
+                timeout,
                 timeout,
                 tx,
                 threadId,

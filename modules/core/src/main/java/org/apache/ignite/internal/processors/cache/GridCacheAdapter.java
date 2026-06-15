@@ -589,7 +589,8 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
     /**
      * @param keys Keys to lock.
-     * @param timeout Lock timeout.
+     * @param timeout Transaction timeout.
+     * @param waitTimeout Lock wait timeout.
      * @param tx Transaction.
      * @param isRead {@code True} for read operations.
      * @param retval Flag to return value.
@@ -602,6 +603,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
     public abstract IgniteInternalFuture<Boolean> txLockAsync(
         Collection<KeyCacheObject> keys,
         long timeout,
+        long waitTimeout,
         IgniteTxLocalEx tx,
         boolean isRead,
         boolean retval,
@@ -3146,8 +3148,11 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
         // Acquire transactional lock future from concrete cache implementation. Use txLockAsync which
         // delegates to cache-specific lockAllAsync implementations for distributed caches.
+        long timeout = tx.remainingTime();
+
         IgniteInternalFuture<Boolean> lockFut = txLockAsync(keys,
-            waitTimeout,
+            timeout,
+            waitTimeout == 0 ? timeout : waitTimeout,
             tx,
             /*isRead*/true,
             /*retval*/false,

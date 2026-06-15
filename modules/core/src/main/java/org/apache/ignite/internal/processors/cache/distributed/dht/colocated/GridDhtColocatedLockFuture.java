@@ -142,8 +142,11 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
     @GridToStringExclude
     private volatile LockTimeoutObject timeoutObj;
 
-    /** Lock timeout. */
+    /** Transaction timeout. */
     private final long timeout;
+
+    /** Lock wait timeout. */
+    private final long waitTimeout;
 
     /** Transaction. */
     @GridToStringExclude
@@ -194,7 +197,8 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
      * @param tx Transaction.
      * @param read Read flag.
      * @param retval Flag to return value or not.
-     * @param timeout Lock acquisition timeout.
+     * @param timeout Transaction timeout.
+     * @param waitTimeout Lock wait timeout.
      * @param createTtl TTL for create operation.
      * @param accessTtl TTL for read operation.
      * @param skipStore Skip store flag.
@@ -206,6 +210,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
         boolean read,
         boolean retval,
         long timeout,
+        long waitTimeout,
         long createTtl,
         long accessTtl,
         boolean skipStore,
@@ -223,6 +228,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
         this.read = read;
         this.retval = retval;
         this.timeout = timeout;
+        this.waitTimeout = waitTimeout;
         this.createTtl = createTtl;
         this.accessTtl = accessTtl;
         this.skipStore = skipStore;
@@ -761,7 +767,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
             if (isDone()) // Possible due to async rollback.
                 return;
 
-            if (timeout > 0) {
+            if (lockTimeout() > 0) {
                 timeoutObj = new LockTimeoutObject();
 
                 cctx.time().addTimeoutObject(timeoutObj);
@@ -1078,6 +1084,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
                                         isolation(),
                                         isInvalidate(),
                                         timeout,
+                                        waitTimeout,
                                         mappedKeys.size(),
                                         inTx() ? tx.size() : mappedKeys.size(),
                                         inTx() && tx.syncMode() == FULL_SYNC,
@@ -1460,6 +1467,20 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
     }
 
     /**
+     * @return Timeout value for this lock future.
+     */
+    private long lockTimeout() {
+        return waitTimeoutExpiresFirst() ? waitTimeout : timeout;
+    }
+
+    /**
+     * @return {@code True} if separate lock wait timeout expires before transaction timeout.
+     */
+    private boolean waitTimeoutExpiresFirst() {
+        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+    }
+
+    /**
      * Lock request timeout object.
      */
     private class LockTimeoutObject extends GridTimeoutObjectAdapter {
@@ -1467,7 +1488,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
          * Default constructor.
          */
         LockTimeoutObject() {
-            super(timeout);
+            super(lockTimeout());
         }
 
         /** Requested keys. */
@@ -1477,6 +1498,20 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
         @Override public void onTimeout() {
             if (log.isDebugEnabled())
                 log.debug("Timed out waiting for lock response: " + this);
+
+            if (waitTimeoutExpiresFirst()) {
+                synchronized (GridDhtColocatedLockFuture.this) {
+                    requestedKeys = requestedKeys0();
+
+                    clear(); // Stop response processing.
+                }
+
+                synchronized (this) {
+                    onComplete(false, true);
+                }
+
+                return;
+            }
 
             if (inTx()) {
                 if (cctx.tm().deadlockDetectionEnabled()) {

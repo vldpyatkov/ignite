@@ -154,8 +154,11 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
     @GridToStringExclude
     private LockTimeoutObject timeoutObj;
 
-    /** Lock timeout. */
+    /** Transaction timeout. */
     private final long timeout;
+
+    /** Lock wait timeout. */
+    private final long waitTimeout;
 
     /** Transaction. */
     private final GridDhtTxLocalAdapter tx;
@@ -198,7 +201,8 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
      * @param cnt Number of keys to lock.
      * @param read Read flag.
      * @param needReturnVal Need return value flag.
-     * @param timeout Lock acquisition timeout.
+     * @param timeout Transaction timeout.
+     * @param waitTimeout Lock wait timeout.
      * @param tx Transaction.
      * @param threadId Thread ID.
      * @param accessTtl TTL for read operation.
@@ -213,6 +217,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
         boolean read,
         boolean needReturnVal,
         long timeout,
+        long waitTimeout,
         GridDhtTxLocalAdapter tx,
         long threadId,
         long createTtl,
@@ -234,6 +239,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
         this.read = read;
         this.needReturnVal = needReturnVal;
         this.timeout = timeout;
+        this.waitTimeout = waitTimeout;
         this.tx = tx;
         this.createTtl = createTtl;
         this.accessTtl = accessTtl;
@@ -796,7 +802,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
 
             readyLocks();
 
-            if (timeout > 0 && !isDone()) { // Prevent memory leak if future is completed by call to readyLocks.
+            if (lockTimeout() > 0 && !isDone()) { // Prevent memory leak if future is completed by call to readyLocks.
                 timeoutObj = new LockTimeoutObject();
 
                 cctx.time().addTimeoutObject(timeoutObj);
@@ -1128,6 +1134,20 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
     }
 
     /**
+     * @return Timeout value for this lock future.
+     */
+    private long lockTimeout() {
+        return waitTimeoutExpiresFirst() ? waitTimeout : timeout;
+    }
+
+    /**
+     * @return {@code True} if separate lock wait timeout expires before transaction timeout.
+     */
+    private boolean waitTimeoutExpiresFirst() {
+        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+    }
+
+    /**
      * Lock request timeout object.
      */
     private class LockTimeoutObject extends GridTimeoutObjectAdapter {
@@ -1135,7 +1155,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
          * Default constructor.
          */
         LockTimeoutObject() {
-            super(timeout);
+            super(lockTimeout());
         }
 
         /** {@inheritDoc} */
@@ -1160,7 +1180,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
                 clear();
             }
 
-            boolean releaseLocks = !(inTx() && cctx.tm().deadlockDetectionEnabled());
+            boolean releaseLocks = waitTimeoutExpiresFirst() || !(inTx() && cctx.tm().deadlockDetectionEnabled());
 
             onComplete(false, false, releaseLocks);
         }
