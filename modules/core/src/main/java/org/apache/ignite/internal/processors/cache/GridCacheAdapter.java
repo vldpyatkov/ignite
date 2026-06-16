@@ -3122,7 +3122,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
         GridCacheVersion expVer = (GridCacheVersion)entry.version();
         CacheObject val = ctx.toCacheObject(entry.getValue());
-        GridCacheEntryEx entryEx = entryEx(key);
+        GridCacheEntryEx entryEx = ctx.isColocated() ? ctx.colocated().entryExx(key, tx.topologyVersion(), true) : entryEx(key);
 
         try {
             tx.addActiveCache(ctx, false);
