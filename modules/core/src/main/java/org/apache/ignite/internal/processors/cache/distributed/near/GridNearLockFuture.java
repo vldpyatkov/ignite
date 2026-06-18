@@ -711,6 +711,9 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
         if (err != null)
             success = false;
 
+        if (!success && err == null && waitTimeoutExpiresFirst())
+            return onComplete(false, true, false);
+
         return onComplete(success, true);
     }
 
@@ -722,6 +725,18 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
      * @return {@code True} if complete by this operation.
      */
     private boolean onComplete(boolean success, boolean distribute) {
+        return onComplete(success, distribute, !success);
+    }
+
+    /**
+     * Completeness callback.
+     *
+     * @param success {@code True} if lock was acquired.
+     * @param distribute {@code True} if need to distribute lock removal in case of failure.
+     * @param rollback {@code True} if should rollback tx on failure.
+     * @return {@code True} if complete by this operation.
+     */
+    private boolean onComplete(boolean success, boolean distribute, boolean rollback) {
         if (log.isDebugEnabled()) {
             log.debug("Received onComplete(..) callback [success=" + success + ", distribute=" + distribute +
                 ", fut=" + this + ']');
@@ -730,13 +745,13 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
         if (!DONE_UPD.compareAndSet(this, 0, 1))
             return false;
 
-        if (!success)
+        if (!success && rollback)
             undoLocks(distribute, true);
 
         if (tx != null) {
             cctx.tm().txContext(tx);
 
-            if (success)
+            if (!rollback)
                 tx.clearLockFuture(this);
         }
 
@@ -1442,7 +1457,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                 }
 
                 synchronized (this) {
-                    onComplete(false, true);
+                    onComplete(false, true, false);
                 }
 
                 return;
@@ -1607,6 +1622,12 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                     onDone(false);
                 else
                     onDone(res.error());
+
+                return;
+            }
+
+            if (!res.lockAcquired()) {
+                onDone(false);
 
                 return;
             }

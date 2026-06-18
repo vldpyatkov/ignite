@@ -3109,15 +3109,20 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
             return new GridFinishedFuture<>(new IgniteTxRollbackCheckedException(
                 "Failed to acquire transactional lock because transaction has been completed: " + tx));
 
+        KeyCacheObject key = ctx.toCacheKeyObject(entry.getKey());
+        IgniteTxEntry lockedTxEntry = tx.entry(ctx.txKey(key));
+
+        if (lockedTxEntry != null && lockedTxEntry.locked())
+            return new GridFinishedFuture<>(true);
+
         if (!(entry.version() instanceof GridCacheVersion)) {
             return new GridFinishedFuture<>(new IgniteCheckedException("Failed to acquire transactional lock for entry with unsupported " +
                 "version type [entry=" + entry + ", version=" + entry.version() + ']'));
         }
 
         GridCacheVersion expVer = (GridCacheVersion)entry.version();
-        KeyCacheObject key = ctx.toCacheKeyObject(entry.getKey());
         CacheObject val = ctx.toCacheObject(entry.getValue());
-        GridCacheEntryEx entryEx = entryEx(key);
+        GridCacheEntryEx entryEx = ctx.isColocated() ? ctx.colocated().entryExx(key, tx.topologyVersion(), true) : entryEx(key);
 
         try {
             tx.addActiveCache(ctx, false);

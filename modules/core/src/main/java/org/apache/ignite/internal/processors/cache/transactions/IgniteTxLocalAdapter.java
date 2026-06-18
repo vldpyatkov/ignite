@@ -1593,9 +1593,10 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
         /**
          * @param arg Argument.
          * @param commit Commit flag.
+         * @param rollback Rollback flag.
          */
-        protected PLC1(T arg, boolean commit) {
-            super(arg, commit);
+        protected PLC1(T arg, boolean commit, boolean rollback) {
+            super(arg, commit, rollback);
         }
     }
 
@@ -1626,13 +1627,16 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
         /** Commit flag. */
         private final boolean commit;
 
+        /** Rollback when a lock doesn't tkae. */
+        private final boolean rollback;
+
         /**
          * Creates a Post-Lock closure that will pass the argument given to the {@code postLock} method.
          *
          * @param arg Argument for {@code postLock}.
          */
         protected PostLockClosure1(T arg) {
-            this(arg, true);
+            this(arg, true, true);
         }
 
         /**
@@ -1640,10 +1644,12 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
          *
          * @param arg Argument for {@code postLock}.
          * @param commit Flag indicating whether commit should be done after postLock.
+         * @param rollback Flag indicating whether rollback should be done if lock is not acquired.
          */
-        protected PostLockClosure1(T arg, boolean commit) {
+        protected PostLockClosure1(T arg, boolean commit, boolean rollback) {
             this.arg = arg;
             this.commit = commit;
+            this.rollback = rollback;
         }
 
         /** {@inheritDoc} */
@@ -1661,7 +1667,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
                 throw new GridClosureException(e);
             }
 
-            if (deadlockErr != null || !locked) {
+            if (deadlockErr != null || (!locked && rollback)) {
                 setRollbackOnly();
 
                 final GridClosureException ex = new GridClosureException(

@@ -1058,6 +1058,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                     req.skipStore(),
                     req.skipReadThrough(),
                     req.keepBinary(),
+                    req.waitTimeout(),
                     req.nearCache());
 
                 final GridDhtTxLocal t = tx;
@@ -1080,6 +1081,9 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                                 t,
                                 t.xidVersion(),
                                 e);
+
+                            if (e == null && !o.success())
+                                resp.lockAcquired(false);
 
                             assert !t.implicit() : t;
                             assert !t.onePhaseCommit() : t;
@@ -1104,7 +1108,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                         @Override public GridNearLockResponse apply(Boolean b, Exception e) {
                             if (e != null)
                                 e = U.unwrap(e);
-                            else if (!b)
+                            else if (!b && !waitTimeoutExpiresFirst(req))
                                 e = new GridCacheLockTimeoutException(req.version());
 
                             GridNearLockResponse res = createLockReply(nearNode,
@@ -1113,6 +1117,9 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                                 null,
                                 mappedVer,
                                 e);
+
+                            if (e == null && !b)
+                                res.lockAcquired(false);
 
                             sendLockReply(nearNode, null, req, res);
 
@@ -1188,6 +1195,14 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
         }
 
         return res;
+    }
+
+    /**
+     * @param req Near lock request.
+     * @return {@code True} if separate lock wait timeout expires before transaction timeout.
+     */
+    private static boolean waitTimeoutExpiresFirst(GridNearLockRequest req) {
+        return req.waitTimeout() > 0 && (req.timeout() <= 0 || req.waitTimeout() < req.timeout());
     }
 
     /**

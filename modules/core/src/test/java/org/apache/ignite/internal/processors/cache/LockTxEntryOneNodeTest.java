@@ -156,6 +156,29 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     @Test
+    public void testLockAlreadyLockedTxEntry() throws Exception {
+        CacheEntry<Integer, Integer> entry = cache.getEntry(KEY);
+
+        try (Transaction tx = ignite.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
+            cache.put(KEY, 2);
+
+            assertTrue(acquireLockForEntry(entry, 0));
+
+            assertEquals(2, cache.get(KEY).intValue());
+
+            checkInaccessInOtherTx(cache);
+
+            if (commit)
+                tx.commit();
+        }
+
+        assertEquals(commit ? 2 : INIT_VAL, cache.get(KEY).intValue());
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    @Test
     public void testFailToLockTxEntryInPessimisticTransaction() throws Exception {
         CacheEntry<Integer, Integer> entry = cache.getEntry(KEY);
 
@@ -187,15 +210,20 @@ public class LockTxEntryOneNodeTest extends GridCommonAbstractTest {
 
             IgniteInternalFuture<Boolean> lockFut = GridTestUtils.runAsync(new Callable<Boolean>() {
                 @Override public Boolean call() throws Exception {
+                    boolean locked = true;
+
                     try (Transaction tx = ignite.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
-                        boolean locked = acquireLockForEntry(entry, 100);
+                        locked = acquireLockForEntry(entry, 100);
 
                         assertFalse(locked);
 
-                        tx.commit();
+                        cache.put(2, 2);
 
-                        return locked;
+                        if (commit)
+                            tx.commit();
                     }
+
+                    return locked;
                 }
             });
 

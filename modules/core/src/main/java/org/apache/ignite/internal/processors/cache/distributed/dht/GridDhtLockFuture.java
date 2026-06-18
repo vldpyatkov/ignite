@@ -733,6 +733,9 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
                     this.err = err;
             }
 
+            if (!success && err == null && waitTimeoutExpiresFirst())
+                return onComplete(false, false, false, false);
+
             return onComplete(success, err instanceof NodeStoppingException, true);
         }
     }
@@ -746,10 +749,23 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
      * @return {@code True} if complete by this operation.
      */
     private synchronized boolean onComplete(boolean success, boolean stopping, boolean unlock) {
+        return onComplete(success, stopping, unlock, !success);
+    }
+
+    /**
+     * Completeness callback.
+     *
+     * @param success {@code True} if lock was acquired.
+     * @param stopping {@code True} if node is stopping.
+     * @param unlock {@code True} if locks should be released.
+     * @param rollback {@code True} if should rollback tx on failure.
+     * @return {@code True} if complete by this operation.
+     */
+    private synchronized boolean onComplete(boolean success, boolean stopping, boolean unlock, boolean rollback) {
         if (log.isDebugEnabled())
             log.debug("Received onComplete(..) callback [success=" + success + ", fut=" + this + ']');
 
-        if (!success && !stopping && unlock)
+        if (!success && !stopping && unlock && rollback)
             undoLocks(true);
 
         boolean set = false;
@@ -759,7 +775,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
 
             set = cctx.tm().setTxTopologyHint(tx.topologyVersionSnapshot());
 
-            if (success)
+            if (!rollback)
                 tx.clearLockFuture(this);
         }
 
@@ -1180,9 +1196,13 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
                 clear();
             }
 
-            boolean releaseLocks = waitTimeoutExpiresFirst() || !(inTx() && cctx.tm().deadlockDetectionEnabled());
+            if (waitTimeoutExpiresFirst())
+                onComplete(false, false, false, false);
+            else {
+                boolean releaseLocks = !(inTx() && cctx.tm().deadlockDetectionEnabled());
 
-            onComplete(false, false, releaseLocks);
+                onComplete(false, false, releaseLocks);
+            }
         }
 
         /** {@inheritDoc} */

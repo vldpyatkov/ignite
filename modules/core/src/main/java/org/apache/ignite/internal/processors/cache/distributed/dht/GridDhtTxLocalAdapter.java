@@ -577,6 +577,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         boolean skipStore,
         boolean skipReadThrough,
         boolean keepBinary,
+        long waitTimeout,
         boolean nearCache
     ) {
         try {
@@ -693,7 +694,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
                 accessTtl,
                 skipStore,
                 skipReadThrough,
-                keepBinary);
+                keepBinary,
+                waitTimeout);
         }
         catch (IgniteCheckedException e) {
             setRollbackOnly();
@@ -724,7 +726,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         final long accessTtl,
         boolean skipStore,
         boolean skipReadThrough,
-        boolean keepBinary) {
+        boolean keepBinary,
+        long waitTimeout) {
         if (log.isDebugEnabled())
             log.debug("Before acquiring transaction lock on keys [keys=" + passedKeys + ']');
 
@@ -746,7 +749,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
 
         IgniteInternalFuture<Boolean> fut = dhtCache.lockAllAsyncInternal(passedKeys,
             timeout,
-            timeout,
+            waitTimeout == 0 ? timeout : waitTimeout,
             this,
             isInvalidate(),
             read,
@@ -760,25 +763,46 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
 
         return new GridEmbeddedFuture<>(
             fut,
-            new PLC1<GridCacheReturn>(ret) {
+            new PLC1<GridCacheReturn>(ret, true, !waitTimeoutExpiresFirst(waitTimeout, timeout)) {
                 @Override protected GridCacheReturn postLock(GridCacheReturn ret) throws IgniteCheckedException {
-                    if (log.isDebugEnabled())
-                        log.debug("Acquired transaction lock on keys: " + passedKeys);
+                    assert fut.error() == null;
 
-                    postLockWrite(cacheCtx,
-                        passedKeys,
-                        ret,
-                        /*remove*/false,
-                        /*retval*/false,
-                        /*read*/read,
-                        accessTtl,
-                        CU.empty0(),
-                        /*computeInvoke*/false);
+                    boolean success = Boolean.TRUE.equals(fut.get());
+
+                    ret.success(success);
+
+                    if (log.isDebugEnabled()) {
+                        if (ret.success())
+                            log.debug("Successfully acquired transaction lock on keys: " + passedKeys);
+                        else
+                            log.debug("Failed to acquire transaction lock on keys: " + passedKeys);
+                    }
+
+                    if (ret.success()) {
+                        postLockWrite(cacheCtx,
+                            passedKeys,
+                            ret,
+                            /*remove*/false,
+                            /*retval*/false,
+                            /*read*/read,
+                            accessTtl,
+                            CU.empty0(),
+                            /*computeInvoke*/false);
+                    }
 
                     return ret;
                 }
             }
         );
+    }
+
+    /**
+     * @param waitTimeout Lock wait timeout.
+     * @param timeout Transaction timeout.
+     * @return {@code True} if separate lock wait timeout expires before transaction timeout.
+     */
+    private static boolean waitTimeoutExpiresFirst(long waitTimeout, long timeout) {
+        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
     }
 
     /** {@inheritDoc} */
