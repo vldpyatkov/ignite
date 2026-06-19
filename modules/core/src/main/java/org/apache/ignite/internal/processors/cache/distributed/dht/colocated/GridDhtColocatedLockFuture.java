@@ -1693,6 +1693,12 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
                 return;
             }
 
+            if (!res.lockAcquired()) {
+                onDone(false);
+
+                return;
+            }
+
             if (res.clientRemapVersion() != null) {
                 assert cctx.kernalContext().clientNode();
 

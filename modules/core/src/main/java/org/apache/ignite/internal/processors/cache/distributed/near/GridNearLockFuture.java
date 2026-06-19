@@ -1237,6 +1237,9 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
                             return false;
                         }
 
+                        if (!res.lockAcquired())
+                            return false;
+
                         if (log.isDebugEnabled())
                             log.debug("Acquired lock for local DHT mapping [locId=" + cctx.nodeId() +
                                 ", mappedKeys=" + mappedKeys + ", fut=" + GridNearLockFuture.this + ']');

@@ -1074,16 +1074,16 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                             // Transaction can be emptied by asynchronous rollback.
                             assert e != null || !t.empty();
 
+                            boolean lockAcquired = e != null || o.success();
+
                             // Create response while holding locks.
                             final GridNearLockResponse resp = createLockReply(nearNode,
                                 entries,
                                 req,
                                 t,
                                 t.xidVersion(),
-                                e);
-
-                            if (e == null && !o.success())
-                                resp.lockAcquired(false);
+                                e,
+                                lockAcquired);
 
                             assert !t.implicit() : t;
                             assert !t.onePhaseCommit() : t;
@@ -1111,15 +1111,15 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                             else if (!b && !waitTimeoutExpiresFirst(req))
                                 e = new GridCacheLockTimeoutException(req.version());
 
+                            boolean lockAcquired = e != null || b;
+
                             GridNearLockResponse res = createLockReply(nearNode,
                                 entries,
                                 req,
                                 null,
                                 mappedVer,
-                                e);
-
-                            if (e == null && !b)
-                                res.lockAcquired(false);
+                                e,
+                                lockAcquired);
 
                             sendLockReply(nearNode, null, req, res);
 
@@ -1147,7 +1147,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                     req,
                     tx,
                     tx != null ? tx.xidVersion() : req.version(),
-                    e);
+                    e,
+                    false);
 
                 sendLockReply(nearNode, null, req, res);
             }
@@ -1212,6 +1213,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
      * @param tx Transaction.
      * @param mappedVer Mapped version.
      * @param err Error.
+     * @param lockAcquired {@code True} if requested locks were acquired.
      * @return Response.
      */
     private GridNearLockResponse createLockReply(
@@ -1220,7 +1222,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
         GridNearLockRequest req,
         @Nullable GridDhtTxLocalAdapter tx,
         GridCacheVersion mappedVer,
-        Throwable err) {
+        Throwable err,
+        boolean lockAcquired) {
         assert mappedVer != null;
         assert tx == null || tx.xidVersion().equals(mappedVer);
 
@@ -1242,8 +1245,13 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                 clienRemapVer,
                 clienRemapVer != null);
 
+            res.lockAcquired(lockAcquired);
+
             if (err == null) {
                 res.pending(localDhtPendingVersions(entries, mappedVer));
+
+                if (!lockAcquired)
+                    return res;
 
                 // We have to add completed versions for cases when nearLocal and remote transactions
                 // execute concurrently.
