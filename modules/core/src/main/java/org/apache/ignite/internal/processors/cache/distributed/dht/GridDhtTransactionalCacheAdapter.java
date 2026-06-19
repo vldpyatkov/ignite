@@ -1654,11 +1654,14 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                     GridCacheMvccCandidate cand = null;
 
                     if (dhtVer == null) {
-                        cand = entry.localCandidateByNearVersion(ver, true);
+                        cand = entry.localCandidateByNearVersion(ver, !forSavepoint);
 
                         if (cand != null)
                             dhtVer = cand.version();
                         else {
+                            if (forSavepoint)
+                                break;
+
                             if (log.isDebugEnabled())
                                 log.debug("Failed to locate lock candidate based on dht or near versions [nodeId=" +
                                     nodeId + ", ver=" + ver + ", unmap=" + unmap + ", keys=" + keys + ']');
@@ -1692,7 +1695,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                     // Note that we don't reorder completed versions here,
                     // as there is no point to reorder relative to the version
                     // we are about to remove.
-                    if (entry.removeLock(dhtVer)) {
+                    if ((forSavepoint && cand == null) || entry.removeLock(dhtVer)) {
                         if (forSavepoint)
                             clearTxEntry(dhtVer, key);
 

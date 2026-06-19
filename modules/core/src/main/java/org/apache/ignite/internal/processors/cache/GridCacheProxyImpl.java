@@ -1368,6 +1368,34 @@ public class GridCacheProxyImpl<K, V> implements IgniteInternalCache<K, V>, Exte
     }
 
     /** {@inheritDoc} */
+    @Override public boolean lockTxEntries(Collection<CacheEntry<K, V>> entries, long waitTimeout)
+        throws IgniteCheckedException {
+        CacheOperationContext prev = gate.enter(opCtx);
+
+        try {
+            return delegate.lockTxEntries(entries, waitTimeout);
+        }
+        finally {
+            gate.leave(prev);
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override public IgniteInternalFuture<Boolean> lockTxEntriesAsync(
+        Collection<CacheEntry<K, V>> entries,
+        long waitTimeout
+    ) {
+        CacheOperationContext prev = gate.enter(opCtx);
+
+        try {
+            return delegate.lockTxEntriesAsync(entries, waitTimeout);
+        }
+        finally {
+            gate.leave(prev);
+        }
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean isLockedByThread(K key) {
         CacheOperationContext prev = gate.enter(opCtx);
 

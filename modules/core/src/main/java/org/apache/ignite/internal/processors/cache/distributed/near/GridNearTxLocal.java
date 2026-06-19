@@ -3216,14 +3216,20 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
     }
 
     /**
-     * Removes transaction entry and releases its acquired transactional lock.
+     * Removes transaction entries and releases their acquired transactional locks.
      *
-     * @param entry Entry to remove and unlock.
+     * @param entries Entries to remove and unlock.
      */
-    public void removeAndUnlockTxEntry(IgniteTxEntry entry) {
-        txState().removeEntry(entry.txKey());
-        removeEntryMappings(entry);
-        unlockTxEntries(Collections.singleton(entry));
+    public void removeAndUnlockTxEntries(Collection<IgniteTxEntry> entries) {
+        if (F.isEmpty(entries))
+            return;
+
+        for (IgniteTxEntry entry : entries) {
+            txState().removeEntry(entry.txKey());
+            removeEntryMappings(entry);
+        }
+
+        unlockTxEntries(entries);
     }
 
     /**
@@ -3287,7 +3293,16 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
             else if (cacheCtx.cache().isColocated()) {
                 UUID nodeId = entry.nodeId();
 
-                if (nodeId == null || cctx.localNodeId().equals(nodeId))
+                if (nodeId == null) {
+                    ClusterNode primary = cacheCtx.affinity().primaryByKey(entry.key(), topologyVersion());
+
+                    if (primary == null)
+                        continue;
+
+                    nodeId = primary.id();
+                }
+
+                if (cctx.localNodeId().equals(nodeId))
                     colocatedLocKeys.computeIfAbsent(cacheCtx, k -> new ArrayList<>()).add(entry.key());
                 else {
                     colocatedRmtKeys

@@ -19,7 +19,6 @@ package org.apache.ignite.internal.processors.cache;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
@@ -31,13 +30,10 @@ import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.NearCacheConfiguration;
-import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
-import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
-import org.jsr166.ConcurrentLinkedHashMap;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -224,10 +220,7 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
 
         try (Transaction tx = ignite0.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
             if (batch) {
-                assertEquals(Map.of(
-                    localEntry, true,
-                    remoteEntry, true
-                ), acquireLockForEntries(cache, List.of(localEntry, remoteEntry), 0));
+                assertTrue(acquireLockForEntries(cache, List.of(localEntry, remoteEntry), 0));
             } else {
                 assertTrue(acquireLockForEntry(cache, localEntry, 0));
                 assertTrue(acquireLockForEntry(cache, remoteEntry, 0));
@@ -241,10 +234,7 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
 
         try (Transaction tx = ignite0.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
             if (batch) {
-                assertEquals(Map.of(
-                    localEntry, true,
-                    remoteEntry, true
-                ), acquireLockForEntries(cache, List.of(localEntry, remoteEntry), 0));
+                assertTrue(acquireLockForEntries(cache, List.of(localEntry, remoteEntry), 0));
             } else {
                 assertTrue(acquireLockForEntry(cache, localEntry, 0));
                 assertTrue(acquireLockForEntry(cache, remoteEntry, 0));
@@ -320,11 +310,16 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
                 long startWaiting = System.currentTimeMillis();
 
                 if (batch) {
-                    acquireLockForEntries(cache, List.of(
+                    assertFalse(acquireLockForEntries(cache, List.of(
                         cache.getEntry(txKey1),
                         entry,
                         cache.getEntry(txKey2)
-                        ), timeout);
+                        ), timeout));
+
+                    assertTrue(acquireLockForEntries(cache, List.of(
+                        cache.getEntry(txKey1),
+                        cache.getEntry(txKey2)
+                    ), timeout));
                 }
                 else {
                     assertTrue(acquireLockForEntry(cache, cache.getEntry(txKey1), timeout));
@@ -378,7 +373,7 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
 
         try (Transaction tx = ignite0.transactions().txStart(PESSIMISTIC, txIsolation)) {
             if (batch)
-                assertEquals(Map.of(entry, true), acquireLockForEntries(cache, List.of(entry), 0));
+                assertTrue(acquireLockForEntries(cache, List.of(entry), 0));
             else
                 assertTrue(acquireLockForEntry(cache, entry, 0));
 
@@ -405,35 +400,11 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<CacheEntry<Integer, Integer>, Boolean> acquireLockForEntries(
+    private static boolean acquireLockForEntries(
         IgniteCache<Integer, Integer> cache,
         List<CacheEntry<Integer, Integer>> entries,
         long timeout
     ) throws IgniteCheckedException {
-        GridCompoundFuture<Object, Void> compoundFut = new GridCompoundFuture<>();
-        Map<CacheEntry<Integer, Integer>, Boolean> res = new ConcurrentLinkedHashMap<>(entries.size());
-
-        for (CacheEntry<Integer, Integer> entry : entries) {
-            IgniteInternalFuture<Boolean> lockFut = cache.unwrap(IgniteCacheProxy.class).internalProxy().lockTxEntryAsync(entry, timeout);
-
-            lockFut = lockFut.chain(lockedFut -> {
-                try {
-                    res.put(entry, lockedFut.get());
-                }
-                catch (IgniteCheckedException e) {
-                    throw new RuntimeException(e);
-                }
-
-                return null;
-            });
-
-            compoundFut.add((IgniteInternalFuture<Object>) (IgniteInternalFuture<?>) lockFut);
-        }
-
-        compoundFut.markInitialized();
-
-        compoundFut.get();
-
-        return res;
+        return cache.unwrap(IgniteCacheProxy.class).internalProxy().lockTxEntries(entries, timeout);
     }
 }

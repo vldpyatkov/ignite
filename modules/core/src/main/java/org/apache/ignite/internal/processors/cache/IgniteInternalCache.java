@@ -1359,6 +1359,19 @@ public interface IgniteInternalCache<K, V> extends Iterable<Cache.Entry<K, V>> {
     public boolean lockTxEntry(CacheEntry<K, V> entry, long waitTimeout) throws IgniteCheckedException;
 
     /**
+     * Acquires transactional locks for cached objects represented by the given entries only if current entry versions
+     * are equal to entry versions. This method works only in {@link TransactionConcurrency#PESSIMISTIC} transaction.
+     *
+     * @param entries Entries whose keys, values and versions should be used.
+     * @param waitTimeout Timeout in milliseconds to wait for locks to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      locks cannot be acquired immediately).
+     * @return {@code True} if all locks were acquired with the same entry versions.
+     * @throws IgniteCheckedException If lock acquisition resulted in an error.
+     */
+    public boolean lockTxEntries(Collection<CacheEntry<K, V>> entries, long waitTimeout) throws IgniteCheckedException;
+
+    /**
      * Asynchronously transactional lock for a cached object represented by the given entry only if a current entry
      * version is equal to the entry version. This method works only in
      * {@link TransactionConcurrency#PESSIMISTIC} transaction.
@@ -1371,6 +1384,20 @@ public interface IgniteInternalCache<K, V> extends Iterable<Cache.Entry<K, V>> {
      * @throws IgniteCheckedException If lock acquisition resulted in an error.
      */
     public IgniteInternalFuture<Boolean> lockTxEntryAsync(CacheEntry<K, V> entry, long waitTimeout);
+
+    /**
+     * Asynchronously acquires transactional locks for cached objects represented by the given entries only if current
+     * entry versions are equal to entry versions. This method works only in
+     * {@link TransactionConcurrency#PESSIMISTIC} transaction.
+     *
+     * @param entries Entries whose keys, values and versions should be used.
+     * @param waitTimeout Timeout in milliseconds to wait for locks to be acquired
+     *      ({@code '0'} for no expiration), {@code -1} for immediate failure if
+     *      locks cannot be acquired immediately).
+     * @return {@code True} if all locks were acquired with the same entry versions.
+     * @throws IgniteCheckedException If lock acquisition resulted in an error.
+     */
+    public IgniteInternalFuture<Boolean> lockTxEntriesAsync(Collection<CacheEntry<K, V>> entries, long waitTimeout);
 
     /**
      * Checks if current thread owns a lock on this key.
