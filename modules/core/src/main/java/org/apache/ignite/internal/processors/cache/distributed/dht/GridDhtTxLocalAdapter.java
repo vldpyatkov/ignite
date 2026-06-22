@@ -787,7 +787,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
                             /*read*/read,
                             accessTtl,
                             CU.empty0(),
-                            /*computeInvoke*/false);
+                            /*computeInvoke*/false,
+                            /*skipIfLockLost*/waitTimeoutExpiresFirst(waitTimeout, timeout));
                     }
 
                     return ret;

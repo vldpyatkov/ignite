@@ -1086,6 +1086,36 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
         CacheEntryPredicate[] filter,
         boolean computeInvoke
     ) throws IgniteCheckedException {
+        postLockWrite(cacheCtx, keys, ret, rmv, retval, read, accessTtl, filter, computeInvoke, false);
+    }
+
+    /**
+     * Post lock processing for put or remove.
+     *
+     * @param cacheCtx Context.
+     * @param keys Keys.
+     * @param ret Return value.
+     * @param rmv {@code True} if remove.
+     * @param retval Flag to return value or not.
+     * @param read {@code True} if read.
+     * @param accessTtl TTL for read operation.
+     * @param filter Filter to check entries.
+     * @param computeInvoke If {@code true} computes return value for invoke operation.
+     * @param skipIfLockLost Return unsuccessful result if a separate lock wait timeout has removed the lock.
+     * @throws IgniteCheckedException If error.
+     */
+    protected final void postLockWrite(
+        GridCacheContext cacheCtx,
+        Iterable<KeyCacheObject> keys,
+        GridCacheReturn ret,
+        boolean rmv,
+        boolean retval,
+        boolean read,
+        long accessTtl,
+        CacheEntryPredicate[] filter,
+        boolean computeInvoke,
+        boolean skipIfLockLost
+    ) throws IgniteCheckedException {
         for (KeyCacheObject k : keys) {
             IgniteTxEntry txEntry = entry(cacheCtx.txKey(k));
 
@@ -1097,7 +1127,15 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter implements Ig
                 GridCacheEntryEx cached = txEntry.cached();
 
                 try {
-                    assert cached.detached() || cached.lockedLocally(xidVersion()) || isRollbackOnly() :
+                    boolean ownsLock = cached.detached() || cached.lockedLocally(xidVersion());
+
+                    if (!ownsLock && skipIfLockLost) {
+                        ret.success(false);
+
+                        return;
+                    }
+
+                    assert ownsLock || isRollbackOnly() :
                         "Transaction lock is not acquired [entry=" + cached + ", tx=" + this +
                             ", nodeId=" + cctx.localNodeId() + ", threadId=" + threadId + ']';
 

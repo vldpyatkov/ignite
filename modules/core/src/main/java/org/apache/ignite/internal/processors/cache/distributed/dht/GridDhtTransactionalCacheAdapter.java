@@ -1072,9 +1072,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                                 e = U.unwrap(e);
 
                             // Transaction can be emptied by asynchronous rollback.
-                            assert e != null || !t.empty();
-
-                            boolean lockAcquired = e != null || o.success();
+                            boolean lockAcquired = e == null && o != null && o.success() && !t.empty();
 
                             // Create response while holding locks.
                             final GridNearLockResponse resp = createLockReply(nearNode,
@@ -1203,7 +1201,8 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
      * @return {@code True} if separate lock wait timeout expires before transaction timeout.
      */
     private static boolean waitTimeoutExpiresFirst(GridNearLockRequest req) {
-        return req.waitTimeout() > 0 && (req.timeout() <= 0 || req.waitTimeout() < req.timeout());
+        return req.waitTimeout() < 0 ||
+            (req.waitTimeout() > 0 && (req.timeout() <= 0 || req.waitTimeout() < req.timeout()));
     }
 
     /**
@@ -1274,6 +1273,21 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
 
                                 GridCacheVersion ver = e.version();
 
+                                boolean ownsLock = e.lockedBy(mappedVer) ||
+                                    ctx.mvcc().isRemoved(e.context(), mappedVer);
+
+                                if (!ownsLock && waitTimeoutExpiresFirst(req)) {
+                                    res.lockAcquired(false);
+
+                                    return res;
+                                }
+
+                                assert ownsLock || tx != null && tx.isRollbackOnly() :
+                                    "Entry does not own lock for tx [locNodeId=" + ctx.localNodeId() +
+                                        ", entry=" + e +
+                                        ", mappedVer=" + mappedVer + ", ver=" + ver +
+                                        ", tx=" + CU.txString(tx) + ", req=" + req + ']';
+
                                 boolean ret = req.returnValue(i) || dhtVer == null || !dhtVer.equals(ver);
 
                                 CacheObject val = null;
@@ -1290,14 +1304,6 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                                         null,
                                         req.keepBinary());
                                 }
-
-                                assert e.lockedBy(mappedVer) ||
-                                    ctx.mvcc().isRemoved(e.context(), mappedVer) ||
-                                    tx != null && tx.isRollbackOnly() :
-                                    "Entry does not own lock for tx [locNodeId=" + ctx.localNodeId() +
-                                        ", entry=" + e +
-                                        ", mappedVer=" + mappedVer + ", ver=" + ver +
-                                        ", tx=" + CU.txString(tx) + ", req=" + req + ']';
 
                                 boolean filterPassed = false;
 

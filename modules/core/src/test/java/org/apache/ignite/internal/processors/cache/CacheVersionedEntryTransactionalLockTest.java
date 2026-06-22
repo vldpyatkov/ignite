@@ -49,7 +49,7 @@ import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_REA
 @RunWith(Parameterized.class)
 public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstractTest {
     @ClassRule
-    public static Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
+    public static Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
     /** */
     private static Ignite ignite0;
@@ -295,14 +295,58 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
     }
 
     /**
+     * Checks that lock acquisition can be retried in the same transaction after the competing transaction finishes.
+     *
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testVersionedEntryLockCanBeRetriedAfterWaitTimeout() throws Exception {
+        Ignite holder = ignite0;
+        Ignite initiator = ignite1;
+
+        IgniteCache<Integer, Integer> holderCache = transactionalCache(holder);
+        IgniteCache<Integer, Integer> cache = initiator.cache(DEFAULT_CACHE_NAME);
+
+        int key = primaryKey(holderCache);
+
+        holderCache.put(key, 0);
+
+        CacheEntry<Integer, Integer> entry = cache.getEntry(key);
+
+        try (Transaction holderTx = holder.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
+            holderCache.put(key, 42);
+
+            try (Transaction tx = initiator.transactions().txStart(PESSIMISTIC, READ_COMMITTED)) {
+                if (batch)
+                    assertFalse(acquireLockForEntries(cache, List.of(entry), 200));
+                else
+                    assertFalse(acquireLockForEntry(cache, entry, 200));
+
+                holderTx.rollback();
+
+                if (batch)
+                    assertTrue(acquireLockForEntries(cache, List.of(entry), 5_000));
+                else
+                    assertTrue(acquireLockForEntry(cache, entry, 5_000));
+
+                cache.put(key, 1);
+
+                tx.commit();
+            }
+        }
+
+        assertEquals(1, cache.get(key).intValue());
+    }
+
+    /**
      * Checks that the lock entry method returns {@code false} when can not wait for lock.
      *
      * @param timeout Timeout.
      * @throws IgniteCheckedException If failed.
      */
     private void checkReturningWhenCanNotWaitForLock(long timeout, boolean commit, boolean locForLocal) throws IgniteCheckedException {
-        Ignite holder = grid(0);
-        Ignite initiator = grid(1);
+        Ignite holder = ignite0;
+        Ignite initiator = ignite1;
 
         IgniteCache<Integer, Integer> holderCache = transactionalCache(holder);
         IgniteCache<Integer, Integer> cache = initiator.cache(DEFAULT_CACHE_NAME);
