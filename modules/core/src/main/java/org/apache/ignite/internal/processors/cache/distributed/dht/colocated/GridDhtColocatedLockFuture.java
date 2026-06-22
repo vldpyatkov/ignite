@@ -1493,7 +1493,7 @@ public final class GridDhtColocatedLockFuture extends GridCacheCompoundIdentityF
      * @return {@code True} if separate lock wait timeout expires before transaction timeout.
      */
     private boolean waitTimeoutExpiresFirst() {
-        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+        return waitTimeout < 0 || (waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout));
     }
 
     /**

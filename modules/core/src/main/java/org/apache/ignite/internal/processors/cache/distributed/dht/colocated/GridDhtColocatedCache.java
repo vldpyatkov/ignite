@@ -1107,7 +1107,8 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                         Exception e) {
                         if (e != null)
                             e = U.unwrap(e);
-
+                        else if (ret != null && !ret.success())
+                            e = new GridCacheLockTimeoutException(ver);
 
                         return e;
                     }
@@ -1122,7 +1123,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
      * @return {@code True} if separate lock wait timeout expires before transaction timeout.
      */
     private static boolean waitTimeoutExpiresFirst(long waitTimeout, long timeout) {
-        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+        return waitTimeout < 0 || (waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout));
     }
 
     /**

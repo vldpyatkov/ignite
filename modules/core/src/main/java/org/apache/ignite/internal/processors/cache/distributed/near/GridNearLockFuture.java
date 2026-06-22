@@ -349,7 +349,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
             threadId,
             lockVer,
             topVer,
-            timeout,
+            lockTimeout(),
             !inTx(),
             inTx(),
             implicitSingleTx(),
@@ -364,11 +364,16 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
 
         entries.add(entry);
 
-        if (c == null && timeout < 0) {
+        if (c == null && lockTimeout() < 0) {
             if (log.isDebugEnabled())
                 log.debug("Failed to acquire lock with negative timeout: " + entry);
 
-            onFailed(false);
+            if (waitTimeoutExpiresFirst()) {
+                onComplete(false, true, false);
+            }
+            else {
+                onFailed(false);
+            }
 
             return null;
         }
@@ -1428,7 +1433,7 @@ public final class GridNearLockFuture extends GridCacheCompoundIdentityFuture<Bo
      * @return {@code True} if separate lock wait timeout expires before transaction timeout.
      */
     private boolean waitTimeoutExpiresFirst() {
-        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+        return waitTimeout < 0 || (waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout));
     }
 
     /**

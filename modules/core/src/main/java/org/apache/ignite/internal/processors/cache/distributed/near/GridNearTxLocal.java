@@ -4310,7 +4310,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements GridTimeou
      * @return {@code True} if separate lock wait timeout expires before transaction timeout.
      */
     private static boolean waitTimeoutExpiresFirst(long waitTimeout, long timeout) {
-        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+        return waitTimeout < 0 || (waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout));
     }
 
     /** {@inheritDoc} */

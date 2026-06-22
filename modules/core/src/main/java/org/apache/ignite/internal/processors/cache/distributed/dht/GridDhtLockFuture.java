@@ -433,18 +433,22 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
             threadId,
             lockVer,
             null,
-            timeout,
+            lockTimeout(),
             /*reenter*/false,
             inTx(),
             implicitSingle(),
             false
         );
 
-        if (c == null && timeout < 0) {
+        if (c == null && lockTimeout() < 0) {
             if (log.isDebugEnabled())
                 log.debug("Failed to acquire lock with negative timeout: " + entry);
 
-            onFailed();
+            if (waitTimeoutExpiresFirst()) {
+                onComplete(false, false, false, false);
+            } else {
+                onFailed();
+            }
 
             return null;
         }
@@ -618,10 +622,13 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
                 try {
                     CacheLockCandidates owners = entry.readyLock(lockVer);
 
-                    if (timeout < 0) {
+                    if (lockTimeout() < 0) {
                         if (owners == null || !owners.hasCandidate(lockVer)) {
                             // We did not send any requests yet.
-                            onFailed();
+                            if (waitTimeoutExpiresFirst())
+                                onComplete(false, false, false, false);
+                            else
+                                onFailed();
 
                             return;
                         }
@@ -1160,7 +1167,7 @@ public final class GridDhtLockFuture extends GridCacheCompoundIdentityFuture<Boo
      * @return {@code True} if separate lock wait timeout expires before transaction timeout.
      */
     private boolean waitTimeoutExpiresFirst() {
-        return waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout);
+        return waitTimeout < 0 || (waitTimeout > 0 && (timeout <= 0 || waitTimeout < timeout));
     }
 
     /**

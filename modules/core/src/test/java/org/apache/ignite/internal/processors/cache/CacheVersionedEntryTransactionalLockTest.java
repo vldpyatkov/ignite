@@ -30,7 +30,6 @@ import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.NearCacheConfiguration;
-import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionIsolation;
@@ -147,8 +146,7 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         return super.getConfiguration(igniteInstanceName)
-            .setConsistentId(igniteInstanceName)
-            .setCommunicationSpi(new TestRecordingCommunicationSpi());
+            .setConsistentId(igniteInstanceName);
     }
 
     /**
@@ -167,6 +165,15 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
                 .setBackups(backups);
 
         return (IgniteCache<Integer, Integer>)ignite.createCache(ccfg);
+    }
+
+    @Test
+    public void testLockBeforePutFromClientTest() throws Exception {
+        IgniteCache<Integer, Integer> cache = transactionalCache(client);
+
+        int key = 42;
+
+        checkLockBeforePut(cache, key, READ_COMMITTED);
     }
 
     @Test
@@ -245,6 +252,14 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
 
         assertEquals(localEntry.version(), cache.getEntry(localKey).version());
         assertEquals(remoteEntry.version(), cache.getEntry(remoteKey).version());
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    @Test
+    public void testVersionedEntryLockReturnsFalseWhenEntryIsLockedByAnotherTransactionNoWait() throws Exception {
+        checkReturningWhenCanNotWaitForLock(-1, false, false);
     }
 
     /**
@@ -358,20 +373,14 @@ public class CacheVersionedEntryTransactionalLockTest extends GridCommonAbstract
     private void checkLockBeforePut(IgniteCache<Integer, Integer> cache, int key, TransactionIsolation txIsolation) throws IgniteCheckedException {
         cache.put(key, 0);
 
-        TestRecordingCommunicationSpi.spi(ignite0).record((node, message) -> {
-            info("PVD:: Message sent [from=" + ignite0.cluster().localNode().consistentId() +
-                ", to=" + node.consistentId() +
-                ", msg=" + message.getClass().getSimpleName() + ']');
-
-            return false;
-        });
-
         CacheEntry<Integer, Integer> entry = cache.getEntry(key);
 
         assertNotNull(entry);
         assertNotNull(entry.version());
 
-        try (Transaction tx = ignite0.transactions().txStart(PESSIMISTIC, txIsolation)) {
+        Ignite ign = cache.unwrap(Ignite.class);
+
+        try (Transaction tx = ign.transactions().txStart(PESSIMISTIC, txIsolation)) {
             if (batch)
                 assertTrue(acquireLockForEntries(cache, List.of(entry), 0));
             else
